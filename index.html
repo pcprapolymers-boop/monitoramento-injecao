@@ -10,7 +10,8 @@
     content="width=device-width, initial-scale=1"
   >
 
-  <title>Teste de Vídeo</title>
+  <title>Teste de Upload</title>
+
 
   <style>
 
@@ -19,107 +20,214 @@
     }
 
     body {
+
       margin: 0;
+
       padding: 15px;
-      font-family: Arial, sans-serif;
-      background: #f2f4f7;
-      color: #17202a;
+
+      font-family:
+        Arial,
+        sans-serif;
+
+      background:
+        #f2f4f7;
+
+      color:
+        #17202a;
     }
+
 
     .container {
-      max-width: 650px;
-      margin: auto;
+
+      max-width:
+        650px;
+
+      margin:
+        auto;
     }
 
+
     .card {
-      background: white;
-      padding: 18px;
-      border-radius: 18px;
-      margin-bottom: 15px;
-      box-shadow: 0 2px 8px rgba(0,0,0,.08);
+
+      background:
+        white;
+
+      padding:
+        18px;
+
+      border-radius:
+        18px;
+
+      margin-bottom:
+        15px;
+
+      box-shadow:
+        0 2px 8px
+        rgba(0,0,0,.08);
     }
+
 
     h1,
     h2 {
-      text-align: center;
+
+      text-align:
+        center;
     }
+
 
     video {
-      width: 100%;
-      display: block;
-      background: #000;
-      border-radius: 15px;
+
+      width:
+        100%;
+
+      display:
+        block;
+
+      background:
+        #000;
+
+      border-radius:
+        15px;
     }
 
-    .camera-preview {
-      aspect-ratio: 4 / 3;
-      object-fit: cover;
+
+    .camera {
+
+      aspect-ratio:
+        4 / 3;
+
+      object-fit:
+        cover;
     }
 
-    .recorded-video {
-      margin-top: 15px;
-    }
 
     button {
-      width: 100%;
-      min-height: 60px;
-      border: none;
-      border-radius: 14px;
-      margin-top: 12px;
-      font-size: 20px;
-      font-weight: bold;
-      cursor: pointer;
+
+      width:
+        100%;
+
+      min-height:
+        60px;
+
+      border:
+        none;
+
+      border-radius:
+        14px;
+
+      margin-top:
+        12px;
+
+      font-size:
+        20px;
+
+      font-weight:
+        bold;
     }
+
 
     .primary {
-      background: #1769aa;
-      color: white;
+
+      background:
+        #1769aa;
+
+      color:
+        white;
     }
+
 
     .record {
-      background: #d64545;
-      color: white;
+
+      background:
+        #d64545;
+
+      color:
+        white;
     }
 
-    .secondary {
-      background: #dfe4ea;
-      color: #17202a;
+
+    .upload {
+
+      background:
+        #1f9d55;
+
+      color:
+        white;
     }
+
 
     button:disabled {
-      background: #aeb7c2;
-      color: #fff;
-      cursor: not-allowed;
+
+      background:
+        #aeb7c2;
     }
+
 
     #status {
-      margin-top: 15px;
-      padding: 15px;
-      border-radius: 12px;
-      background: #eef1f5;
-      text-align: center;
-      font-size: 18px;
-      font-weight: bold;
+
+      margin-top:
+        15px;
+
+      padding:
+        15px;
+
+      border-radius:
+        12px;
+
+      background:
+        #eef1f5;
+
+      text-align:
+        center;
+
+      font-size:
+        18px;
+
+      font-weight:
+        bold;
     }
+
 
     #timer {
-      text-align: center;
-      font-size: 48px;
-      font-weight: bold;
-      margin: 15px 0;
+
+      text-align:
+        center;
+
+      font-size:
+        48px;
+
+      font-weight:
+        bold;
+
+      margin:
+        15px 0;
     }
+
 
     .hidden {
-      display: none;
+
+      display:
+        none;
     }
 
-    .red {
-      color: #d64545;
-    }
 
     .success {
-      background: #e8f7ee !important;
-      color: #176b3a;
+
+      background:
+        #e8f7ee !important;
+
+      color:
+        #176b3a;
+    }
+
+
+    .error {
+
+      background:
+        #fdeaea !important;
+
+      color:
+        #9e2a2a;
     }
 
   </style>
@@ -129,33 +237,35 @@
 
 <body>
 
+
 <div class="container">
+
 
   <div class="card">
 
     <h1>
-      🎥 Teste de Gravação
+      🎥 Teste de Upload
     </h1>
 
-    <div
-      id="status"
-    >
+
+    <div id="status">
       Aguardando...
     </div>
 
-    <div
-      id="timer"
-    >
+
+    <div id="timer">
       15
     </div>
 
+
     <video
       id="camera"
-      class="camera-preview"
+      class="camera"
       autoplay
       muted
       playsinline
     ></video>
+
 
     <button
       id="btnCamera"
@@ -164,6 +274,7 @@
     >
       📷 Abrir câmera
     </button>
+
 
     <button
       id="btnGravar"
@@ -185,83 +296,165 @@
       ✅ Vídeo gravado
     </h2>
 
+
     <video
       id="videoGravado"
-      class="recorded-video"
       controls
       playsinline
     ></video>
 
+
     <button
-      class="secondary"
-      onclick="gravarNovamente()"
+      id="btnEnviar"
+      class="upload"
+      onclick="enviarVideo()"
     >
-      🔄 Gravar novamente
+      ☁️ Enviar para Google Drive
     </button>
 
   </div>
 
+
 </div>
+
+
+<!--
+  Formulário invisível.
+  Ele será enviado para o Apps Script
+  sem depender de CORS.
+-->
+
+<iframe
+  name="iframeUpload"
+  id="iframeUpload"
+  style="
+    display:none;
+    width:0;
+    height:0;
+    border:0;
+  "
+></iframe>
+
+
+<form
+  id="uploadForm"
+  target="iframeUpload"
+  method="POST"
+  enctype="application/x-www-form-urlencoded"
+  style="display:none;"
+>
+
+  <input
+    type="hidden"
+    name="tipo"
+    id="campoTipo"
+  >
+
+  <input
+    type="hidden"
+    name="nomeArquivo"
+    id="campoNome"
+  >
+
+  <input
+    type="hidden"
+    name="mimeType"
+    id="campoMime"
+  >
+
+  <input
+    type="hidden"
+    name="arquivoBase64"
+    id="campoBase64"
+  >
+
+</form>
 
 
 <script>
 
-let cameraStream = null;
 
-let mediaRecorder = null;
+/*
+ * COLE A URL DO SEU WEB APP AQUI.
+ *
+ * NÃO COLOQUE ?m=M1
+ */
 
-let partesVideo = [];
+const URL_APPS_SCRIPT =
+  'https://script.google.com/macros/s/AKfycbyyczQIADys9S5tG7G9WiR_tFiWubW4mcteLurFO_GOlrlSs9f9CWkcojnjsuG5Jgvt/exec';
 
-let videoBlob = null;
 
-let contador = null;
+let cameraStream =
+  null;
 
-let segundos = 15;
+
+let mediaRecorder =
+  null;
+
+
+let partesVideo =
+  [];
+
+
+let videoBlob =
+  null;
+
+
+let contador =
+  null;
+
+
+let segundos =
+  15;
 
 
 /* -------------------------------- */
-/* ABRIR CÂMERA                     */
+/* CÂMERA                           */
 /* -------------------------------- */
+
 
 async function abrirCamera() {
 
-  const status =
-    document.getElementById('status');
-
-  const btnCamera =
-    document.getElementById('btnCamera');
+  alterarStatus(
+    'Solicitando acesso à câmera...'
+  );
 
 
   try {
 
-    status.textContent =
-      'Solicitando acesso à câmera...';
-
-
     cameraStream =
-      await navigator.mediaDevices.getUserMedia({
+      await navigator
+        .mediaDevices
+        .getUserMedia({
 
-        video: {
-          facingMode: {
-            ideal: 'environment'
+          video: {
+
+            facingMode: {
+              ideal:
+                'environment'
+            },
+
+            width: {
+              ideal: 1280
+            },
+
+            height: {
+              ideal: 720
+            }
+
           },
 
-          width: {
-            ideal: 1280
-          },
+          audio:
+            false
 
-          height: {
-            ideal: 720
-          }
-        },
-
-        audio: false
-
-      });
+        });
 
 
     const camera =
-      document.getElementById('camera');
+      document
+        .getElementById(
+          'camera'
+        );
 
 
     camera.srcObject =
@@ -271,29 +464,45 @@ async function abrirCamera() {
     await camera.play();
 
 
-    status.textContent =
-      '✅ Câmera pronta.';
-
-
-    btnCamera.classList.add(
-      'hidden'
+    alterarStatus(
+      '✅ Câmera pronta.'
     );
 
 
     document
-      .getElementById('btnGravar')
+      .getElementById(
+        'btnCamera'
+      )
       .classList
-      .remove('hidden');
+      .add(
+        'hidden'
+      );
+
+
+    document
+      .getElementById(
+        'btnGravar'
+      )
+      .classList
+      .remove(
+        'hidden'
+      );
 
   }
 
+
   catch (erro) {
 
-    console.error(erro);
+    console.error(
+      erro
+    );
 
-    status.textContent =
+
+    alterarStatus(
       '❌ Erro ao acessar a câmera: ' +
-      erro.message;
+      erro.message,
+      true
+    );
 
   }
 
@@ -301,8 +510,9 @@ async function abrirCamera() {
 
 
 /* -------------------------------- */
-/* ESCOLHER FORMATO                 */
+/* FORMATO DO VÍDEO                 */
 /* -------------------------------- */
+
 
 function escolherFormato() {
 
@@ -318,13 +528,15 @@ function escolherFormato() {
 
 
   for (
-    const formato of formatos
+    const formato
+    of formatos
   ) {
 
     if (
-      MediaRecorder.isTypeSupported(
-        formato
-      )
+      MediaRecorder
+        .isTypeSupported(
+          formato
+        )
     ) {
 
       return formato;
@@ -340,78 +552,57 @@ function escolherFormato() {
 
 
 /* -------------------------------- */
-/* INICIAR GRAVAÇÃO                 */
+/* GRAVAÇÃO                         */
 /* -------------------------------- */
+
 
 function iniciarGravacao() {
 
-  if (!cameraStream) {
+  partesVideo =
+    [];
 
-    return;
+  videoBlob =
+    null;
 
-  }
-
-
-  partesVideo = [];
-
-  videoBlob = null;
-
-  segundos = 15;
-
-
-  document
-    .getElementById('resultado')
-    .classList
-    .add('hidden');
+  segundos =
+    15;
 
 
   const formato =
     escolherFormato();
 
 
-  try {
+  if (formato) {
 
-    if (formato) {
-
-      mediaRecorder =
-        new MediaRecorder(
-          cameraStream,
-          {
-            mimeType: formato
-          }
-        );
-
-    } else {
-
-      mediaRecorder =
-        new MediaRecorder(
-          cameraStream
-        );
-
-    }
+    mediaRecorder =
+      new MediaRecorder(
+        cameraStream,
+        {
+          mimeType:
+            formato
+        }
+      );
 
   }
 
-  catch (erro) {
+  else {
 
-    console.error(erro);
-
-    document
-      .getElementById('status')
-      .textContent =
-      '❌ Não foi possível iniciar a gravação.';
-
-    return;
+    mediaRecorder =
+      new MediaRecorder(
+        cameraStream
+      );
 
   }
 
 
-  mediaRecorder.ondataavailable =
+  mediaRecorder
+    .ondataavailable =
     function(evento) {
 
       if (
         evento.data &&
-        evento.data.size > 0
+        evento.data.size >
+        0
       ) {
 
         partesVideo.push(
@@ -423,10 +614,11 @@ function iniciarGravacao() {
     };
 
 
-  mediaRecorder.onstop =
+  mediaRecorder
+    .onstop =
     function() {
 
-      const tipo =
+      const mime =
         mediaRecorder.mimeType ||
         'video/webm';
 
@@ -435,7 +627,8 @@ function iniciarGravacao() {
         new Blob(
           partesVideo,
           {
-            type: tipo
+            type:
+              mime
           }
         );
 
@@ -447,26 +640,26 @@ function iniciarGravacao() {
 
 
       document
-        .getElementById('videoGravado')
-        .src = url;
+        .getElementById(
+          'videoGravado'
+        )
+        .src =
+        url;
 
 
       document
-        .getElementById('resultado')
+        .getElementById(
+          'resultado'
+        )
         .classList
-        .remove('hidden');
+        .remove(
+          'hidden'
+        );
 
 
-      document
-        .getElementById('status')
-        .textContent =
-        '✅ Gravação concluída.';
-
-
-      document
-        .getElementById('status')
-        .classList
-        .add('success');
+      alterarStatus(
+        '✅ Vídeo pronto para envio.'
+      );
 
 
       desligarCamera();
@@ -479,22 +672,19 @@ function iniciarGravacao() {
   );
 
 
-  document
-    .getElementById('status')
-    .textContent =
-    '🔴 GRAVANDO';
+  alterarStatus(
+    '🔴 GRAVANDO'
+  );
 
 
   document
-    .getElementById('status')
+    .getElementById(
+      'status'
+    )
     .classList
-    .remove('success');
-
-
-  document
-    .getElementById('status')
-    .classList
-    .add('red');
+    .remove(
+      'success'
+    );
 
 
   atualizarTimer();
@@ -510,14 +700,17 @@ function iniciarGravacao() {
 
 
         if (
-          segundos <= 0
+          segundos <=
+          0
         ) {
 
           clearInterval(
             contador
           );
 
-          contador = null;
+          contador =
+            null;
+
 
           pararGravacao();
 
@@ -531,29 +724,38 @@ function iniciarGravacao() {
 
 
 /* -------------------------------- */
-/* ATUALIZAR CONTADOR               */
+/* TIMER                            */
 /* -------------------------------- */
+
 
 function atualizarTimer() {
 
   document
-    .getElementById('timer')
+    .getElementById(
+      'timer'
+    )
     .textContent =
-    String(segundos)
-      .padStart(2, '0');
+    String(
+      segundos
+    ).padStart(
+      2,
+      '0'
+    );
 
 }
 
 
 /* -------------------------------- */
-/* PARAR GRAVAÇÃO                   */
+/* PARAR                            */
 /* -------------------------------- */
+
 
 function pararGravacao() {
 
   if (
     mediaRecorder &&
-    mediaRecorder.state !== 'inactive'
+    mediaRecorder.state !==
+    'inactive'
   ) {
 
     mediaRecorder.stop();
@@ -566,6 +768,7 @@ function pararGravacao() {
 /* -------------------------------- */
 /* DESLIGAR CÂMERA                  */
 /* -------------------------------- */
+
 
 function desligarCamera() {
 
@@ -583,87 +786,341 @@ function desligarCamera() {
 
   }
 
-  cameraStream = null;
-
-}
-
-
-/* -------------------------------- */
-/* GRAVAR NOVAMENTE                 */
-/* -------------------------------- */
-
-async function gravarNovamente() {
-
-  document
-    .getElementById('resultado')
-    .classList
-    .add('hidden');
-
-
-  document
-    .getElementById('status')
-    .classList
-    .remove('success');
-
-
-  document
-    .getElementById('status')
-    .textContent =
-    'Abrindo câmera...';
-
-
-  segundos = 15;
-
-  atualizarTimer();
-
-
-  const btnCamera =
-    document.getElementById('btnCamera');
-
-  const btnGravar =
-    document.getElementById('btnGravar');
-
-
-  btnCamera.classList.add(
-    'hidden'
-  );
-
-
-  btnGravar.classList.add(
-    'hidden'
-  );
-
 
   cameraStream =
-    await navigator.mediaDevices.getUserMedia({
+    null;
 
-      video: {
-        facingMode: {
-          ideal: 'environment'
-        }
-      },
-
-      audio: false
-
-    });
+}
 
 
-  const camera =
-    document.getElementById('camera');
+/* -------------------------------- */
+/* STATUS                           */
+/* -------------------------------- */
 
 
-  camera.srcObject =
-    cameraStream;
+function alterarStatus(
+  texto,
+  erro = false
+) {
+
+  const status =
+    document
+      .getElementById(
+        'status'
+      );
 
 
-  await camera.play();
+  status.textContent =
+    texto;
 
 
-  btnGravar.classList.remove(
-    'hidden'
+  status.classList
+    .toggle(
+      'error',
+      erro
+    );
+
+
+  status.classList
+    .toggle(
+      'success',
+      !erro &&
+      texto.includes('✅')
+    );
+
+}
+
+
+/* -------------------------------- */
+/* CONVERTER BLOB → BASE64          */
+/* -------------------------------- */
+
+
+function blobParaBase64(
+  blob
+) {
+
+  return new Promise(
+    function(
+      resolve,
+      reject
+    ) {
+
+      const reader =
+        new FileReader();
+
+
+      reader.onloadend =
+        function() {
+
+          resolve(
+            reader.result
+          );
+
+        };
+
+
+      reader.onerror =
+        reject;
+
+
+      reader.readAsDataURL(
+        blob
+      );
+
+    }
   );
 
 }
+
+
+/* -------------------------------- */
+/* ENVIAR VÍDEO                     */
+/* -------------------------------- */
+
+
+async function enviarVideo() {
+
+  if (
+    !videoBlob
+  ) {
+
+    alterarStatus(
+      'Nenhum vídeo disponível para envio.',
+      true
+    );
+
+    return;
+
+  }
+
+
+  if (
+    !URL_APPS_SCRIPT ||
+    URL_APPS_SCRIPT.includes(
+      'COLE_AQUI'
+    )
+  ) {
+
+    alterarStatus(
+      'A URL do Apps Script ainda não foi configurada.',
+      true
+    );
+
+    return;
+
+  }
+
+
+  const botao =
+    document
+      .getElementById(
+        'btnEnviar'
+      );
+
+
+  botao.disabled =
+    true;
+
+
+  botao.textContent =
+    'Preparando envio...';
+
+
+  try {
+
+    const base64 =
+      await blobParaBase64(
+        videoBlob
+      );
+
+
+    const mime =
+      videoBlob.type ||
+      'video/webm';
+
+
+    const extensao =
+      mime.includes('mp4')
+        ? 'mp4'
+        : 'webm';
+
+
+    const nome =
+      'inspecao_' +
+      Date.now() +
+      '.' +
+      extensao;
+
+
+    document
+      .getElementById(
+        'campoTipo'
+      )
+      .value =
+      'VIDEO';
+
+
+    document
+      .getElementById(
+        'campoNome'
+      )
+      .value =
+      nome;
+
+
+    document
+      .getElementById(
+        'campoMime'
+      )
+      .value =
+      mime;
+
+
+    document
+      .getElementById(
+        'campoBase64'
+      )
+      .value =
+      base64;
+
+
+    alterarStatus(
+      '☁️ Enviando vídeo para o Google Drive...'
+    );
+
+
+    botao.textContent =
+      'Enviando...';
+
+
+    /*
+     * O formulário é enviado para o Apps Script.
+     * Isso evita o problema de CORS.
+     */
+
+    const formulario =
+      document
+        .getElementById(
+          'uploadForm'
+        );
+
+
+    formulario.action =
+      URL_APPS_SCRIPT;
+
+
+    formulario.submit();
+
+  }
+
+
+  catch (erro) {
+
+    console.error(
+      erro
+    );
+
+
+    botao.disabled =
+      false;
+
+
+    botao.textContent =
+      '☁️ Enviar para Google Drive';
+
+
+    alterarStatus(
+      '❌ Erro ao preparar o vídeo.',
+      true
+    );
+
+  }
+
+}
+
+
+/* -------------------------------- */
+/* RESPOSTA DO APPS SCRIPT          */
+/* -------------------------------- */
+
+
+window.addEventListener(
+  'message',
+  function(evento) {
+
+    const dados =
+      evento.data;
+
+
+    if (
+      !dados ||
+      dados.tipo !==
+      'VIDEO'
+    ) {
+
+      return;
+
+    }
+
+
+    const botao =
+      document
+        .getElementById(
+          'btnEnviar'
+        );
+
+
+    if (
+      dados.sucesso
+    ) {
+
+      botao.disabled =
+        false;
+
+
+      botao.textContent =
+        '✅ Vídeo enviado';
+
+
+      alterarStatus(
+        '✅ Vídeo salvo no Google Drive!'
+      );
+
+
+      console.log(
+        'Arquivo:',
+        dados.nomeArquivo
+      );
+
+
+      console.log(
+        'URL:',
+        dados.url
+      );
+
+    }
+
+    else {
+
+      botao.disabled =
+        false;
+
+
+      botao.textContent =
+        '☁️ Enviar para Google Drive';
+
+
+      alterarStatus(
+        '❌ Erro ao salvar vídeo: ' +
+        dados.erro,
+        true
+      );
+
+    }
+
+  }
+);
 
 </script>
 
