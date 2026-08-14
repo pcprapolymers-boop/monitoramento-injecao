@@ -10,7 +10,7 @@
     content="width=device-width, initial-scale=1"
   >
 
-  <title>Teste de Câmera</title>
+  <title>Teste de Vídeo</title>
 
   <style>
 
@@ -20,74 +20,185 @@
 
     body {
       margin: 0;
-      padding: 20px;
+      padding: 15px;
       font-family: Arial, sans-serif;
       background: #f2f4f7;
+      color: #17202a;
     }
 
     .container {
-      max-width: 600px;
+      max-width: 650px;
       margin: auto;
     }
 
-    h1 {
+    .card {
+      background: white;
+      padding: 18px;
+      border-radius: 18px;
+      margin-bottom: 15px;
+      box-shadow: 0 2px 8px rgba(0,0,0,.08);
+    }
+
+    h1,
+    h2 {
       text-align: center;
     }
 
     video {
       width: 100%;
-      border-radius: 16px;
+      display: block;
       background: #000;
-      margin-top: 20px;
+      border-radius: 15px;
+    }
+
+    .camera-preview {
+      aspect-ratio: 4 / 3;
+      object-fit: cover;
+    }
+
+    .recorded-video {
+      margin-top: 15px;
     }
 
     button {
       width: 100%;
       min-height: 60px;
-      border: 0;
+      border: none;
       border-radius: 14px;
-      margin-top: 15px;
+      margin-top: 12px;
       font-size: 20px;
       font-weight: bold;
+      cursor: pointer;
+    }
+
+    .primary {
       background: #1769aa;
       color: white;
+    }
+
+    .record {
+      background: #d64545;
+      color: white;
+    }
+
+    .secondary {
+      background: #dfe4ea;
+      color: #17202a;
+    }
+
+    button:disabled {
+      background: #aeb7c2;
+      color: #fff;
+      cursor: not-allowed;
     }
 
     #status {
       margin-top: 15px;
       padding: 15px;
       border-radius: 12px;
-      background: white;
+      background: #eef1f5;
       text-align: center;
+      font-size: 18px;
+      font-weight: bold;
+    }
+
+    #timer {
+      text-align: center;
+      font-size: 48px;
+      font-weight: bold;
+      margin: 15px 0;
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    .red {
+      color: #d64545;
+    }
+
+    .success {
+      background: #e8f7ee !important;
+      color: #176b3a;
     }
 
   </style>
 
 </head>
 
+
 <body>
 
 <div class="container">
 
-  <h1>
-    🎥 Teste de Câmera
-  </h1>
+  <div class="card">
 
-  <button
-    onclick="abrirCamera()"
+    <h1>
+      🎥 Teste de Gravação
+    </h1>
+
+    <div
+      id="status"
+    >
+      Aguardando...
+    </div>
+
+    <div
+      id="timer"
+    >
+      15
+    </div>
+
+    <video
+      id="camera"
+      class="camera-preview"
+      autoplay
+      muted
+      playsinline
+    ></video>
+
+    <button
+      id="btnCamera"
+      class="primary"
+      onclick="abrirCamera()"
+    >
+      📷 Abrir câmera
+    </button>
+
+    <button
+      id="btnGravar"
+      class="record hidden"
+      onclick="iniciarGravacao()"
+    >
+      🔴 Iniciar gravação
+    </button>
+
+  </div>
+
+
+  <div
+    id="resultado"
+    class="card hidden"
   >
-    Abrir câmera
-  </button>
 
-  <video
-    id="video"
-    autoplay
-    muted
-    playsinline
-  ></video>
+    <h2>
+      ✅ Vídeo gravado
+    </h2>
 
-  <div id="status">
-    Aguardando...
+    <video
+      id="videoGravado"
+      class="recorded-video"
+      controls
+      playsinline
+    ></video>
+
+    <button
+      class="secondary"
+      onclick="gravarNovamente()"
+    >
+      🔄 Gravar novamente
+    </button>
+
   </div>
 
 </div>
@@ -95,22 +206,52 @@
 
 <script>
 
+let cameraStream = null;
+
+let mediaRecorder = null;
+
+let partesVideo = [];
+
+let videoBlob = null;
+
+let contador = null;
+
+let segundos = 15;
+
+
+/* -------------------------------- */
+/* ABRIR CÂMERA                     */
+/* -------------------------------- */
+
 async function abrirCamera() {
 
   const status =
     document.getElementById('status');
 
+  const btnCamera =
+    document.getElementById('btnCamera');
+
+
   try {
 
     status.textContent =
-      'Solicitando permissão da câmera...';
+      'Solicitando acesso à câmera...';
 
-    const stream =
+
+    cameraStream =
       await navigator.mediaDevices.getUserMedia({
 
         video: {
           facingMode: {
             ideal: 'environment'
+          },
+
+          width: {
+            ideal: 1280
+          },
+
+          height: {
+            ideal: 720
           }
         },
 
@@ -118,14 +259,31 @@ async function abrirCamera() {
 
       });
 
-    const video =
-      document.getElementById('video');
 
-    video.srcObject =
-      stream;
+    const camera =
+      document.getElementById('camera');
+
+
+    camera.srcObject =
+      cameraStream;
+
+
+    await camera.play();
+
 
     status.textContent =
-      '✅ Câmera funcionando!';
+      '✅ Câmera pronta.';
+
+
+    btnCamera.classList.add(
+      'hidden'
+    );
+
+
+    document
+      .getElementById('btnGravar')
+      .classList
+      .remove('hidden');
 
   }
 
@@ -134,10 +292,376 @@ async function abrirCamera() {
     console.error(erro);
 
     status.textContent =
-      '❌ Não foi possível acessar a câmera: ' +
+      '❌ Erro ao acessar a câmera: ' +
       erro.message;
 
   }
+
+}
+
+
+/* -------------------------------- */
+/* ESCOLHER FORMATO                 */
+/* -------------------------------- */
+
+function escolherFormato() {
+
+  const formatos = [
+
+    'video/webm;codecs=vp8',
+
+    'video/webm',
+
+    'video/mp4'
+
+  ];
+
+
+  for (
+    const formato of formatos
+  ) {
+
+    if (
+      MediaRecorder.isTypeSupported(
+        formato
+      )
+    ) {
+
+      return formato;
+
+    }
+
+  }
+
+
+  return '';
+
+}
+
+
+/* -------------------------------- */
+/* INICIAR GRAVAÇÃO                 */
+/* -------------------------------- */
+
+function iniciarGravacao() {
+
+  if (!cameraStream) {
+
+    return;
+
+  }
+
+
+  partesVideo = [];
+
+  videoBlob = null;
+
+  segundos = 15;
+
+
+  document
+    .getElementById('resultado')
+    .classList
+    .add('hidden');
+
+
+  const formato =
+    escolherFormato();
+
+
+  try {
+
+    if (formato) {
+
+      mediaRecorder =
+        new MediaRecorder(
+          cameraStream,
+          {
+            mimeType: formato
+          }
+        );
+
+    } else {
+
+      mediaRecorder =
+        new MediaRecorder(
+          cameraStream
+        );
+
+    }
+
+  }
+
+  catch (erro) {
+
+    console.error(erro);
+
+    document
+      .getElementById('status')
+      .textContent =
+      '❌ Não foi possível iniciar a gravação.';
+
+    return;
+
+  }
+
+
+  mediaRecorder.ondataavailable =
+    function(evento) {
+
+      if (
+        evento.data &&
+        evento.data.size > 0
+      ) {
+
+        partesVideo.push(
+          evento.data
+        );
+
+      }
+
+    };
+
+
+  mediaRecorder.onstop =
+    function() {
+
+      const tipo =
+        mediaRecorder.mimeType ||
+        'video/webm';
+
+
+      videoBlob =
+        new Blob(
+          partesVideo,
+          {
+            type: tipo
+          }
+        );
+
+
+      const url =
+        URL.createObjectURL(
+          videoBlob
+        );
+
+
+      document
+        .getElementById('videoGravado')
+        .src = url;
+
+
+      document
+        .getElementById('resultado')
+        .classList
+        .remove('hidden');
+
+
+      document
+        .getElementById('status')
+        .textContent =
+        '✅ Gravação concluída.';
+
+
+      document
+        .getElementById('status')
+        .classList
+        .add('success');
+
+
+      desligarCamera();
+
+    };
+
+
+  mediaRecorder.start(
+    250
+  );
+
+
+  document
+    .getElementById('status')
+    .textContent =
+    '🔴 GRAVANDO';
+
+
+  document
+    .getElementById('status')
+    .classList
+    .remove('success');
+
+
+  document
+    .getElementById('status')
+    .classList
+    .add('red');
+
+
+  atualizarTimer();
+
+
+  contador =
+    setInterval(
+      function() {
+
+        segundos--;
+
+        atualizarTimer();
+
+
+        if (
+          segundos <= 0
+        ) {
+
+          clearInterval(
+            contador
+          );
+
+          contador = null;
+
+          pararGravacao();
+
+        }
+
+      },
+      1000
+    );
+
+}
+
+
+/* -------------------------------- */
+/* ATUALIZAR CONTADOR               */
+/* -------------------------------- */
+
+function atualizarTimer() {
+
+  document
+    .getElementById('timer')
+    .textContent =
+    String(segundos)
+      .padStart(2, '0');
+
+}
+
+
+/* -------------------------------- */
+/* PARAR GRAVAÇÃO                   */
+/* -------------------------------- */
+
+function pararGravacao() {
+
+  if (
+    mediaRecorder &&
+    mediaRecorder.state !== 'inactive'
+  ) {
+
+    mediaRecorder.stop();
+
+  }
+
+}
+
+
+/* -------------------------------- */
+/* DESLIGAR CÂMERA                  */
+/* -------------------------------- */
+
+function desligarCamera() {
+
+  if (cameraStream) {
+
+    cameraStream
+      .getTracks()
+      .forEach(
+        function(track) {
+
+          track.stop();
+
+        }
+      );
+
+  }
+
+  cameraStream = null;
+
+}
+
+
+/* -------------------------------- */
+/* GRAVAR NOVAMENTE                 */
+/* -------------------------------- */
+
+async function gravarNovamente() {
+
+  document
+    .getElementById('resultado')
+    .classList
+    .add('hidden');
+
+
+  document
+    .getElementById('status')
+    .classList
+    .remove('success');
+
+
+  document
+    .getElementById('status')
+    .textContent =
+    'Abrindo câmera...';
+
+
+  segundos = 15;
+
+  atualizarTimer();
+
+
+  const btnCamera =
+    document.getElementById('btnCamera');
+
+  const btnGravar =
+    document.getElementById('btnGravar');
+
+
+  btnCamera.classList.add(
+    'hidden'
+  );
+
+
+  btnGravar.classList.add(
+    'hidden'
+  );
+
+
+  cameraStream =
+    await navigator.mediaDevices.getUserMedia({
+
+      video: {
+        facingMode: {
+          ideal: 'environment'
+        }
+      },
+
+      audio: false
+
+    });
+
+
+  const camera =
+    document.getElementById('camera');
+
+
+  camera.srcObject =
+    cameraStream;
+
+
+  await camera.play();
+
+
+  btnGravar.classList.remove(
+    'hidden'
+  );
 
 }
 
