@@ -11,37 +11,1421 @@
   content="width=device-width, initial-scale=1"
 >
 
-<title>Teste Drive</title>
+<title>RA Polymers - Monitoramento</title>
+
+
+<style>
+
+:root {
+
+  --ra-blue: #174A78;
+
+  --ra-blue-dark: #113653;
+
+  --ra-blue-light: #EAF1F7;
+
+  --ra-gray: #F3F5F7;
+
+  --ra-border: #D8E0E7;
+
+  --success: #21864D;
+
+  --danger: #C83D3D;
+
+  --text: #1D2935;
+
+}
+
+
+* {
+
+  box-sizing:
+    border-box;
+
+}
+
+
+body {
+
+  margin:
+    0;
+
+  padding:
+    0;
+
+  background:
+    var(--ra-gray);
+
+  color:
+    var(--text);
+
+  font-family:
+    Arial,
+    Helvetica,
+    sans-serif;
+
+}
+
+
+.app {
+
+  width:
+    100%;
+
+  max-width:
+    650px;
+
+  margin:
+    0 auto;
+
+  padding:
+    12px;
+
+}
+
+
+/* CABEÇALHO */
+
+.header {
+
+  background:
+    white;
+
+  border-radius:
+    18px;
+
+  padding:
+    18px;
+
+  margin-bottom:
+    14px;
+
+  box-shadow:
+    0 2px 8px
+    rgba(0,0,0,.08);
+
+  text-align:
+    center;
+
+}
+
+
+.logo {
+
+  width:
+    180px;
+
+  max-width:
+    70%;
+
+  margin:
+    0 auto 10px;
+
+  display:
+    block;
+
+}
+
+
+.title {
+
+  color:
+    var(--ra-blue-dark);
+
+  font-size:
+    20px;
+
+  font-weight:
+    bold;
+
+}
+
+
+.machine {
+
+  margin-top:
+    10px;
+
+  padding:
+    10px;
+
+  border-radius:
+    12px;
+
+  background:
+    var(--ra-blue);
+
+  color:
+    white;
+
+  font-size:
+    26px;
+
+  font-weight:
+    bold;
+
+}
+
+
+/* CARTÃO */
+
+.card {
+
+  background:
+    white;
+
+  border-radius:
+    18px;
+
+  padding:
+    18px;
+
+  margin-bottom:
+    14px;
+
+  box-shadow:
+    0 2px 8px
+    rgba(0,0,0,.07);
+
+}
+
+
+label {
+
+  display:
+    block;
+
+  margin-bottom:
+    8px;
+
+  font-size:
+    17px;
+
+  font-weight:
+    bold;
+
+}
+
+
+select {
+
+  width:
+    100%;
+
+  min-height:
+    58px;
+
+  padding:
+    12px;
+
+  border:
+    2px solid
+    var(--ra-border);
+
+  border-radius:
+    13px;
+
+  background:
+    white;
+
+  font-size:
+    18px;
+
+}
+
+
+/* CICLO */
+
+.cycle {
+
+  margin-top:
+    15px;
+
+  padding:
+    16px;
+
+  border-radius:
+    14px;
+
+  background:
+    var(--ra-blue-light);
+
+  border:
+    1px solid
+    #C8D8E6;
+
+  text-align:
+    center;
+
+}
+
+
+.cycle-title {
+
+  font-size:
+    15px;
+
+  color:
+    #486173;
+
+}
+
+
+.cycle-time {
+
+  margin-top:
+    4px;
+
+  font-size:
+    36px;
+
+  font-weight:
+    bold;
+
+  color:
+    var(--ra-blue-dark);
+
+}
+
+
+/* BOTÕES */
+
+button {
+
+  width:
+    100%;
+
+  min-height:
+    62px;
+
+  border:
+    0;
+
+  border-radius:
+    15px;
+
+  font-size:
+    20px;
+
+  font-weight:
+    bold;
+
+  cursor:
+    pointer;
+
+}
+
+
+.btn-primary {
+
+  background:
+    var(--ra-blue);
+
+  color:
+    white;
+
+}
+
+
+.btn-primary:disabled {
+
+  background:
+    #AEB8C1;
+
+}
+
+
+/* CONFORMIDADE */
+
+.conformidade {
+
+  display:
+    grid;
+
+  grid-template-columns:
+    1fr 1fr;
+
+  gap:
+    12px;
+
+}
+
+
+.btn-sim {
+
+  background:
+    var(--success);
+
+  color:
+    white;
+
+}
+
+
+.btn-nao {
+
+  background:
+    var(--danger);
+
+  color:
+    white;
+
+}
+
+
+.selected {
+
+  outline:
+    5px solid
+    rgba(23,74,120,.22);
+
+  transform:
+    scale(1.015);
+
+}
+
+
+/* MENSAGENS */
+
+.message {
+
+  display:
+    none;
+
+  padding:
+    15px;
+
+  margin-bottom:
+    14px;
+
+  border-radius:
+    13px;
+
+  text-align:
+    center;
+
+  font-weight:
+    bold;
+
+}
+
+
+.message.error {
+
+  display:
+    block;
+
+  background:
+    #FDECEC;
+
+  color:
+    #9F2D2D;
+
+}
+
+
+.message.success {
+
+  display:
+    block;
+
+  background:
+    #EAF7EF;
+
+  color:
+    #17643A;
+
+}
+
+
+/* INSPEÇÃO */
+
+.inspection {
+
+  text-align:
+    center;
+
+}
+
+
+.inspection-icon {
+
+  font-size:
+    52px;
+
+}
+
+
+.inspection-title {
+
+  font-size:
+    25px;
+
+  font-weight:
+    bold;
+
+  color:
+    var(--ra-blue-dark);
+
+}
+
+
+.inspection-cycle {
+
+  font-size:
+    21px;
+
+  margin:
+    10px 0 20px;
+
+}
+
+
+/* CONTADOR */
+
+.timer {
+
+  font-size:
+    54px;
+
+  font-weight:
+    bold;
+
+  color:
+    var(--danger);
+
+  margin:
+    20px 0;
+
+}
+
+
+.recording {
+
+  color:
+    var(--danger);
+
+}
+
+
+/* SUCESSO */
+
+.success {
+
+  text-align:
+    center;
+
+  padding:
+    30px 10px;
+
+}
+
+
+.success-icon {
+
+  font-size:
+    65px;
+
+}
+
+
+.success-title {
+
+  color:
+    var(--success);
+
+  font-size:
+    28px;
+
+}
+
+
+.hidden {
+
+  display:
+    none !important;
+
+}
+
+
+/* MOBILE */
+
+@media (
+  max-width: 480px
+) {
+
+  .conformidade {
+
+    grid-template-columns:
+      1fr;
+
+  }
+
+  .app {
+
+    padding:
+      8px;
+
+  }
+
+}
+
+</style>
 
 </head>
 
+
 <body>
 
-<h1>Teste Google Drive</h1>
 
-<form
-  action="https://script.google.com/macros/s/AKfycbyyczQIADys9S5tG7G9WiR_tFiWubW4mcteLurFO_GOlrlSs9f9CWkcojnjsuG5Jgvt/exec"
-  method="POST"
->
+<div class="app">
 
-  <input
-    type="hidden"
-    name="teste"
-    value="123456"
+
+  <!-- CABEÇALHO -->
+
+  <div class="header">
+
+    <img
+      src="assets/ra-polymers-logo.jpg"
+      class="logo"
+      alt="RA Polymers"
+    >
+
+    <div class="title">
+      MONITORAMENTO DE QUALIDADE
+    </div>
+
+    <div
+      class="machine"
+      id="machine"
+    >
+      IDENTIFICANDO MÁQUINA...
+    </div>
+
+  </div>
+
+
+  <!-- MENSAGEM -->
+
+  <div
+    id="message"
+    class="message"
+  ></div>
+
+
+  <!-- FORMULÁRIO -->
+
+  <div
+    id="mainForm"
   >
 
-  <button
-    type="submit"
-    style="
-      width:100%;
-      min-height:70px;
-      font-size:22px;
-    "
-  >
-    TESTAR ENVIO PARA DRIVE
-  </button>
 
-</form>
+    <!-- OPERADOR -->
+
+    <div class="card">
+
+      <label>
+        👤 Operador
+      </label>
+
+      <select
+        id="operador"
+        onchange="verificarFormulario()"
+      >
+
+        <option value="">
+          Selecione o operador
+        </option>
+
+      </select>
+
+    </div>
+
+
+    <!-- PRODUTO -->
+
+    <div class="card">
+
+      <label>
+        📦 Produto
+      </label>
+
+      <select
+        id="produto"
+        onchange="produtoSelecionado()"
+      >
+
+        <option value="">
+          Selecione o produto
+        </option>
+
+      </select>
+
+
+      <div
+        id="cycleBox"
+        class="cycle hidden"
+      >
+
+        <div class="cycle-title">
+          CICLO PROGRAMADO
+        </div>
+
+        <div
+          id="cycleTime"
+          class="cycle-time"
+        >
+          00:00
+        </div>
+
+      </div>
+
+    </div>
+
+
+    <!-- CONFORMIDADE -->
+
+    <div
+      id="conformidadeCard"
+      class="card hidden"
+    >
+
+      <label>
+        🔎 As peças produzidas estão conformes?
+      </label>
+
+
+      <div class="conformidade">
+
+
+        <button
+          id="btnSim"
+          class="btn-sim"
+          onclick="selecionarConformidade('SIM')"
+        >
+          ✅ SIM
+        </button>
+
+
+        <button
+          id="btnNao"
+          class="btn-nao"
+          onclick="selecionarConformidade('NÃO')"
+        >
+          ❌ NÃO
+        </button>
+
+
+      </div>
+
+    </div>
+
+
+    <!-- INICIAR INSPEÇÃO -->
+
+    <div
+      id="startCard"
+      class="card hidden"
+    >
+
+      <button
+        id="btnIniciar"
+        class="btn-primary"
+        onclick="prepararInspecao()"
+      >
+        🎥 INICIAR INSPEÇÃO
+      </button>
+
+    </div>
+
+
+  </div>
+
+
+  <!-- TELA DE INSPEÇÃO -->
+
+  <div
+    id="inspectionScreen"
+    class="card inspection hidden"
+  >
+
+    <div class="inspection-icon">
+      🎥
+    </div>
+
+
+    <div class="inspection-title">
+      CICLO DE PRODUÇÃO
+    </div>
+
+
+    <div
+      id="inspectionProduct"
+      class="inspection-cycle"
+    >
+    </div>
+
+
+    <div
+      id="inspectionTimer"
+      class="timer"
+    >
+      00:00
+    </div>
+
+
+    <div
+      id="inspectionStatus"
+    >
+      Prepare a máquina...
+    </div>
+
+  </div>
+
+
+  <!-- TELA DE SUCESSO -->
+
+  <div
+    id="successScreen"
+    class="card success hidden"
+  >
+
+    <div class="success-icon">
+      ✅
+    </div>
+
+    <div class="success-title">
+      INSPEÇÃO CONCLUÍDA
+    </div>
+
+    <p>
+      Registro finalizado.
+    </p>
+
+    <button
+      class="btn-primary"
+      onclick="novoRegistro()"
+    >
+      NOVA INSPEÇÃO
+    </button>
+
+  </div>
+
+
+</div>
+
+
+<script>
+
+
+/* =====================================================
+   CONFIGURAÇÃO INICIAL
+   ===================================================== */
+
+
+/*
+ * A máquina será recebida pela URL:
+ *
+ * ?m=M1
+ *
+ */
+
+const parametros =
+  new URLSearchParams(
+    window.location.search
+  );
+
+
+const maquina =
+  (
+    parametros.get('m') ||
+    ''
+  )
+    .trim()
+    .toUpperCase();
+
+
+let operadores =
+  [];
+
+
+let produtos =
+  [];
+
+
+let produtoAtual =
+  null;
+
+
+let conformidade =
+  '';
+
+
+let tempoCiclo =
+  0;
+
+
+/* =====================================================
+   MENSAGENS
+   ===================================================== */
+
+
+function mostrarMensagem(
+  texto,
+  tipo
+) {
+
+  const box =
+    document.getElementById(
+      'message'
+    );
+
+
+  box.textContent =
+    texto;
+
+
+  box.className =
+    'message ' +
+    tipo;
+
+}
+
+
+function limparMensagem() {
+
+  const box =
+    document.getElementById(
+      'message'
+    );
+
+
+  box.textContent =
+    '';
+
+
+  box.className =
+    'message';
+
+}
+
+
+/* =====================================================
+   TEMPO
+   ===================================================== */
+
+
+function formatarTempo(
+  segundos
+) {
+
+  const minutos =
+    Math.floor(
+      segundos / 60
+    );
+
+
+  const segundosRestantes =
+    segundos % 60;
+
+
+  return (
+    String(
+      minutos
+    ).padStart(
+      2,
+      '0'
+    )
+    +
+    ':'
+    +
+    String(
+      segundosRestantes
+    ).padStart(
+      2,
+      '0'
+    )
+  );
+
+}
+
+
+/* =====================================================
+   CARREGAR DADOS DO SISTEMA
+   ===================================================== */
+
+
+/*
+ * Nesta primeira versão da interface,
+ * utilizamos os dados já existentes no
+ * endpoint temporário.
+ *
+ * Posteriormente iremos ligar diretamente
+ * ao Apps Script definitivo.
+ */
+
+async function carregarDados() {
+
+  /*
+   * Para o protótipo atual,
+   * usamos os quatro produtos conhecidos.
+   */
+
+  produtos = [
+
+    {
+      nome:
+        'Reservatório 25L',
+
+      ciclo:
+        130
+    },
+
+    {
+      nome:
+        'Reservatório 50L',
+
+      ciclo:
+        140
+    },
+
+    {
+      nome:
+        'Tampa de 50L cinza',
+
+      ciclo:
+        100
+    },
+
+    {
+      nome:
+        'Tampa de 100L Cinza',
+
+      ciclo:
+        155
+    }
+
+  ];
+
+
+  operadores = [
+
+    'Guilherme',
+
+    'Jéssica',
+
+    'Alisson',
+
+    'Marco'
+
+  ];
+
+
+  document
+    .getElementById(
+      'machine'
+    )
+    .textContent =
+    maquina
+      ? maquina.replace(
+          'M',
+          'M-'
+        )
+      : 'MÁQUINA NÃO INFORMADA';
+
+
+  const selectOperador =
+    document.getElementById(
+      'operador'
+    );
+
+
+  operadores.forEach(
+    function(nome) {
+
+      const option =
+        document.createElement(
+          'option'
+        );
+
+
+      option.value =
+        nome;
+
+
+      option.textContent =
+        nome;
+
+
+      selectOperador
+        .appendChild(
+          option
+        );
+
+    }
+  );
+
+
+  const selectProduto =
+    document.getElementById(
+      'produto'
+    );
+
+
+  produtos.forEach(
+    function(produto) {
+
+      const option =
+        document.createElement(
+          'option'
+        );
+
+
+      option.value =
+        produto.nome;
+
+
+      option.textContent =
+        produto.nome;
+
+
+      selectProduto
+        .appendChild(
+          option
+        );
+
+    }
+  );
+
+}
+
+
+/* =====================================================
+   PRODUTO
+   ===================================================== */
+
+
+function produtoSelecionado() {
+
+  limparMensagem();
+
+
+  const nome =
+    document
+      .getElementById(
+        'produto'
+      )
+      .value;
+
+
+  produtoAtual =
+    produtos.find(
+      function(item) {
+
+        return (
+          item.nome ===
+          nome
+        );
+
+      }
+    );
+
+
+  if (!produtoAtual) {
+
+    document
+      .getElementById(
+        'cycleBox'
+      )
+      .classList
+      .add(
+        'hidden'
+      );
+
+
+    document
+      .getElementById(
+        'conformidadeCard'
+      )
+      .classList
+      .add(
+        'hidden'
+      );
+
+
+    document
+      .getElementById(
+        'startCard'
+      )
+      .classList
+      .add(
+        'hidden'
+      );
+
+
+    return;
+
+  }
+
+
+  tempoCiclo =
+    produtoAtual.ciclo;
+
+
+  document
+    .getElementById(
+      'cycleTime'
+    )
+    .textContent =
+    formatarTempo(
+      tempoCiclo
+    );
+
+
+  document
+    .getElementById(
+      'inspectionProduct'
+    )
+    .textContent =
+    produtoAtual.nome +
+    ' — ' +
+    formatarTempo(
+      tempoCiclo
+    );
+
+
+  document
+    .getElementById(
+      'cycleBox'
+    )
+    .classList
+    .remove(
+      'hidden'
+    );
+
+
+  document
+    .getElementById(
+      'conformidadeCard'
+    )
+    .classList
+    .remove(
+      'hidden'
+    );
+
+
+  verificarFormulario();
+
+}
+
+
+/* =====================================================
+   FORMULÁRIO
+   ===================================================== */
+
+
+function verificarFormulario() {
+
+  const operador =
+    document
+      .getElementById(
+        'operador'
+      )
+      .value;
+
+
+  const produto =
+    document
+      .getElementById(
+        'produto'
+      )
+      .value;
+
+
+  if (
+    operador &&
+    produto
+  ) {
+
+    document
+      .getElementById(
+        'startCard'
+      )
+      .classList
+      .remove(
+        'hidden'
+      );
+
+  }
+
+}
+
+
+/* =====================================================
+   CONFORMIDADE
+   ===================================================== */
+
+
+function selecionarConformidade(
+  valor
+) {
+
+  conformidade =
+    valor;
+
+
+  document
+    .getElementById(
+      'btnSim'
+    )
+    .classList
+    .toggle(
+      'selected',
+      valor === 'SIM'
+    );
+
+
+  document
+    .getElementById(
+      'btnNao'
+    )
+    .classList
+    .toggle(
+      'selected',
+      valor === 'NÃO'
+    );
+
+
+  verificarFormulario();
+
+
+  /*
+   * A partir da próxima versão,
+   * aqui será iniciado o fluxo de vídeo.
+   */
+
+}
+
+
+/* =====================================================
+   PREPARAR INSPEÇÃO
+   ===================================================== */
+
+
+function prepararInspecao() {
+
+  const operador =
+    document
+      .getElementById(
+        'operador'
+      )
+      .value;
+
+
+  const produto =
+    document
+      .getElementById(
+        'produto'
+      )
+      .value;
+
+
+  if (!operador) {
+
+    mostrarMensagem(
+      'Identifique o operador.',
+      'error'
+    );
+
+    return;
+
+  }
+
+
+  if (!produto) {
+
+    mostrarMensagem(
+      'Selecione o produto.',
+      'error'
+    );
+
+    return;
+
+  }
+
+
+  if (!conformidade) {
+
+    mostrarMensagem(
+      'Informe se as peças estão conformes.',
+      'error'
+    );
+
+    return;
+
+  }
+
+
+  /*
+   * Por enquanto, esta etapa apenas
+   * demonstra o fluxo.
+   *
+   * O vídeo real será conectado na
+   * próxima versão.
+   */
+
+  document
+    .getElementById(
+      'mainForm'
+    )
+    .classList
+    .add(
+      'hidden'
+    );
+
+
+  document
+    .getElementById(
+      'inspectionScreen'
+    )
+    .classList
+    .remove(
+      'hidden'
+    );
+
+
+  document
+    .getElementById(
+      'inspectionStatus'
+    )
+    .textContent =
+    'O módulo de câmera será iniciado aqui.';
+
+
+}
+
+
+/* =====================================================
+   NOVO REGISTRO
+   ===================================================== */
+
+
+function novoRegistro() {
+
+  window.location.reload();
+
+}
+
+
+/* =====================================================
+   INICIALIZAÇÃO
+   ===================================================== */
+
+
+carregarDados();
+
+
+</script>
 
 </body>
 
