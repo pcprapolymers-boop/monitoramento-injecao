@@ -1,5 +1,4 @@
 <!DOCTYPE html>
-
 <html lang="pt-BR">
 
 <head>
@@ -23,8 +22,8 @@
       --ra-border: #D8E0E7;
       --success: #21864D;
       --danger: #C83D3D;
-      --text: #1D2935;
       --warning: #D88916;
+      --text: #1D2935;
     }
 
     * {
@@ -43,7 +42,7 @@
       width: 100%;
       max-width: 650px;
       margin: 0 auto;
-      padding: 10px;
+      padding: 8px;
     }
 
     /* =========================
@@ -61,7 +60,7 @@
 
     .logo {
       width: 180px;
-      max-width: 70%;
+      max-width: 72%;
       margin: 0 auto 10px;
       display: block;
     }
@@ -173,6 +172,16 @@
       color: white;
     }
 
+    .btn-secondary {
+      background: #DDE4EA;
+      color: var(--text);
+    }
+
+    .btn-enviar {
+      background: var(--success);
+      color: white;
+    }
+
     .conformidade {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -182,16 +191,6 @@
     .selected {
       outline: 5px solid rgba(23,74,120,.22);
       transform: scale(1.015);
-    }
-
-    .btn-secondary {
-      background: #DDE4EA;
-      color: var(--text);
-    }
-
-    .btn-danger-secondary {
-      background: #F3D2D2;
-      color: #8E2323;
     }
 
     /* =========================
@@ -299,7 +298,7 @@
     }
 
     /* =========================
-       VÍDEO FINAL
+       RESULTADO
        ========================= */
 
     #videoPreview {
@@ -315,9 +314,15 @@
       margin-top: 14px;
     }
 
-    /* =========================
-       SUCESSO
-       ========================= */
+    .result-info {
+      padding: 12px;
+      margin: 12px 0;
+      border-radius: 12px;
+      background: var(--ra-blue-light);
+      text-align: center;
+      color: #486173;
+      font-size: 15px;
+    }
 
     .success {
       text-align: center;
@@ -334,10 +339,6 @@
       font-weight: bold;
     }
 
-    /* =========================
-       UTILITÁRIOS
-       ========================= */
-
     .hidden {
       display: none !important;
     }
@@ -348,19 +349,10 @@
       font-size: 14px;
     }
 
-    .important {
-      font-weight: bold;
-      color: var(--ra-blue-dark);
-    }
-
     @media (max-width: 480px) {
 
       .conformidade {
         grid-template-columns: 1fr;
-      }
-
-      .app {
-        padding: 7px;
       }
 
       .logo {
@@ -377,9 +369,7 @@
 
 <div class="app">
 
-  <!-- =========================
-       CABEÇALHO
-       ========================= -->
+  <!-- CABEÇALHO -->
 
   <div class="header">
 
@@ -403,9 +393,7 @@
   </div>
 
 
-  <!-- =========================
-       MENSAGEM
-       ========================= -->
+  <!-- MENSAGEM -->
 
   <div
     id="message"
@@ -413,9 +401,7 @@
   ></div>
 
 
-  <!-- =========================
-       FORMULÁRIO PRINCIPAL
-       ========================= -->
+  <!-- FORMULÁRIO -->
 
   <div id="mainForm">
 
@@ -441,7 +427,7 @@
 
       <div class="info-line">
         Identificação biométrica será integrada
-        nesta etapa quando os A17 estiverem disponíveis.
+        posteriormente nos aparelhos Samsung A17.
       </div>
 
     </div>
@@ -540,19 +526,16 @@
       </button>
 
       <div class="info-line">
-        A gravação será encerrada
-        automaticamente ao final do ciclo.
+        Posicione o telefone para mostrar o ciclo.
+        A gravação será encerrada automaticamente.
       </div>
 
     </div>
 
-
   </div>
 
 
-  <!-- =========================
-       TELA DE PREPARAÇÃO / GRAVAÇÃO
-       ========================= -->
+  <!-- TELA DE INSPEÇÃO -->
 
   <div
     id="inspectionScreen"
@@ -573,11 +556,10 @@
     >
     </div>
 
-    <!-- CONTAGEM ANTES DO CICLO -->
 
-    <div
-      id="preparationBlock"
-    >
+    <!-- PREPARAÇÃO -->
+
+    <div id="preparationBlock">
 
       <div class="inspection-status">
         Posicione a câmera e prepare a máquina.
@@ -614,16 +596,14 @@
     </div>
 
 
-    <!-- CONTADOR DO CICLO -->
+    <!-- GRAVAÇÃO -->
 
     <div
       id="recordingBlock"
       class="hidden"
     >
 
-      <div
-        class="recording-indicator"
-      >
+      <div class="recording-indicator">
         🔴 GRAVANDO CICLO
       </div>
 
@@ -643,13 +623,10 @@
 
     </div>
 
-
   </div>
 
 
-  <!-- =========================
-       RESULTADO DO VÍDEO
-       ========================= -->
+  <!-- RESULTADO DO VÍDEO -->
 
   <div
     id="videoResult"
@@ -663,10 +640,10 @@
       ✅ CICLO GRAVADO
     </div>
 
+
     <div
       id="videoResultInfo"
-      class="info-line"
-      style="text-align:center;"
+      class="result-info"
     >
     </div>
 
@@ -689,11 +666,11 @@
       </button>
 
       <button
-        id="btnAvancar"
-        class="btn-primary"
-        onclick="finalizarTesteVideo()"
+        id="btnEnviarVideo"
+        class="btn-enviar"
+        onclick="enviarVideo()"
       >
-        CONTINUAR
+        ☁️ ENVIAR VÍDEO
       </button>
 
     </div>
@@ -701,9 +678,7 @@
   </div>
 
 
-  <!-- =========================
-       RESULTADO FINAL DO TESTE
-       ========================= -->
+  <!-- FINALIZAÇÃO DO TESTE -->
 
   <div
     id="successScreen"
@@ -715,16 +690,17 @@
     </div>
 
     <div class="success-title">
-      VÍDEO VALIDADO
+      VÍDEO ENVIADO
     </div>
 
     <p>
-      A gravação do ciclo foi concluída.
+      O vídeo foi salvo no Google Drive.
     </p>
 
-    <p class="info-line">
-      Nesta etapa, o vídeo permanece apenas
-      no aparelho para validação.
+    <p
+      id="successInfo"
+      class="info-line"
+    >
     </p>
 
     <button
@@ -736,10 +712,39 @@
 
   </div>
 
+
+  <!-- FORMULÁRIO OCULTO DE UPLOAD -->
+
+  <iframe
+    name="uploadFrame"
+    id="uploadFrame"
+    style="
+      display:none;
+      width:0;
+      height:0;
+      border:0;
+    "
+  ></iframe>
+
 </div>
 
 
 <script>
+
+/* =====================================================
+   URL DO APPS SCRIPT
+   ===================================================== */
+
+/*
+ * COLE AQUI A MESMA URL /exec QUE VOCÊ
+ * JÁ ESTÁ USANDO NO SEU WEB APP.
+ *
+ * NÃO coloque ?m=M1
+ */
+
+const URL_APPS_SCRIPT =
+  'https://script.google.com/macros/s/AKfycbyyczQIADys9S5tG7G9WiR_tFiWubW4mcteLurFO_GOlrlSs9f9CWkcojnjsuG5Jgvt/exec';
+
 
 /* =====================================================
    PARÂMETROS
@@ -750,17 +755,18 @@ const parametros =
     window.location.search
   );
 
+
 const maquina =
   (
     parametros.get('m') ||
     ''
   )
-    .trim()
-    .toUpperCase();
+  .trim()
+  .toUpperCase();
 
 
 /* =====================================================
-   ESTADO DO SISTEMA
+   ESTADO
    ===================================================== */
 
 let operadores = [];
@@ -789,8 +795,10 @@ let segundosRestantes = 0;
 
 let wakeLock = null;
 
-const URL_APPS_SCRIPT =
-  https://script.google.com/macros/s/AKfycbyyczQIADys9S5tG7G9WiR_tFiWubW4mcteLurFO_GOlrlSs9f9CWkcojnjsuG5Jgvt/exec
+let inicioGravacao = null;
+
+let fimGravacao = null;
+
 
 /* =====================================================
    MENSAGENS
@@ -799,61 +807,89 @@ const URL_APPS_SCRIPT =
 function mostrarMensagem(texto, tipo) {
 
   const box =
-    document.getElementById('message');
+    document.getElementById(
+      'message'
+    );
 
-  box.textContent =
-    texto;
+  box.textContent = texto;
 
   box.className =
     'message ' + tipo;
+
 }
 
 
 function limparMensagem() {
 
   const box =
-    document.getElementById('message');
+    document.getElementById(
+      'message'
+    );
 
   box.textContent = '';
 
   box.className = 'message';
+
 }
 
 
 /* =====================================================
-   FORMATAÇÃO
+   FORMATAÇÃO DE TEMPO
    ===================================================== */
 
 function formatarTempo(segundos) {
 
   const minutos =
-    Math.floor(segundos / 60);
+    Math.floor(
+      segundos / 60
+    );
 
   const segundosRestantes =
     segundos % 60;
 
   return (
-    String(minutos).padStart(2, '0')
+    String(minutos)
+      .padStart(2, '0')
     +
     ':'
     +
-    String(segundosRestantes).padStart(2, '0')
+    String(segundosRestantes)
+      .padStart(2, '0')
   );
+
 }
 
 
 /* =====================================================
-   CARREGAR DADOS DO PROTÓTIPO
+   DADOS TEMPORÁRIOS
    ===================================================== */
 
 function carregarDados() {
 
   /*
-   * Temporário para validação da interface.
+   * Nesta etapa os dados estão temporariamente
+   * no próprio aplicativo.
    *
-   * Depois substituiremos por leitura real
-   * do Google Sheets.
+   * Na próxima etapa passaremos a buscar
+   * diretamente do Google Sheets.
    */
+
+  operadores = [
+
+    'Guilherme',
+
+    'Jéssica',
+
+    'Airton',
+
+    'Célio',
+
+    'Walisson',
+
+    'Marco'
+
+  ];
+
 
   produtos = [
 
@@ -880,36 +916,32 @@ function carregarDados() {
   ];
 
 
-  operadores = [
-
-    'Guilherme',
-
-    'Jéssica',
-
-    'Alisson',
-
-    'Marco'
-
-  ];
-
-
   document
-    .getElementById('machine')
+    .getElementById(
+      'machine'
+    )
     .textContent =
     maquina
-      ? maquina.replace('M', 'M-')
+      ? maquina.replace(
+          'M',
+          'M-'
+        )
       : 'MÁQUINA NÃO INFORMADA';
 
 
   const selectOperador =
-    document.getElementById('operador');
+    document.getElementById(
+      'operador'
+    );
 
 
   operadores.forEach(
     function(nome) {
 
       const option =
-        document.createElement('option');
+        document.createElement(
+          'option'
+        );
 
       option.value =
         nome;
@@ -926,14 +958,18 @@ function carregarDados() {
 
 
   const selectProduto =
-    document.getElementById('produto');
+    document.getElementById(
+      'produto'
+    );
 
 
   produtos.forEach(
     function(produto) {
 
       const option =
-        document.createElement('option');
+        document.createElement(
+          'option'
+        );
 
       option.value =
         produto.nome;
@@ -959,51 +995,85 @@ function produtoSelecionado() {
 
   limparMensagem();
 
+
   const nome =
     document
-      .getElementById('produto')
+      .getElementById(
+        'produto'
+      )
       .value;
 
 
   produtoAtual =
     produtos.find(
       function(item) {
-        return item.nome === nome;
+
+        return (
+          item.nome ===
+          nome
+        );
+
       }
     );
 
 
   conformidade = '';
 
-  document
-    .getElementById('btnSim')
-    .classList
-    .remove('selected');
 
   document
-    .getElementById('btnNao')
+    .getElementById(
+      'btnSim'
+    )
     .classList
-    .remove('selected');
+    .remove(
+      'selected'
+    );
+
+
+  document
+    .getElementById(
+      'btnNao'
+    )
+    .classList
+    .remove(
+      'selected'
+    );
 
 
   if (!produtoAtual) {
 
     document
-      .getElementById('cycleBox')
+      .getElementById(
+        'cycleBox'
+      )
       .classList
-      .add('hidden');
+      .add(
+        'hidden'
+      );
+
 
     document
-      .getElementById('conformidadeCard')
+      .getElementById(
+        'conformidadeCard'
+      )
       .classList
-      .add('hidden');
+      .add(
+        'hidden'
+      );
+
 
     document
-      .getElementById('startCard')
+      .getElementById(
+        'startCard'
+      )
       .classList
-      .add('hidden');
+      .add(
+        'hidden'
+      );
+
 
     return;
+
   }
 
 
@@ -1012,7 +1082,9 @@ function produtoSelecionado() {
 
 
   document
-    .getElementById('cycleTime')
+    .getElementById(
+      'cycleTime'
+    )
     .textContent =
     formatarTempo(
       tempoCiclo
@@ -1020,7 +1092,9 @@ function produtoSelecionado() {
 
 
   document
-    .getElementById('inspectionProduct')
+    .getElementById(
+      'inspectionProduct'
+    )
     .textContent =
     produtoAtual.nome +
     ' — ciclo de ' +
@@ -1030,15 +1104,23 @@ function produtoSelecionado() {
 
 
   document
-    .getElementById('cycleBox')
+    .getElementById(
+      'cycleBox'
+    )
     .classList
-    .remove('hidden');
+    .remove(
+      'hidden'
+    );
 
 
   document
-    .getElementById('conformidadeCard')
+    .getElementById(
+      'conformidadeCard'
+    )
     .classList
-    .remove('hidden');
+    .remove(
+      'hidden'
+    );
 
 
   verificarFormulario();
@@ -1050,14 +1132,18 @@ function produtoSelecionado() {
    CONFORMIDADE
    ===================================================== */
 
-function selecionarConformidade(valor) {
+function selecionarConformidade(
+  valor
+) {
 
   conformidade =
     valor;
 
 
   document
-    .getElementById('btnSim')
+    .getElementById(
+      'btnSim'
+    )
     .classList
     .toggle(
       'selected',
@@ -1066,7 +1152,9 @@ function selecionarConformidade(valor) {
 
 
   document
-    .getElementById('btnNao')
+    .getElementById(
+      'btnNao'
+    )
     .classList
     .toggle(
       'selected',
@@ -1080,25 +1168,29 @@ function selecionarConformidade(valor) {
 
 
 /* =====================================================
-   LIBERAR BOTÃO DE INÍCIO
+   LIBERAR BOTÃO
    ===================================================== */
 
 function verificarFormulario() {
 
   const operador =
     document
-      .getElementById('operador')
+      .getElementById(
+        'operador'
+      )
       .value;
 
 
   const produto =
     document
-      .getElementById('produto')
+      .getElementById(
+        'produto'
+      )
       .value;
 
 
   const pronto =
-    !!(
+    Boolean(
       operador &&
       produto &&
       produtoAtual &&
@@ -1123,17 +1215,24 @@ function verificarFormulario() {
 
     startCard
       .classList
-      .remove('hidden');
+      .remove(
+        'hidden'
+      );
 
-    btn.disabled = false;
+    btn.disabled =
+      false;
 
-  } else {
+  }
+  else {
 
     startCard
       .classList
-      .add('hidden');
+      .add(
+        'hidden'
+      );
 
-    btn.disabled = true;
+    btn.disabled =
+      true;
 
   }
 
@@ -1148,9 +1247,12 @@ async function prepararInspecao() {
 
   limparMensagem();
 
+
   const operador =
     document
-      .getElementById('operador')
+      .getElementById(
+        'operador'
+      )
       .value;
 
 
@@ -1162,6 +1264,7 @@ async function prepararInspecao() {
     );
 
     return;
+
   }
 
 
@@ -1173,6 +1276,7 @@ async function prepararInspecao() {
     );
 
     return;
+
   }
 
 
@@ -1184,6 +1288,7 @@ async function prepararInspecao() {
     );
 
     return;
+
   }
 
 
@@ -1195,43 +1300,58 @@ async function prepararInspecao() {
   ) {
 
     mostrarMensagem(
-      'Tempo de ciclo inválido para este produto.',
+      'Tempo de ciclo inválido.',
       'error'
     );
 
     return;
+
   }
 
 
   document
-    .getElementById('mainForm')
+    .getElementById(
+      'mainForm'
+    )
     .classList
-    .add('hidden');
+    .add(
+      'hidden'
+    );
 
 
   document
-    .getElementById('inspectionScreen')
+    .getElementById(
+      'inspectionScreen'
+    )
     .classList
-    .remove('hidden');
+    .remove(
+      'hidden'
+    );
 
 
   document
-    .getElementById('videoResult')
+    .getElementById(
+      'videoResult'
+    )
     .classList
-    .add('hidden');
+    .add(
+      'hidden'
+    );
 
 
   document
-    .getElementById('successScreen')
+    .getElementById(
+      'successScreen'
+    )
     .classList
-    .add('hidden');
+    .add(
+      'hidden'
+    );
 
 
   await solicitarWakeLock();
 
-
   await iniciarCamera();
-
 
 }
 
@@ -1251,7 +1371,9 @@ async function solicitarWakeLock() {
       wakeLock =
         await navigator
           .wakeLock
-          .request('screen');
+          .request(
+            'screen'
+          );
 
     }
     catch (erro) {
@@ -1270,24 +1392,27 @@ async function solicitarWakeLock() {
 
 async function liberarWakeLock() {
 
-  if (wakeLock) {
+  if (!wakeLock) {
+    return;
+  }
 
-    try {
 
-      await wakeLock.release();
+  try {
 
-    }
-    catch (erro) {
-
-      console.warn(
-        erro
-      );
-
-    }
-
-    wakeLock = null;
+    await wakeLock.release();
 
   }
+  catch (erro) {
+
+    console.warn(
+      erro
+    );
+
+  }
+
+
+  wakeLock =
+    null;
 
 }
 
@@ -1299,12 +1424,6 @@ async function liberarWakeLock() {
 async function iniciarCamera() {
 
   try {
-
-    /*
-     * Câmera traseira:
-     * é a câmera que será usada para
-     * filmar o ciclo da máquina.
-     */
 
     cameraStream =
       await navigator
@@ -1346,25 +1465,36 @@ async function iniciarCamera() {
 
 
     document
-      .getElementById('preparationBlock')
+      .getElementById(
+        'preparationBlock'
+      )
       .classList
-      .remove('hidden');
+      .remove(
+        'hidden'
+      );
 
 
     document
-      .getElementById('cameraBlock')
+      .getElementById(
+        'cameraBlock'
+      )
       .classList
-      .remove('hidden');
+      .remove(
+        'hidden'
+      );
 
 
     document
-      .getElementById('recordingBlock')
+      .getElementById(
+        'recordingBlock'
+      )
       .classList
-      .add('hidden');
+      .add(
+        'hidden'
+      );
 
 
     iniciarContagemPreparacao();
-
 
   }
   catch (erro) {
@@ -1391,7 +1521,7 @@ async function iniciarCamera() {
 
 
 /* =====================================================
-   CONTAGEM 3-2-1
+   3-2-1
    ===================================================== */
 
 function iniciarContagemPreparacao() {
@@ -1401,7 +1531,9 @@ function iniciarContagemPreparacao() {
 
 
   document
-    .getElementById('countdown')
+    .getElementById(
+      'countdown'
+    )
     .textContent =
     contador;
 
@@ -1423,7 +1555,9 @@ function iniciarContagemPreparacao() {
 
 
         document
-          .getElementById('countdown')
+          .getElementById(
+            'countdown'
+          )
           .textContent =
           contador;
 
@@ -1453,7 +1587,7 @@ function iniciarContagemPreparacao() {
 
 
 /* =====================================================
-   FORMATO DE VÍDEO
+   FORMATO DO VÍDEO
    ===================================================== */
 
 function escolherMimeType() {
@@ -1470,7 +1604,8 @@ function escolherMimeType() {
 
 
   for (
-    const tipo of tipos
+    const tipo
+    of tipos
   ) {
 
     if (
@@ -1497,7 +1632,7 @@ function escolherMimeType() {
 
 
 /* =====================================================
-   INICIAR GRAVAÇÃO
+   GRAVAÇÃO
    ===================================================== */
 
 function iniciarGravacao() {
@@ -1509,16 +1644,28 @@ function iniciarGravacao() {
     null;
 
 
-  document
-    .getElementById('preparationBlock')
-    .classList
-    .add('hidden');
+  inicioGravacao =
+    new Date();
 
 
   document
-    .getElementById('recordingBlock')
+    .getElementById(
+      'preparationBlock'
+    )
     .classList
-    .remove('hidden');
+    .add(
+      'hidden'
+    );
+
+
+  document
+    .getElementById(
+      'recordingBlock'
+    )
+    .classList
+    .remove(
+      'hidden'
+    );
 
 
   segundosRestantes =
@@ -1526,7 +1673,9 @@ function iniciarGravacao() {
 
 
   document
-    .getElementById('inspectionTimer')
+    .getElementById(
+      'inspectionTimer'
+    )
     .textContent =
     formatarTempo(
       segundosRestantes
@@ -1539,25 +1688,32 @@ function iniciarGravacao() {
 
   try {
 
+    /*
+     * 900 kbps foi escolhido para manter
+     * o tamanho dos arquivos sob controle.
+     */
+
+    const opcoes = {
+
+      videoBitsPerSecond:
+        900000
+
+    };
+
+
     if (mimeType) {
 
-      mediaRecorder =
-        new MediaRecorder(
-          cameraStream,
-          {
-            mimeType:
-              mimeType
-          }
-        );
-
-    } else {
-
-      mediaRecorder =
-        new MediaRecorder(
-          cameraStream
-        );
+      opcoes.mimeType =
+        mimeType;
 
     }
+
+
+    mediaRecorder =
+      new MediaRecorder(
+        cameraStream,
+        opcoes
+      );
 
   }
   catch (erro) {
@@ -1600,6 +1756,10 @@ function iniciarGravacao() {
   mediaRecorder.onstop =
     function() {
 
+      fimGravacao =
+        new Date();
+
+
       const tipo =
         mediaRecorder.mimeType ||
         'video/webm';
@@ -1609,7 +1769,8 @@ function iniciarGravacao() {
         new Blob(
           partesVideo,
           {
-            type: tipo
+            type:
+              tipo
           }
         );
 
@@ -1621,31 +1782,73 @@ function iniciarGravacao() {
 
 
       document
-        .getElementById('videoPreview')
+        .getElementById(
+          'videoPreview'
+        )
         .src =
         url;
 
 
+      const duracaoReal =
+        Math.max(
+          0,
+          Math.round(
+            (
+              fimGravacao -
+              inicioGravacao
+            ) / 1000
+          )
+        );
+
+
+      const tamanhoMB =
+        (
+          videoBlob.size /
+          1024 /
+          1024
+        ).toFixed(2);
+
+
       document
-        .getElementById('videoResultInfo')
-        .textContent =
+        .getElementById(
+          'videoResultInfo'
+        )
+        .innerHTML =
         produtoAtual.nome +
-        ' — ciclo programado: ' +
+        '<br>' +
+        'Ciclo programado: <strong>' +
         formatarTempo(
           tempoCiclo
+        ) +
+        '</strong>' +
+        '<br>' +
+        'Duração real: <strong>' +
+        duracaoReal +
+        ' s</strong>' +
+        '<br>' +
+        'Tamanho do vídeo: <strong>' +
+        tamanhoMB +
+        ' MB</strong>';
+
+
+      document
+        .getElementById(
+          'inspectionScreen'
+        )
+        .classList
+        .add(
+          'hidden'
         );
 
 
       document
-        .getElementById('inspectionScreen')
+        .getElementById(
+          'videoResult'
+        )
         .classList
-        .add('hidden');
-
-
-      document
-        .getElementById('videoResult')
-        .classList
-        .remove('hidden');
+        .remove(
+          'hidden'
+        );
 
 
       liberarWakeLock();
@@ -1653,7 +1856,14 @@ function iniciarGravacao() {
     };
 
 
-  mediaRecorder.start(250);
+  /*
+   * Gera pequenos blocos de dados
+   * para não esperar todo o vídeo.
+   */
+
+  mediaRecorder.start(
+    250
+  );
 
 
   atualizarContadorCiclo();
@@ -1694,13 +1904,15 @@ function iniciarGravacao() {
 
 
 /* =====================================================
-   CONTADOR DO CICLO
+   CONTADOR
    ===================================================== */
 
 function atualizarContadorCiclo() {
 
   document
-    .getElementById('inspectionTimer')
+    .getElementById(
+      'inspectionTimer'
+    )
     .textContent =
     formatarTempo(
       segundosRestantes
@@ -1710,7 +1922,7 @@ function atualizarContadorCiclo() {
 
 
 /* =====================================================
-   PARAR GRAVAÇÃO
+   PARAR
    ===================================================== */
 
 function pararGravacao() {
@@ -1732,7 +1944,7 @@ function pararGravacao() {
 
 
 /* =====================================================
-   DESLIGAR CÂMERA
+   DESLIGAR CAMERA
    ===================================================== */
 
 function desligarCamera() {
@@ -1765,25 +1977,40 @@ function desligarCamera() {
 async function gravarNovamente() {
 
   document
-    .getElementById('videoResult')
+    .getElementById(
+      'videoResult'
+    )
     .classList
-    .add('hidden');
+    .add(
+      'hidden'
+    );
 
 
   document
-    .getElementById('inspectionScreen')
+    .getElementById(
+      'inspectionScreen'
+    )
     .classList
-    .remove('hidden');
+    .remove(
+      'hidden'
+    );
 
 
   document
-    .getElementById('recordingBlock')
+    .getElementById(
+      'recordingBlock'
+    )
     .classList
-    .add('hidden');
+    .add(
+      'hidden'
+    );
+
+
+  videoBlob =
+    null;
 
 
   await solicitarWakeLock();
-
 
   await iniciarCamera();
 
@@ -1791,23 +2018,413 @@ async function gravarNovamente() {
 
 
 /* =====================================================
-   FINALIZAR TESTE
+   BLOB → BASE64
    ===================================================== */
 
-function finalizarTesteVideo() {
+function blobParaBase64(
+  blob
+) {
 
-  document
-    .getElementById('videoResult')
-    .classList
-    .add('hidden');
+  return new Promise(
+    function(
+      resolve,
+      reject
+    ) {
+
+      const leitor =
+        new FileReader();
 
 
-  document
-    .getElementById('successScreen')
-    .classList
-    .remove('hidden');
+      leitor.onloadend =
+        function() {
+
+          resolve(
+            leitor.result
+          );
+
+        };
+
+
+      leitor.onerror =
+        reject;
+
+
+      leitor.readAsDataURL(
+        blob
+      );
+
+    }
+  );
 
 }
+
+
+/* =====================================================
+   UPLOAD DO VÍDEO
+   ===================================================== */
+
+async function enviarVideo() {
+
+  if (!videoBlob) {
+
+    mostrarMensagem(
+      'Nenhum vídeo disponível.',
+      'error'
+    );
+
+    return;
+
+  }
+
+
+  if (
+    !URL_APPS_SCRIPT ||
+    URL_APPS_SCRIPT.includes(
+      'COLE_AQUI'
+    )
+  ) {
+
+    mostrarMensagem(
+      'A URL do Apps Script ainda não foi configurada no código.',
+      'error'
+    );
+
+    return;
+
+  }
+
+
+  const botao =
+    document.getElementById(
+      'btnEnviarVideo'
+    );
+
+
+  const tamanhoMB =
+    (
+      videoBlob.size /
+      1024 /
+      1024
+    ).toFixed(2);
+
+
+  botao.disabled =
+    true;
+
+
+  botao.textContent =
+    'PREPARANDO UPLOAD...';
+
+
+  mostrarMensagem(
+    '☁️ Preparando vídeo de ' +
+    tamanhoMB +
+    ' MB...',
+    'warning'
+  );
+
+
+  try {
+
+    const base64 =
+      await blobParaBase64(
+        videoBlob
+      );
+
+
+    const operador =
+      document
+        .getElementById(
+          'operador'
+        )
+        .value;
+
+
+    const mimeType =
+      videoBlob.type ||
+      'video/webm';
+
+
+    const iframe =
+      document.getElementById(
+        'uploadFrame'
+      );
+
+
+    /*
+     * Gera um nome exclusivo para o iframe.
+     */
+
+    const nomeIframe =
+      'uploadFrame_' +
+      Date.now();
+
+
+    iframe.name =
+      nomeIframe;
+
+
+    const form =
+      document.createElement(
+        'form'
+      );
+
+
+    form.method =
+      'POST';
+
+
+    form.action =
+      URL_APPS_SCRIPT;
+
+
+    form.target =
+      nomeIframe;
+
+
+    form.enctype =
+      'application/x-www-form-urlencoded';
+
+
+    form.style.display =
+      'none';
+
+
+    const campos = {
+
+      tipo:
+        'VIDEO',
+
+      maquina:
+        maquina,
+
+      operador:
+        operador,
+
+      produto:
+        produtoAtual.nome,
+
+      conforme:
+        conformidade,
+
+      mimeType:
+        mimeType,
+
+      arquivoBase64:
+        base64
+
+    };
+
+
+    Object.keys(
+      campos
+    ).forEach(
+      function(nome) {
+
+        const input =
+          document.createElement(
+            'input'
+          );
+
+
+        input.type =
+          'hidden';
+
+
+        input.name =
+          nome;
+
+
+        input.value =
+          campos[nome];
+
+
+        form.appendChild(
+          input
+        );
+
+      }
+    );
+
+
+    document.body.appendChild(
+      form
+    );
+
+
+    mostrarMensagem(
+      '☁️ Enviando vídeo de ' +
+      tamanhoMB +
+      ' MB para o Google Drive...',
+      'warning'
+    );
+
+
+    botao.textContent =
+      'ENVIANDO...';
+
+
+    form.submit();
+
+
+    setTimeout(
+      function() {
+
+        try {
+
+          document.body.removeChild(
+            form
+          );
+
+        }
+        catch (erro) {}
+
+      },
+      30000
+    );
+
+  }
+  catch (erro) {
+
+    console.error(
+      erro
+    );
+
+
+    botao.disabled =
+      false;
+
+
+    botao.textContent =
+      '☁️ ENVIAR VÍDEO';
+
+
+    mostrarMensagem(
+      'Erro ao preparar o upload: ' +
+      erro.message,
+      'error'
+    );
+
+  }
+
+}
+
+
+/* =====================================================
+   RESPOSTA DO APPS SCRIPT
+   ===================================================== */
+
+window.addEventListener(
+  'message',
+  function(evento) {
+
+    const dados =
+      evento.data;
+
+
+    if (
+      !dados ||
+      dados.tipo !==
+      'VIDEO'
+    ) {
+
+      return;
+
+    }
+
+
+    const botao =
+      document.getElementById(
+        'btnEnviarVideo'
+      );
+
+
+    if (
+      dados.sucesso
+    ) {
+
+      botao.disabled =
+        false;
+
+
+      botao.textContent =
+        '✅ VÍDEO ENVIADO';
+
+
+      document
+        .getElementById(
+          'videoResultInfo'
+        )
+        .innerHTML +=
+        '<br><strong>Destino:</strong> ' +
+        dados.pasta +
+        '<br><strong>Arquivo:</strong> ' +
+        dados.nomeArquivo;
+
+
+      document
+        .getElementById(
+          'videoResult'
+        )
+        .classList
+        .add(
+          'hidden'
+        );
+
+
+      document
+        .getElementById(
+          'successScreen'
+        )
+        .classList
+        .remove(
+          'hidden'
+        );
+
+
+      document
+        .getElementById(
+          'successInfo'
+        )
+        .innerHTML =
+        'Pasta: <strong>' +
+        dados.pasta +
+        '</strong><br>' +
+        'Arquivo: <strong>' +
+        dados.nomeArquivo +
+        '</strong><br>' +
+        'Tamanho: <strong>' +
+        (
+          dados.tamanhoBytes /
+          1024 /
+          1024
+        ).toFixed(2) +
+        ' MB</strong>';
+
+
+      limparMensagem();
+
+    }
+    else {
+
+      botao.disabled =
+        false;
+
+
+      botao.textContent =
+        '☁️ ENVIAR VÍDEO';
+
+
+      mostrarMensagem(
+        '❌ Erro ao salvar o vídeo: ' +
+        dados.erro,
+        'error'
+      );
+
+    }
+
+  }
+);
 
 
 /* =====================================================
@@ -1840,26 +2457,20 @@ function fecharInspecao() {
   }
 
 
-  if (
-    mediaRecorder &&
-    mediaRecorder.state !==
-    'inactive'
-  ) {
+  try {
 
-    try {
+    if (
+      mediaRecorder &&
+      mediaRecorder.state !==
+      'inactive'
+    ) {
 
       mediaRecorder.stop();
 
     }
-    catch (erro) {
-
-      console.warn(
-        erro
-      );
-
-    }
 
   }
+  catch (erro) {}
 
 
   desligarCamera();
@@ -1868,15 +2479,23 @@ function fecharInspecao() {
 
 
   document
-    .getElementById('inspectionScreen')
+    .getElementById(
+      'inspectionScreen'
+    )
     .classList
-    .add('hidden');
+    .add(
+      'hidden'
+    );
 
 
   document
-    .getElementById('mainForm')
+    .getElementById(
+      'mainForm'
+    )
     .classList
-    .remove('hidden');
+    .remove(
+      'hidden'
+    );
 
 }
 
@@ -1893,7 +2512,7 @@ function novoRegistro() {
 
 
 /* =====================================================
-   REFORÇAR WAKE LOCK QUANDO A ABA VOLTAR
+   WAKE LOCK
    ===================================================== */
 
 document.addEventListener(
@@ -1915,7 +2534,7 @@ document.addEventListener(
 
 
 /* =====================================================
-   INICIAR
+   INICIALIZAÇÃO
    ===================================================== */
 
 carregarDados();
