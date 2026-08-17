@@ -2155,15 +2155,7 @@ async function enviarVideo() {
      * Gera um nome exclusivo para o iframe.
      */
 
-    const nomeIframe =
-      'uploadFrame_' +
-      Date.now();
-
-
-    iframe.name =
-      nomeIframe;
-
-
+    iframe.name = 'uploadFrame';
     const form =
       document.createElement(
         'form'
@@ -2171,23 +2163,22 @@ async function enviarVideo() {
 
 
     form.method =
-      'POST';
+  'POST';
 
+form.action =
+  URL_APPS_SCRIPT;
 
-    form.action =
-      URL_APPS_SCRIPT;
+form.target =
+  'uploadFrame';
 
+form.enctype =
+  'application/x-www-form-urlencoded';
 
-    form.target =
-      nomeIframe;
+form.acceptCharset =
+  'UTF-8';
 
-
-    form.enctype =
-      'application/x-www-form-urlencoded';
-
-
-    form.style.display =
-      'none';
+form.style.display =
+  'none';
 
 
     const campos = {
