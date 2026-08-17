@@ -4,584 +4,382 @@
 
 <head>
 
-<meta charset="UTF-8">
-
-<meta
-  name="viewport"
-  content="width=device-width, initial-scale=1"
->
-
-<title>RA Polymers - Monitoramento</title>
-
-
-<style>
-
-:root {
-
-  --ra-blue: #174A78;
-
-  --ra-blue-dark: #113653;
-
-  --ra-blue-light: #EAF1F7;
-
-  --ra-gray: #F3F5F7;
-
-  --ra-border: #D8E0E7;
-
-  --success: #21864D;
-
-  --danger: #C83D3D;
-
-  --text: #1D2935;
-
-}
-
-
-* {
-
-  box-sizing:
-    border-box;
-
-}
-
-
-body {
-
-  margin:
-    0;
-
-  padding:
-    0;
-
-  background:
-    var(--ra-gray);
-
-  color:
-    var(--text);
-
-  font-family:
-    Arial,
-    Helvetica,
-    sans-serif;
-
-}
-
-
-.app {
-
-  width:
-    100%;
-
-  max-width:
-    650px;
-
-  margin:
-    0 auto;
-
-  padding:
-    12px;
-
-}
-
-
-/* CABEÇALHO */
-
-.header {
-
-  background:
-    white;
-
-  border-radius:
-    18px;
-
-  padding:
-    18px;
-
-  margin-bottom:
-    14px;
-
-  box-shadow:
-    0 2px 8px
-    rgba(0,0,0,.08);
-
-  text-align:
-    center;
-
-}
-
-
-.logo {
-
-  width:
-    180px;
-
-  max-width:
-    70%;
-
-  margin:
-    0 auto 10px;
-
-  display:
-    block;
-
-}
-
-
-.title {
-
-  color:
-    var(--ra-blue-dark);
-
-  font-size:
-    20px;
-
-  font-weight:
-    bold;
-
-}
-
-
-.machine {
-
-  margin-top:
-    10px;
-
-  padding:
-    10px;
-
-  border-radius:
-    12px;
-
-  background:
-    var(--ra-blue);
-
-  color:
-    white;
-
-  font-size:
-    26px;
-
-  font-weight:
-    bold;
-
-}
-
-
-/* CARTÃO */
-
-.card {
-
-  background:
-    white;
-
-  border-radius:
-    18px;
-
-  padding:
-    18px;
-
-  margin-bottom:
-    14px;
-
-  box-shadow:
-    0 2px 8px
-    rgba(0,0,0,.07);
-
-}
-
-
-label {
-
-  display:
-    block;
-
-  margin-bottom:
-    8px;
-
-  font-size:
-    17px;
-
-  font-weight:
-    bold;
-
-}
-
-
-select {
-
-  width:
-    100%;
-
-  min-height:
-    58px;
-
-  padding:
-    12px;
-
-  border:
-    2px solid
-    var(--ra-border);
-
-  border-radius:
-    13px;
-
-  background:
-    white;
-
-  font-size:
-    18px;
-
-}
-
-
-/* CICLO */
-
-.cycle {
-
-  margin-top:
-    15px;
-
-  padding:
-    16px;
-
-  border-radius:
-    14px;
-
-  background:
-    var(--ra-blue-light);
-
-  border:
-    1px solid
-    #C8D8E6;
-
-  text-align:
-    center;
-
-}
-
-
-.cycle-title {
-
-  font-size:
-    15px;
-
-  color:
-    #486173;
-
-}
-
-
-.cycle-time {
-
-  margin-top:
-    4px;
-
-  font-size:
-    36px;
-
-  font-weight:
-    bold;
-
-  color:
-    var(--ra-blue-dark);
-
-}
-
-
-/* BOTÕES */
-
-button {
-
-  width:
-    100%;
-
-  min-height:
-    62px;
-
-  border:
-    0;
-
-  border-radius:
-    15px;
-
-  font-size:
-    20px;
-
-  font-weight:
-    bold;
-
-  cursor:
-    pointer;
-
-}
-
-
-.btn-primary {
-
-  background:
-    var(--ra-blue);
-
-  color:
-    white;
-
-}
-
-
-.btn-primary:disabled {
-
-  background:
-    #AEB8C1;
-
-}
-
-
-/* CONFORMIDADE */
-
-.conformidade {
-
-  display:
-    grid;
-
-  grid-template-columns:
-    1fr 1fr;
-
-  gap:
-    12px;
-
-}
-
-
-.btn-sim {
-
-  background:
-    var(--success);
-
-  color:
-    white;
-
-}
-
-
-.btn-nao {
-
-  background:
-    var(--danger);
-
-  color:
-    white;
-
-}
-
-
-.selected {
-
-  outline:
-    5px solid
-    rgba(23,74,120,.22);
-
-  transform:
-    scale(1.015);
-
-}
-
-
-/* MENSAGENS */
-
-.message {
-
-  display:
-    none;
-
-  padding:
-    15px;
-
-  margin-bottom:
-    14px;
-
-  border-radius:
-    13px;
-
-  text-align:
-    center;
-
-  font-weight:
-    bold;
-
-}
-
-
-.message.error {
-
-  display:
-    block;
-
-  background:
-    #FDECEC;
-
-  color:
-    #9F2D2D;
-
-}
-
-
-.message.success {
-
-  display:
-    block;
-
-  background:
-    #EAF7EF;
-
-  color:
-    #17643A;
-
-}
-
-
-/* INSPEÇÃO */
-
-.inspection {
-
-  text-align:
-    center;
-
-}
-
-
-.inspection-icon {
-
-  font-size:
-    52px;
-
-}
-
-
-.inspection-title {
-
-  font-size:
-    25px;
-
-  font-weight:
-    bold;
-
-  color:
-    var(--ra-blue-dark);
-
-}
-
-
-.inspection-cycle {
-
-  font-size:
-    21px;
-
-  margin:
-    10px 0 20px;
-
-}
-
-
-/* CONTADOR */
-
-.timer {
-
-  font-size:
-    54px;
-
-  font-weight:
-    bold;
-
-  color:
-    var(--danger);
-
-  margin:
-    20px 0;
-
-}
-
-
-.recording {
-
-  color:
-    var(--danger);
-
-}
-
-
-/* SUCESSO */
-
-.success {
-
-  text-align:
-    center;
-
-  padding:
-    30px 10px;
-
-}
-
-
-.success-icon {
-
-  font-size:
-    65px;
-
-}
-
-
-.success-title {
-
-  color:
-    var(--success);
-
-  font-size:
-    28px;
-
-}
-
-
-.hidden {
-
-  display:
-    none !important;
-
-}
-
-
-/* MOBILE */
-
-@media (
-  max-width: 480px
-) {
-
-  .conformidade {
-
-    grid-template-columns:
-      1fr;
-
-  }
-
-  .app {
-
-    padding:
-      8px;
-
-  }
-
-}
-
-</style>
+  <meta charset="UTF-8">
+
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1"
+  >
+
+  <title>RA Polymers - Monitoramento</title>
+
+  <style>
+
+    :root {
+      --ra-blue: #174A78;
+      --ra-blue-dark: #113653;
+      --ra-blue-light: #EAF1F7;
+      --ra-gray: #F3F5F7;
+      --ra-border: #D8E0E7;
+      --success: #21864D;
+      --danger: #C83D3D;
+      --text: #1D2935;
+      --warning: #D88916;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      padding: 0;
+      background: var(--ra-gray);
+      color: var(--text);
+      font-family: Arial, Helvetica, sans-serif;
+    }
+
+    .app {
+      width: 100%;
+      max-width: 650px;
+      margin: 0 auto;
+      padding: 10px;
+    }
+
+    /* =========================
+       CABEÇALHO
+       ========================= */
+
+    .header {
+      background: white;
+      border-radius: 18px;
+      padding: 18px;
+      margin-bottom: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,.08);
+      text-align: center;
+    }
+
+    .logo {
+      width: 180px;
+      max-width: 70%;
+      margin: 0 auto 10px;
+      display: block;
+    }
+
+    .title {
+      color: var(--ra-blue-dark);
+      font-size: 20px;
+      font-weight: bold;
+    }
+
+    .machine {
+      margin-top: 10px;
+      padding: 10px;
+      border-radius: 12px;
+      background: var(--ra-blue);
+      color: white;
+      font-size: 26px;
+      font-weight: bold;
+    }
+
+    /* =========================
+       CARTÕES
+       ========================= */
+
+    .card {
+      background: white;
+      border-radius: 18px;
+      padding: 18px;
+      margin-bottom: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,.07);
+    }
+
+    label {
+      display: block;
+      margin-bottom: 8px;
+      font-size: 17px;
+      font-weight: bold;
+    }
+
+    select {
+      width: 100%;
+      min-height: 58px;
+      padding: 12px;
+      border: 2px solid var(--ra-border);
+      border-radius: 13px;
+      background: white;
+      font-size: 18px;
+    }
+
+    /* =========================
+       CICLO
+       ========================= */
+
+    .cycle {
+      margin-top: 15px;
+      padding: 16px;
+      border-radius: 14px;
+      background: var(--ra-blue-light);
+      border: 1px solid #C8D8E6;
+      text-align: center;
+    }
+
+    .cycle-title {
+      font-size: 15px;
+      color: #486173;
+    }
+
+    .cycle-time {
+      margin-top: 4px;
+      font-size: 36px;
+      font-weight: bold;
+      color: var(--ra-blue-dark);
+    }
+
+    /* =========================
+       BOTÕES
+       ========================= */
+
+    button {
+      width: 100%;
+      min-height: 62px;
+      border: 0;
+      border-radius: 15px;
+      font-size: 20px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    button:disabled {
+      background: #AEB8C1 !important;
+      color: white !important;
+      cursor: not-allowed;
+      transform: none !important;
+      outline: none !important;
+    }
+
+    .btn-primary {
+      background: var(--ra-blue);
+      color: white;
+    }
+
+    .btn-sim {
+      background: var(--success);
+      color: white;
+    }
+
+    .btn-nao {
+      background: var(--danger);
+      color: white;
+    }
+
+    .conformidade {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .selected {
+      outline: 5px solid rgba(23,74,120,.22);
+      transform: scale(1.015);
+    }
+
+    .btn-secondary {
+      background: #DDE4EA;
+      color: var(--text);
+    }
+
+    .btn-danger-secondary {
+      background: #F3D2D2;
+      color: #8E2323;
+    }
+
+    /* =========================
+       MENSAGENS
+       ========================= */
+
+    .message {
+      display: none;
+      padding: 15px;
+      margin-bottom: 12px;
+      border-radius: 13px;
+      text-align: center;
+      font-weight: bold;
+    }
+
+    .message.error {
+      display: block;
+      background: #FDECEC;
+      color: #9F2D2D;
+    }
+
+    .message.success {
+      display: block;
+      background: #EAF7EF;
+      color: #17643A;
+    }
+
+    .message.warning {
+      display: block;
+      background: #FFF4DE;
+      color: #8A5A08;
+    }
+
+    /* =========================
+       INSPEÇÃO
+       ========================= */
+
+    .inspection {
+      text-align: center;
+    }
+
+    .inspection-icon {
+      font-size: 52px;
+    }
+
+    .inspection-title {
+      font-size: 25px;
+      font-weight: bold;
+      color: var(--ra-blue-dark);
+    }
+
+    .inspection-cycle {
+      font-size: 19px;
+      margin: 8px 0;
+      color: #536779;
+    }
+
+    .inspection-status {
+      margin-top: 12px;
+      font-size: 18px;
+      font-weight: bold;
+    }
+
+    .countdown {
+      font-size: 58px;
+      font-weight: bold;
+      color: var(--ra-blue);
+      margin: 20px 0;
+    }
+
+    .timer {
+      font-size: 58px;
+      font-weight: bold;
+      color: var(--danger);
+      margin: 20px 0;
+    }
+
+    .recording-indicator {
+      display: inline-block;
+      padding: 8px 14px;
+      border-radius: 999px;
+      background: #FBE0E0;
+      color: #A11E1E;
+      font-size: 16px;
+      font-weight: bold;
+    }
+
+    /* =========================
+       CÂMERA
+       ========================= */
+
+    .camera-box {
+      margin-top: 18px;
+      background: #111;
+      border-radius: 16px;
+      overflow: hidden;
+    }
+
+    #cameraPreview {
+      width: 100%;
+      display: block;
+      aspect-ratio: 4 / 3;
+      object-fit: cover;
+      background: #000;
+    }
+
+    /* =========================
+       VÍDEO FINAL
+       ========================= */
+
+    #videoPreview {
+      width: 100%;
+      display: block;
+      border-radius: 14px;
+      background: #000;
+    }
+
+    .video-actions {
+      display: grid;
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    /* =========================
+       SUCESSO
+       ========================= */
+
+    .success {
+      text-align: center;
+      padding: 30px 10px;
+    }
+
+    .success-icon {
+      font-size: 65px;
+    }
+
+    .success-title {
+      color: var(--success);
+      font-size: 28px;
+      font-weight: bold;
+    }
+
+    /* =========================
+       UTILITÁRIOS
+       ========================= */
+
+    .hidden {
+      display: none !important;
+    }
+
+    .info-line {
+      margin-top: 8px;
+      color: #647586;
+      font-size: 14px;
+    }
+
+    .important {
+      font-weight: bold;
+      color: var(--ra-blue-dark);
+    }
+
+    @media (max-width: 480px) {
+
+      .conformidade {
+        grid-template-columns: 1fr;
+      }
+
+      .app {
+        padding: 7px;
+      }
+
+      .logo {
+        width: 165px;
+      }
+
+    }
+
+  </style>
 
 </head>
 
-
 <body>
-
 
 <div class="app">
 
-
-  <!-- CABEÇALHO -->
+  <!-- =========================
+       CABEÇALHO
+       ========================= -->
 
   <div class="header">
 
@@ -605,7 +403,9 @@ button {
   </div>
 
 
-  <!-- MENSAGEM -->
+  <!-- =========================
+       MENSAGEM
+       ========================= -->
 
   <div
     id="message"
@@ -613,11 +413,11 @@ button {
   ></div>
 
 
-  <!-- FORMULÁRIO -->
+  <!-- =========================
+       FORMULÁRIO PRINCIPAL
+       ========================= -->
 
-  <div
-    id="mainForm"
-  >
+  <div id="mainForm">
 
 
     <!-- OPERADOR -->
@@ -638,6 +438,11 @@ button {
         </option>
 
       </select>
+
+      <div class="info-line">
+        Identificação biométrica será integrada
+        nesta etapa quando os A17 estiverem disponíveis.
+      </div>
 
     </div>
 
@@ -691,12 +496,11 @@ button {
     >
 
       <label>
-        🔎 As peças produzidas estão conformes?
+        🔎 O processo/peça está conforme?
       </label>
 
 
       <div class="conformidade">
-
 
         <button
           id="btnSim"
@@ -706,7 +510,6 @@ button {
           ✅ SIM
         </button>
 
-
         <button
           id="btnNao"
           class="btn-nao"
@@ -714,7 +517,6 @@ button {
         >
           ❌ NÃO
         </button>
-
 
       </div>
 
@@ -732,9 +534,15 @@ button {
         id="btnIniciar"
         class="btn-primary"
         onclick="prepararInspecao()"
+        disabled
       >
         🎥 INICIAR INSPEÇÃO
       </button>
+
+      <div class="info-line">
+        A gravação será encerrada
+        automaticamente ao final do ciclo.
+      </div>
 
     </div>
 
@@ -742,7 +550,9 @@ button {
   </div>
 
 
-  <!-- TELA DE INSPEÇÃO -->
+  <!-- =========================
+       TELA DE PREPARAÇÃO / GRAVAÇÃO
+       ========================= -->
 
   <div
     id="inspectionScreen"
@@ -753,11 +563,9 @@ button {
       🎥
     </div>
 
-
     <div class="inspection-title">
       CICLO DE PRODUÇÃO
     </div>
-
 
     <div
       id="inspectionProduct"
@@ -765,25 +573,137 @@ button {
     >
     </div>
 
+    <!-- CONTAGEM ANTES DO CICLO -->
 
     <div
-      id="inspectionTimer"
-      class="timer"
+      id="preparationBlock"
     >
-      00:00
+
+      <div class="inspection-status">
+        Posicione a câmera e prepare a máquina.
+      </div>
+
+      <div
+        id="countdown"
+        class="countdown"
+      >
+        3
+      </div>
+
+      <div class="info-line">
+        A gravação começará automaticamente.
+      </div>
+
     </div>
 
 
+    <!-- CÂMERA -->
+
     <div
-      id="inspectionStatus"
+      id="cameraBlock"
+      class="camera-box hidden"
     >
-      Prepare a máquina...
+
+      <video
+        id="cameraPreview"
+        autoplay
+        muted
+        playsinline
+      ></video>
+
+    </div>
+
+
+    <!-- CONTADOR DO CICLO -->
+
+    <div
+      id="recordingBlock"
+      class="hidden"
+    >
+
+      <div
+        class="recording-indicator"
+      >
+        🔴 GRAVANDO CICLO
+      </div>
+
+      <div
+        id="inspectionTimer"
+        class="timer"
+      >
+        00:00
+      </div>
+
+      <div
+        id="inspectionStatus"
+        class="inspection-status"
+      >
+        Gravando...
+      </div>
+
+    </div>
+
+
+  </div>
+
+
+  <!-- =========================
+       RESULTADO DO VÍDEO
+       ========================= -->
+
+  <div
+    id="videoResult"
+    class="card hidden"
+  >
+
+    <div
+      class="inspection-title"
+      style="text-align:center;"
+    >
+      ✅ CICLO GRAVADO
+    </div>
+
+    <div
+      id="videoResultInfo"
+      class="info-line"
+      style="text-align:center;"
+    >
+    </div>
+
+
+    <video
+      id="videoPreview"
+      controls
+      playsinline
+    ></video>
+
+
+    <div class="video-actions">
+
+      <button
+        id="btnRegravar"
+        class="btn-secondary"
+        onclick="gravarNovamente()"
+      >
+        🔄 GRAVAR NOVAMENTE
+      </button>
+
+      <button
+        id="btnAvancar"
+        class="btn-primary"
+        onclick="finalizarTesteVideo()"
+      >
+        CONTINUAR
+      </button>
+
     </div>
 
   </div>
 
 
-  <!-- TELA DE SUCESSO -->
+  <!-- =========================
+       RESULTADO FINAL DO TESTE
+       ========================= -->
 
   <div
     id="successScreen"
@@ -795,11 +715,16 @@ button {
     </div>
 
     <div class="success-title">
-      INSPEÇÃO CONCLUÍDA
+      VÍDEO VALIDADO
     </div>
 
     <p>
-      Registro finalizado.
+      A gravação do ciclo foi concluída.
+    </p>
+
+    <p class="info-line">
+      Nesta etapa, o vídeo permanece apenas
+      no aparelho para validação.
     </p>
 
     <button
@@ -811,30 +736,19 @@ button {
 
   </div>
 
-
 </div>
 
 
 <script>
 
-
 /* =====================================================
-   CONFIGURAÇÃO INICIAL
+   PARÂMETROS
    ===================================================== */
-
-
-/*
- * A máquina será recebida pela URL:
- *
- * ?m=M1
- *
- */
 
 const parametros =
   new URLSearchParams(
     window.location.search
   );
-
 
 const maquina =
   (
@@ -845,164 +759,120 @@ const maquina =
     .toUpperCase();
 
 
-let operadores =
-  [];
+/* =====================================================
+   ESTADO DO SISTEMA
+   ===================================================== */
 
+let operadores = [];
 
-let produtos =
-  [];
+let produtos = [];
 
+let produtoAtual = null;
 
-let produtoAtual =
-  null;
+let conformidade = '';
 
+let tempoCiclo = 0;
 
-let conformidade =
-  '';
+let cameraStream = null;
 
+let mediaRecorder = null;
 
-let tempoCiclo =
-  0;
+let partesVideo = [];
+
+let videoBlob = null;
+
+let countdownInterval = null;
+
+let cicloInterval = null;
+
+let segundosRestantes = 0;
+
+let wakeLock = null;
 
 
 /* =====================================================
    MENSAGENS
    ===================================================== */
 
-
-function mostrarMensagem(
-  texto,
-  tipo
-) {
+function mostrarMensagem(texto, tipo) {
 
   const box =
-    document.getElementById(
-      'message'
-    );
-
+    document.getElementById('message');
 
   box.textContent =
     texto;
 
-
   box.className =
-    'message ' +
-    tipo;
-
+    'message ' + tipo;
 }
 
 
 function limparMensagem() {
 
   const box =
-    document.getElementById(
-      'message'
-    );
+    document.getElementById('message');
 
+  box.textContent = '';
 
-  box.textContent =
-    '';
-
-
-  box.className =
-    'message';
-
+  box.className = 'message';
 }
 
 
 /* =====================================================
-   TEMPO
+   FORMATAÇÃO
    ===================================================== */
 
-
-function formatarTempo(
-  segundos
-) {
+function formatarTempo(segundos) {
 
   const minutos =
-    Math.floor(
-      segundos / 60
-    );
-
+    Math.floor(segundos / 60);
 
   const segundosRestantes =
     segundos % 60;
 
-
   return (
-    String(
-      minutos
-    ).padStart(
-      2,
-      '0'
-    )
+    String(minutos).padStart(2, '0')
     +
     ':'
     +
-    String(
-      segundosRestantes
-    ).padStart(
-      2,
-      '0'
-    )
+    String(segundosRestantes).padStart(2, '0')
   );
-
 }
 
 
 /* =====================================================
-   CARREGAR DADOS DO SISTEMA
+   CARREGAR DADOS DO PROTÓTIPO
    ===================================================== */
 
-
-/*
- * Nesta primeira versão da interface,
- * utilizamos os dados já existentes no
- * endpoint temporário.
- *
- * Posteriormente iremos ligar diretamente
- * ao Apps Script definitivo.
- */
-
-async function carregarDados() {
+function carregarDados() {
 
   /*
-   * Para o protótipo atual,
-   * usamos os quatro produtos conhecidos.
+   * Temporário para validação da interface.
+   *
+   * Depois substituiremos por leitura real
+   * do Google Sheets.
    */
 
   produtos = [
 
     {
-      nome:
-        'Reservatório 25L',
-
-      ciclo:
-        130
+      nome: 'Reservatório 25L',
+      ciclo: 130
     },
 
     {
-      nome:
-        'Reservatório 50L',
-
-      ciclo:
-        140
+      nome: 'Reservatório 50L',
+      ciclo: 140
     },
 
     {
-      nome:
-        'Tampa de 50L cinza',
-
-      ciclo:
-        100
+      nome: 'Tampa de 50L cinza',
+      ciclo: 100
     },
 
     {
-      nome:
-        'Tampa de 100L Cinza',
-
-      ciclo:
-        155
+      nome: 'Tampa de 100L Cinza',
+      ciclo: 155
     }
 
   ];
@@ -1022,77 +892,56 @@ async function carregarDados() {
 
 
   document
-    .getElementById(
-      'machine'
-    )
+    .getElementById('machine')
     .textContent =
     maquina
-      ? maquina.replace(
-          'M',
-          'M-'
-        )
+      ? maquina.replace('M', 'M-')
       : 'MÁQUINA NÃO INFORMADA';
 
 
   const selectOperador =
-    document.getElementById(
-      'operador'
-    );
+    document.getElementById('operador');
 
 
   operadores.forEach(
     function(nome) {
 
       const option =
-        document.createElement(
-          'option'
-        );
-
+        document.createElement('option');
 
       option.value =
         nome;
 
-
       option.textContent =
         nome;
 
-
-      selectOperador
-        .appendChild(
-          option
-        );
+      selectOperador.appendChild(
+        option
+      );
 
     }
   );
 
 
   const selectProduto =
-    document.getElementById(
-      'produto'
-    );
+    document.getElementById('produto');
 
 
   produtos.forEach(
     function(produto) {
 
       const option =
-        document.createElement(
-          'option'
-        );
-
+        document.createElement('option');
 
       option.value =
         produto.nome;
 
-
       option.textContent =
         produto.nome;
 
-
-      selectProduto
-        .appendChild(
-          option
-        );
+      selectProduto.appendChild(
+        option
+      );
 
     }
   );
@@ -1104,67 +953,55 @@ async function carregarDados() {
    PRODUTO
    ===================================================== */
 
-
 function produtoSelecionado() {
 
   limparMensagem();
 
-
   const nome =
     document
-      .getElementById(
-        'produto'
-      )
+      .getElementById('produto')
       .value;
 
 
   produtoAtual =
     produtos.find(
       function(item) {
-
-        return (
-          item.nome ===
-          nome
-        );
-
+        return item.nome === nome;
       }
     );
+
+
+  conformidade = '';
+
+  document
+    .getElementById('btnSim')
+    .classList
+    .remove('selected');
+
+  document
+    .getElementById('btnNao')
+    .classList
+    .remove('selected');
 
 
   if (!produtoAtual) {
 
     document
-      .getElementById(
-        'cycleBox'
-      )
+      .getElementById('cycleBox')
       .classList
-      .add(
-        'hidden'
-      );
-
+      .add('hidden');
 
     document
-      .getElementById(
-        'conformidadeCard'
-      )
+      .getElementById('conformidadeCard')
       .classList
-      .add(
-        'hidden'
-      );
-
+      .add('hidden');
 
     document
-      .getElementById(
-        'startCard'
-      )
+      .getElementById('startCard')
       .classList
-      .add(
-        'hidden'
-      );
-
+      .add('hidden');
 
     return;
-
   }
 
 
@@ -1173,9 +1010,7 @@ function produtoSelecionado() {
 
 
   document
-    .getElementById(
-      'cycleTime'
-    )
+    .getElementById('cycleTime')
     .textContent =
     formatarTempo(
       tempoCiclo
@@ -1183,35 +1018,25 @@ function produtoSelecionado() {
 
 
   document
-    .getElementById(
-      'inspectionProduct'
-    )
+    .getElementById('inspectionProduct')
     .textContent =
     produtoAtual.nome +
-    ' — ' +
+    ' — ciclo de ' +
     formatarTempo(
       tempoCiclo
     );
 
 
   document
-    .getElementById(
-      'cycleBox'
-    )
+    .getElementById('cycleBox')
     .classList
-    .remove(
-      'hidden'
-    );
+    .remove('hidden');
 
 
   document
-    .getElementById(
-      'conformidadeCard'
-    )
+    .getElementById('conformidadeCard')
     .classList
-    .remove(
-      'hidden'
-    );
+    .remove('hidden');
 
 
   verificarFormulario();
@@ -1220,64 +1045,17 @@ function produtoSelecionado() {
 
 
 /* =====================================================
-   FORMULÁRIO
-   ===================================================== */
-
-
-function verificarFormulario() {
-
-  const operador =
-    document
-      .getElementById(
-        'operador'
-      )
-      .value;
-
-
-  const produto =
-    document
-      .getElementById(
-        'produto'
-      )
-      .value;
-
-
-  if (
-    operador &&
-    produto
-  ) {
-
-    document
-      .getElementById(
-        'startCard'
-      )
-      .classList
-      .remove(
-        'hidden'
-      );
-
-  }
-
-}
-
-
-/* =====================================================
    CONFORMIDADE
    ===================================================== */
 
-
-function selecionarConformidade(
-  valor
-) {
+function selecionarConformidade(valor) {
 
   conformidade =
     valor;
 
 
   document
-    .getElementById(
-      'btnSim'
-    )
+    .getElementById('btnSim')
     .classList
     .toggle(
       'selected',
@@ -1286,9 +1064,7 @@ function selecionarConformidade(
 
 
   document
-    .getElementById(
-      'btnNao'
-    )
+    .getElementById('btnNao')
     .classList
     .toggle(
       'selected',
@@ -1298,11 +1074,66 @@ function selecionarConformidade(
 
   verificarFormulario();
 
+}
 
-  /*
-   * A partir da próxima versão,
-   * aqui será iniciado o fluxo de vídeo.
-   */
+
+/* =====================================================
+   LIBERAR BOTÃO DE INÍCIO
+   ===================================================== */
+
+function verificarFormulario() {
+
+  const operador =
+    document
+      .getElementById('operador')
+      .value;
+
+
+  const produto =
+    document
+      .getElementById('produto')
+      .value;
+
+
+  const pronto =
+    !!(
+      operador &&
+      produto &&
+      produtoAtual &&
+      tempoCiclo > 0 &&
+      conformidade
+    );
+
+
+  const startCard =
+    document.getElementById(
+      'startCard'
+    );
+
+
+  const btn =
+    document.getElementById(
+      'btnIniciar'
+    );
+
+
+  if (pronto) {
+
+    startCard
+      .classList
+      .remove('hidden');
+
+    btn.disabled = false;
+
+  } else {
+
+    startCard
+      .classList
+      .add('hidden');
+
+    btn.disabled = true;
+
+  }
 
 }
 
@@ -1311,38 +1142,28 @@ function selecionarConformidade(
    PREPARAR INSPEÇÃO
    ===================================================== */
 
+async function prepararInspecao() {
 
-function prepararInspecao() {
+  limparMensagem();
 
   const operador =
     document
-      .getElementById(
-        'operador'
-      )
-      .value;
-
-
-  const produto =
-    document
-      .getElementById(
-        'produto'
-      )
+      .getElementById('operador')
       .value;
 
 
   if (!operador) {
 
     mostrarMensagem(
-      'Identifique o operador.',
+      'Selecione o operador.',
       'error'
     );
 
     return;
-
   }
 
 
-  if (!produto) {
+  if (!produtoAtual) {
 
     mostrarMensagem(
       'Selecione o produto.',
@@ -1350,65 +1171,717 @@ function prepararInspecao() {
     );
 
     return;
-
   }
 
 
   if (!conformidade) {
 
     mostrarMensagem(
-      'Informe se as peças estão conformes.',
+      'Informe se o processo/peça está conforme.',
       'error'
     );
 
     return;
-
   }
 
 
-  /*
-   * Por enquanto, esta etapa apenas
-   * demonstra o fluxo.
-   *
-   * O vídeo real será conectado na
-   * próxima versão.
-   */
+  if (
+    !Number.isInteger(
+      tempoCiclo
+    ) ||
+    tempoCiclo <= 0
+  ) {
 
-  document
-    .getElementById(
-      'mainForm'
-    )
-    .classList
-    .add(
-      'hidden'
+    mostrarMensagem(
+      'Tempo de ciclo inválido para este produto.',
+      'error'
     );
 
+    return;
+  }
+
 
   document
-    .getElementById(
-      'inspectionScreen'
-    )
+    .getElementById('mainForm')
     .classList
-    .remove(
-      'hidden'
-    );
+    .add('hidden');
 
 
   document
-    .getElementById(
-      'inspectionStatus'
-    )
-    .textContent =
-    'O módulo de câmera será iniciado aqui.';
+    .getElementById('inspectionScreen')
+    .classList
+    .remove('hidden');
+
+
+  document
+    .getElementById('videoResult')
+    .classList
+    .add('hidden');
+
+
+  document
+    .getElementById('successScreen')
+    .classList
+    .add('hidden');
+
+
+  await solicitarWakeLock();
+
+
+  await iniciarCamera();
 
 
 }
 
 
 /* =====================================================
-   NOVO REGISTRO
+   WAKE LOCK
    ===================================================== */
 
+async function solicitarWakeLock() {
+
+  if (
+    'wakeLock' in navigator
+  ) {
+
+    try {
+
+      wakeLock =
+        await navigator
+          .wakeLock
+          .request('screen');
+
+    }
+    catch (erro) {
+
+      console.warn(
+        'Wake Lock não disponível:',
+        erro
+      );
+
+    }
+
+  }
+
+}
+
+
+async function liberarWakeLock() {
+
+  if (wakeLock) {
+
+    try {
+
+      await wakeLock.release();
+
+    }
+    catch (erro) {
+
+      console.warn(
+        erro
+      );
+
+    }
+
+    wakeLock = null;
+
+  }
+
+}
+
+
+/* =====================================================
+   CÂMERA
+   ===================================================== */
+
+async function iniciarCamera() {
+
+  try {
+
+    /*
+     * Câmera traseira:
+     * é a câmera que será usada para
+     * filmar o ciclo da máquina.
+     */
+
+    cameraStream =
+      await navigator
+        .mediaDevices
+        .getUserMedia({
+
+          video: {
+
+            facingMode: {
+              ideal: 'environment'
+            },
+
+            width: {
+              ideal: 1280
+            },
+
+            height: {
+              ideal: 720
+            }
+
+          },
+
+          audio: false
+
+        });
+
+
+    const camera =
+      document.getElementById(
+        'cameraPreview'
+      );
+
+
+    camera.srcObject =
+      cameraStream;
+
+
+    await camera.play();
+
+
+    document
+      .getElementById('preparationBlock')
+      .classList
+      .remove('hidden');
+
+
+    document
+      .getElementById('cameraBlock')
+      .classList
+      .remove('hidden');
+
+
+    document
+      .getElementById('recordingBlock')
+      .classList
+      .add('hidden');
+
+
+    iniciarContagemPreparacao();
+
+
+  }
+  catch (erro) {
+
+    console.error(
+      erro
+    );
+
+
+    liberarWakeLock();
+
+
+    mostrarMensagem(
+      'Não foi possível acessar a câmera. Verifique a permissão do navegador.',
+      'error'
+    );
+
+
+    fecharInspecao();
+
+  }
+
+}
+
+
+/* =====================================================
+   CONTAGEM 3-2-1
+   ===================================================== */
+
+function iniciarContagemPreparacao() {
+
+  let contador =
+    3;
+
+
+  document
+    .getElementById('countdown')
+    .textContent =
+    contador;
+
+
+  if (countdownInterval) {
+
+    clearInterval(
+      countdownInterval
+    );
+
+  }
+
+
+  countdownInterval =
+    setInterval(
+      function() {
+
+        contador--;
+
+
+        document
+          .getElementById('countdown')
+          .textContent =
+          contador;
+
+
+        if (
+          contador <= 0
+        ) {
+
+          clearInterval(
+            countdownInterval
+          );
+
+
+          countdownInterval =
+            null;
+
+
+          iniciarGravacao();
+
+        }
+
+      },
+      1000
+    );
+
+}
+
+
+/* =====================================================
+   FORMATO DE VÍDEO
+   ===================================================== */
+
+function escolherMimeType() {
+
+  const tipos = [
+
+    'video/webm;codecs=vp8',
+
+    'video/webm',
+
+    'video/mp4'
+
+  ];
+
+
+  for (
+    const tipo of tipos
+  ) {
+
+    if (
+      typeof MediaRecorder
+        .isTypeSupported ===
+      'function'
+      &&
+      MediaRecorder
+        .isTypeSupported(
+          tipo
+        )
+    ) {
+
+      return tipo;
+
+    }
+
+  }
+
+
+  return '';
+
+}
+
+
+/* =====================================================
+   INICIAR GRAVAÇÃO
+   ===================================================== */
+
+function iniciarGravacao() {
+
+  partesVideo =
+    [];
+
+  videoBlob =
+    null;
+
+
+  document
+    .getElementById('preparationBlock')
+    .classList
+    .add('hidden');
+
+
+  document
+    .getElementById('recordingBlock')
+    .classList
+    .remove('hidden');
+
+
+  segundosRestantes =
+    tempoCiclo;
+
+
+  document
+    .getElementById('inspectionTimer')
+    .textContent =
+    formatarTempo(
+      segundosRestantes
+    );
+
+
+  const mimeType =
+    escolherMimeType();
+
+
+  try {
+
+    if (mimeType) {
+
+      mediaRecorder =
+        new MediaRecorder(
+          cameraStream,
+          {
+            mimeType:
+              mimeType
+          }
+        );
+
+    } else {
+
+      mediaRecorder =
+        new MediaRecorder(
+          cameraStream
+        );
+
+    }
+
+  }
+  catch (erro) {
+
+    console.error(
+      erro
+    );
+
+
+    mostrarMensagem(
+      'O navegador não conseguiu iniciar a gravação.',
+      'error'
+    );
+
+
+    fecharInspecao();
+
+    return;
+
+  }
+
+
+  mediaRecorder.ondataavailable =
+    function(evento) {
+
+      if (
+        evento.data &&
+        evento.data.size > 0
+      ) {
+
+        partesVideo.push(
+          evento.data
+        );
+
+      }
+
+    };
+
+
+  mediaRecorder.onstop =
+    function() {
+
+      const tipo =
+        mediaRecorder.mimeType ||
+        'video/webm';
+
+
+      videoBlob =
+        new Blob(
+          partesVideo,
+          {
+            type: tipo
+          }
+        );
+
+
+      const url =
+        URL.createObjectURL(
+          videoBlob
+        );
+
+
+      document
+        .getElementById('videoPreview')
+        .src =
+        url;
+
+
+      document
+        .getElementById('videoResultInfo')
+        .textContent =
+        produtoAtual.nome +
+        ' — ciclo programado: ' +
+        formatarTempo(
+          tempoCiclo
+        );
+
+
+      document
+        .getElementById('inspectionScreen')
+        .classList
+        .add('hidden');
+
+
+      document
+        .getElementById('videoResult')
+        .classList
+        .remove('hidden');
+
+
+      liberarWakeLock();
+
+    };
+
+
+  mediaRecorder.start(250);
+
+
+  atualizarContadorCiclo();
+
+
+  cicloInterval =
+    setInterval(
+      function() {
+
+        segundosRestantes--;
+
+
+        atualizarContadorCiclo();
+
+
+        if (
+          segundosRestantes <= 0
+        ) {
+
+          clearInterval(
+            cicloInterval
+          );
+
+
+          cicloInterval =
+            null;
+
+
+          pararGravacao();
+
+        }
+
+      },
+      1000
+    );
+
+}
+
+
+/* =====================================================
+   CONTADOR DO CICLO
+   ===================================================== */
+
+function atualizarContadorCiclo() {
+
+  document
+    .getElementById('inspectionTimer')
+    .textContent =
+    formatarTempo(
+      segundosRestantes
+    );
+
+}
+
+
+/* =====================================================
+   PARAR GRAVAÇÃO
+   ===================================================== */
+
+function pararGravacao() {
+
+  if (
+    mediaRecorder &&
+    mediaRecorder.state !==
+    'inactive'
+  ) {
+
+    mediaRecorder.stop();
+
+  }
+
+
+  desligarCamera();
+
+}
+
+
+/* =====================================================
+   DESLIGAR CÂMERA
+   ===================================================== */
+
+function desligarCamera() {
+
+  if (cameraStream) {
+
+    cameraStream
+      .getTracks()
+      .forEach(
+        function(track) {
+
+          track.stop();
+
+        }
+      );
+
+  }
+
+
+  cameraStream =
+    null;
+
+}
+
+
+/* =====================================================
+   GRAVAR NOVAMENTE
+   ===================================================== */
+
+async function gravarNovamente() {
+
+  document
+    .getElementById('videoResult')
+    .classList
+    .add('hidden');
+
+
+  document
+    .getElementById('inspectionScreen')
+    .classList
+    .remove('hidden');
+
+
+  document
+    .getElementById('recordingBlock')
+    .classList
+    .add('hidden');
+
+
+  await solicitarWakeLock();
+
+
+  await iniciarCamera();
+
+}
+
+
+/* =====================================================
+   FINALIZAR TESTE
+   ===================================================== */
+
+function finalizarTesteVideo() {
+
+  document
+    .getElementById('videoResult')
+    .classList
+    .add('hidden');
+
+
+  document
+    .getElementById('successScreen')
+    .classList
+    .remove('hidden');
+
+}
+
+
+/* =====================================================
+   FECHAR INSPEÇÃO
+   ===================================================== */
+
+function fecharInspecao() {
+
+  if (countdownInterval) {
+
+    clearInterval(
+      countdownInterval
+    );
+
+    countdownInterval =
+      null;
+
+  }
+
+
+  if (cicloInterval) {
+
+    clearInterval(
+      cicloInterval
+    );
+
+    cicloInterval =
+      null;
+
+  }
+
+
+  if (
+    mediaRecorder &&
+    mediaRecorder.state !==
+    'inactive'
+  ) {
+
+    try {
+
+      mediaRecorder.stop();
+
+    }
+    catch (erro) {
+
+      console.warn(
+        erro
+      );
+
+    }
+
+  }
+
+
+  desligarCamera();
+
+  liberarWakeLock();
+
+
+  document
+    .getElementById('inspectionScreen')
+    .classList
+    .add('hidden');
+
+
+  document
+    .getElementById('mainForm')
+    .classList
+    .remove('hidden');
+
+}
+
+
+/* =====================================================
+   NOVA INSPEÇÃO
+   ===================================================== */
 
 function novoRegistro() {
 
@@ -1418,12 +1891,32 @@ function novoRegistro() {
 
 
 /* =====================================================
-   INICIALIZAÇÃO
+   REFORÇAR WAKE LOCK QUANDO A ABA VOLTAR
    ===================================================== */
 
+document.addEventListener(
+  'visibilitychange',
+  async function() {
+
+    if (
+      document.visibilityState ===
+      'visible' &&
+      cameraStream
+    ) {
+
+      await solicitarWakeLock();
+
+    }
+
+  }
+);
+
+
+/* =====================================================
+   INICIAR
+   ===================================================== */
 
 carregarDados();
-
 
 </script>
 
