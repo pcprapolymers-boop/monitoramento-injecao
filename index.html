@@ -45,10 +45,6 @@
       padding: 8px;
     }
 
-    /* =========================
-       CABEÇALHO
-       ========================= */
-
     .header {
       background: white;
       border-radius: 18px;
@@ -81,10 +77,6 @@
       font-weight: bold;
     }
 
-    /* =========================
-       CARTÕES
-       ========================= */
-
     .card {
       background: white;
       border-radius: 18px;
@@ -110,10 +102,6 @@
       font-size: 18px;
     }
 
-    /* =========================
-       CICLO
-       ========================= */
-
     .cycle {
       margin-top: 15px;
       padding: 16px;
@@ -134,10 +122,6 @@
       font-weight: bold;
       color: var(--ra-blue-dark);
     }
-
-    /* =========================
-       BOTÕES
-       ========================= */
 
     button {
       width: 100%;
@@ -193,10 +177,6 @@
       transform: scale(1.015);
     }
 
-    /* =========================
-       MENSAGENS
-       ========================= */
-
     .message {
       display: none;
       padding: 15px;
@@ -223,10 +203,6 @@
       background: #FFF4DE;
       color: #8A5A08;
     }
-
-    /* =========================
-       INSPEÇÃO
-       ========================= */
 
     .inspection {
       text-align: center;
@@ -278,10 +254,6 @@
       font-weight: bold;
     }
 
-    /* =========================
-       CÂMERA
-       ========================= */
-
     .camera-box {
       margin-top: 18px;
       background: #111;
@@ -296,10 +268,6 @@
       object-fit: cover;
       background: #000;
     }
-
-    /* =========================
-       RESULTADO
-       ========================= */
 
     #videoPreview {
       width: 100%;
@@ -347,6 +315,13 @@
       margin-top: 8px;
       color: #647586;
       font-size: 14px;
+    }
+
+    .bridge-status {
+      margin-top: 8px;
+      font-size: 13px;
+      color: #647586;
+      text-align: center;
     }
 
     @media (max-width: 480px) {
@@ -401,10 +376,9 @@
   ></div>
 
 
-  <!-- FORMULÁRIO -->
+  <!-- FORMULÁRIO PRINCIPAL -->
 
   <div id="mainForm">
-
 
     <!-- OPERADOR -->
 
@@ -427,7 +401,7 @@
 
       <div class="info-line">
         Identificação biométrica será integrada
-        posteriormente nos aparelhos Samsung A17.
+        posteriormente nos Samsung A17.
       </div>
 
     </div>
@@ -553,11 +527,8 @@
     <div
       id="inspectionProduct"
       class="inspection-cycle"
-    >
-    </div>
+    ></div>
 
-
-    <!-- PREPARAÇÃO -->
 
     <div id="preparationBlock">
 
@@ -579,8 +550,6 @@
     </div>
 
 
-    <!-- CÂMERA -->
-
     <div
       id="cameraBlock"
       class="camera-box hidden"
@@ -595,8 +564,6 @@
 
     </div>
 
-
-    <!-- GRAVAÇÃO -->
 
     <div
       id="recordingBlock"
@@ -644,8 +611,7 @@
     <div
       id="videoResultInfo"
       class="result-info"
-    >
-    </div>
+    ></div>
 
 
     <video
@@ -678,7 +644,7 @@
   </div>
 
 
-  <!-- FINALIZAÇÃO DO TESTE -->
+  <!-- FINALIZAÇÃO -->
 
   <div
     id="successScreen"
@@ -700,8 +666,7 @@
     <p
       id="successInfo"
       class="info-line"
-    >
-    </p>
+    ></p>
 
     <button
       class="btn-primary"
@@ -713,18 +678,30 @@
   </div>
 
 
-  <!-- FORMULÁRIO OCULTO DE UPLOAD -->
+  <!-- BRIDGE INVISÍVEL -->
 
   <iframe
-    name="uploadFrame"
-    id="uploadFrame"
+    id="uploadBridge"
+    src="https://script.google.com/macros/s/AKfycbyyczQIADys9S5tG7G9WiR_tFiWubW4mcteLurFO_GOlrlSs9f9CWkcojnjsuG5Jgvt/exec?bridge=1"
     style="
       display:none;
       width:0;
       height:0;
       border:0;
+      position:absolute;
+      left:-9999px;
+      top:-9999px;
     "
+    title="Upload Bridge"
   ></iframe>
+
+
+  <div
+    id="bridgeStatus"
+    class="bridge-status"
+  >
+    Preparando conexão de upload...
+  </div>
 
 </div>
 
@@ -734,13 +711,6 @@
 /* =====================================================
    URL DO APPS SCRIPT
    ===================================================== */
-
-/*
- * COLE AQUI A MESMA URL /exec QUE VOCÊ
- * JÁ ESTÁ USANDO NO SEU WEB APP.
- *
- * NÃO coloque ?m=M1
- */
 
 const URL_APPS_SCRIPT =
   'https://script.google.com/macros/s/AKfycbyyczQIADys9S5tG7G9WiR_tFiWubW4mcteLurFO_GOlrlSs9f9CWkcojnjsuG5Jgvt/exec';
@@ -799,19 +769,25 @@ let inicioGravacao = null;
 
 let fimGravacao = null;
 
+let bridgePronto = false;
+
 
 /* =====================================================
    MENSAGENS
    ===================================================== */
 
-function mostrarMensagem(texto, tipo) {
+function mostrarMensagem(
+  texto,
+  tipo
+) {
 
   const box =
     document.getElementById(
       'message'
     );
 
-  box.textContent = texto;
+  box.textContent =
+    texto;
 
   box.className =
     'message ' + tipo;
@@ -826,18 +802,22 @@ function limparMensagem() {
       'message'
     );
 
-  box.textContent = '';
+  box.textContent =
+    '';
 
-  box.className = 'message';
+  box.className =
+    'message';
 
 }
 
 
 /* =====================================================
-   FORMATAÇÃO DE TEMPO
+   TEMPO
    ===================================================== */
 
-function formatarTempo(segundos) {
+function formatarTempo(
+  segundos
+) {
 
   const minutos =
     Math.floor(
@@ -866,26 +846,13 @@ function formatarTempo(segundos) {
 
 function carregarDados() {
 
-  /*
-   * Nesta etapa os dados estão temporariamente
-   * no próprio aplicativo.
-   *
-   * Na próxima etapa passaremos a buscar
-   * diretamente do Google Sheets.
-   */
-
   operadores = [
 
     'Guilherme',
-
-    'Jéssica',
-
+    'Jessica',
     'Airton',
-
     'Célio',
-
     'Walisson',
-
     'Marco'
 
   ];
@@ -894,23 +861,39 @@ function carregarDados() {
   produtos = [
 
     {
-      nome: 'Reservatório 25L',
-      ciclo: 130
+      nome:
+        'Reservatório 25L',
+
+      ciclo:
+        130
+
     },
 
     {
-      nome: 'Reservatório 50L',
-      ciclo: 140
+      nome:
+        'Reservatório 50L',
+
+      ciclo:
+        140
+
     },
 
     {
-      nome: 'Tampa de 50L cinza',
-      ciclo: 100
+      nome:
+        'Tampa de 50L cinza',
+
+      ciclo:
+        100
+
     },
 
     {
-      nome: 'Tampa de 100L Cinza',
-      ciclo: 155
+      nome:
+        'Tampa de 100L Cinza',
+
+      ciclo:
+        155
+
     }
 
   ];
@@ -930,9 +913,10 @@ function carregarDados() {
 
 
   const selectOperador =
-    document.getElementById(
-      'operador'
-    );
+    document
+      .getElementById(
+        'operador'
+      );
 
 
   operadores.forEach(
@@ -949,18 +933,20 @@ function carregarDados() {
       option.textContent =
         nome;
 
-      selectOperador.appendChild(
-        option
-      );
+      selectOperador
+        .appendChild(
+          option
+        );
 
     }
   );
 
 
   const selectProduto =
-    document.getElementById(
-      'produto'
-    );
+    document
+      .getElementById(
+        'produto'
+      );
 
 
   produtos.forEach(
@@ -977,12 +963,45 @@ function carregarDados() {
       option.textContent =
         produto.nome;
 
-      selectProduto.appendChild(
-        option
-      );
+      selectProduto
+        .appendChild(
+          option
+        );
 
     }
   );
+
+
+  atualizarStatusBridge();
+
+}
+
+
+/* =====================================================
+   STATUS DA PONTE
+   ===================================================== */
+
+function atualizarStatusBridge() {
+
+  const status =
+    document
+      .getElementById(
+        'bridgeStatus'
+      );
+
+
+  if (bridgePronto) {
+
+    status.textContent =
+      'Conexão de upload pronta.';
+
+  }
+  else {
+
+    status.textContent =
+      'Preparando conexão de upload...';
+
+  }
 
 }
 
@@ -1017,7 +1036,8 @@ function produtoSelecionado() {
     );
 
 
-  conformidade = '';
+  conformidade =
+    '';
 
 
   document
@@ -1240,7 +1260,7 @@ function verificarFormulario() {
 
 
 /* =====================================================
-   PREPARAR INSPEÇÃO
+   PREPARAR
    ===================================================== */
 
 async function prepararInspecao() {
@@ -1292,23 +1312,6 @@ async function prepararInspecao() {
   }
 
 
-  if (
-    !Number.isInteger(
-      tempoCiclo
-    ) ||
-    tempoCiclo <= 0
-  ) {
-
-    mostrarMensagem(
-      'Tempo de ciclo inválido.',
-      'error'
-    );
-
-    return;
-
-  }
-
-
   document
     .getElementById(
       'mainForm'
@@ -1325,26 +1328,6 @@ async function prepararInspecao() {
     )
     .classList
     .remove(
-      'hidden'
-    );
-
-
-  document
-    .getElementById(
-      'videoResult'
-    )
-    .classList
-    .add(
-      'hidden'
-    );
-
-
-  document
-    .getElementById(
-      'successScreen'
-    )
-    .classList
-    .add(
       'hidden'
     );
 
@@ -1379,7 +1362,6 @@ async function solicitarWakeLock() {
     catch (erro) {
 
       console.warn(
-        'Wake Lock não disponível:',
         erro
       );
 
@@ -1393,7 +1375,9 @@ async function solicitarWakeLock() {
 async function liberarWakeLock() {
 
   if (!wakeLock) {
+
     return;
+
   }
 
 
@@ -1402,14 +1386,7 @@ async function liberarWakeLock() {
     await wakeLock.release();
 
   }
-  catch (erro) {
-
-    console.warn(
-      erro
-    );
-
-  }
-
+  catch (erro) {}
 
   wakeLock =
     null;
@@ -1484,31 +1461,16 @@ async function iniciarCamera() {
       );
 
 
-    document
-      .getElementById(
-        'recordingBlock'
-      )
-      .classList
-      .add(
-        'hidden'
-      );
-
-
     iniciarContagemPreparacao();
 
   }
   catch (erro) {
 
-    console.error(
-      erro
-    );
-
-
-    liberarWakeLock();
+    await liberarWakeLock();
 
 
     mostrarMensagem(
-      'Não foi possível acessar a câmera. Verifique a permissão do navegador.',
+      'Não foi possível acessar a câmera.',
       'error'
     );
 
@@ -1521,7 +1483,7 @@ async function iniciarCamera() {
 
 
 /* =====================================================
-   3-2-1
+   3 2 1
    ===================================================== */
 
 function iniciarContagemPreparacao() {
@@ -1536,15 +1498,6 @@ function iniciarContagemPreparacao() {
     )
     .textContent =
     contador;
-
-
-  if (countdownInterval) {
-
-    clearInterval(
-      countdownInterval
-    );
-
-  }
 
 
   countdownInterval =
@@ -1587,7 +1540,7 @@ function iniciarContagemPreparacao() {
 
 
 /* =====================================================
-   FORMATO DO VÍDEO
+   MIME
    ===================================================== */
 
 function escolherMimeType() {
@@ -1643,7 +1596,6 @@ function iniciarGravacao() {
   videoBlob =
     null;
 
-
   inicioGravacao =
     new Date();
 
@@ -1686,28 +1638,23 @@ function iniciarGravacao() {
     escolherMimeType();
 
 
+  const opcoes = {
+
+    videoBitsPerSecond:
+      900000
+
+  };
+
+
+  if (mimeType) {
+
+    opcoes.mimeType =
+      mimeType;
+
+  }
+
+
   try {
-
-    /*
-     * 900 kbps foi escolhido para manter
-     * o tamanho dos arquivos sob controle.
-     */
-
-    const opcoes = {
-
-      videoBitsPerSecond:
-        900000
-
-    };
-
-
-    if (mimeType) {
-
-      opcoes.mimeType =
-        mimeType;
-
-    }
-
 
     mediaRecorder =
       new MediaRecorder(
@@ -1718,16 +1665,10 @@ function iniciarGravacao() {
   }
   catch (erro) {
 
-    console.error(
-      erro
-    );
-
-
     mostrarMensagem(
       'O navegador não conseguiu iniciar a gravação.',
       'error'
     );
-
 
     fecharInspecao();
 
@@ -1816,7 +1757,7 @@ function iniciarGravacao() {
         .innerHTML =
         produtoAtual.nome +
         '<br>' +
-        'Ciclo programado: <strong>' +
+        'Ciclo: <strong>' +
         formatarTempo(
           tempoCiclo
         ) +
@@ -1826,7 +1767,7 @@ function iniciarGravacao() {
         duracaoReal +
         ' s</strong>' +
         '<br>' +
-        'Tamanho do vídeo: <strong>' +
+        'Tamanho: <strong>' +
         tamanhoMB +
         ' MB</strong>';
 
@@ -1855,11 +1796,6 @@ function iniciarGravacao() {
 
     };
 
-
-  /*
-   * Gera pequenos blocos de dados
-   * para não esperar todo o vídeo.
-   */
 
   mediaRecorder.start(
     250
@@ -1944,7 +1880,7 @@ function pararGravacao() {
 
 
 /* =====================================================
-   DESLIGAR CAMERA
+   DESLIGAR
    ===================================================== */
 
 function desligarCamera() {
@@ -2006,10 +1942,6 @@ async function gravarNovamente() {
     );
 
 
-  videoBlob =
-    null;
-
-
   await solicitarWakeLock();
 
   await iniciarCamera();
@@ -2018,52 +1950,10 @@ async function gravarNovamente() {
 
 
 /* =====================================================
-   BLOB → BASE64
+   UPLOAD PELO BRIDGE
    ===================================================== */
 
-function blobParaBase64(
-  blob
-) {
-
-  return new Promise(
-    function(
-      resolve,
-      reject
-    ) {
-
-      const leitor =
-        new FileReader();
-
-
-      leitor.onloadend =
-        function() {
-
-          resolve(
-            leitor.result
-          );
-
-        };
-
-
-      leitor.onerror =
-        reject;
-
-
-      leitor.readAsDataURL(
-        blob
-      );
-
-    }
-  );
-
-}
-
-
-/* =====================================================
-   UPLOAD DO VÍDEO
-   ===================================================== */
-
-async function enviarVideo() {
+function enviarVideo() {
 
   if (!videoBlob) {
 
@@ -2077,16 +1967,11 @@ async function enviarVideo() {
   }
 
 
-  if (
-    !URL_APPS_SCRIPT ||
-    URL_APPS_SCRIPT.includes(
-      'COLE_AQUI'
-    )
-  ) {
+  if (!bridgePronto) {
 
     mostrarMensagem(
-      'A URL do Apps Script ainda não foi configurada no código.',
-      'error'
+      'A ponte de upload ainda está sendo preparada. Aguarde alguns segundos.',
+      'warning'
     );
 
     return;
@@ -2113,84 +1998,84 @@ async function enviarVideo() {
 
 
   botao.textContent =
-    'PREPARANDO UPLOAD...';
+    'ENVIANDO...';
 
 
   mostrarMensagem(
-    '☁️ Preparando vídeo de ' +
+    '☁️ Enviando vídeo de ' +
     tamanhoMB +
     ' MB...',
     'warning'
   );
 
 
-  try {
-
-    const base64 =
-      await blobParaBase64(
-        videoBlob
-      );
+  const bridge =
+    document.getElementById(
+      'uploadBridge'
+    );
 
 
-    const operador =
-      document
-        .getElementById(
-          'operador'
-        )
-        .value;
+  if (
+    !bridge ||
+    !bridge.contentWindow
+  ) {
+
+    botao.disabled =
+      false;
+
+    botao.textContent =
+      '☁️ ENVIAR VÍDEO';
+
+    mostrarMensagem(
+      'A ponte de upload não está disponível.',
+      'error'
+    );
+
+    return;
+
+  }
 
 
-    const mimeType =
-      videoBlob.type ||
-      'video/webm';
+  const mimeType =
+    videoBlob.type ||
+    'video/webm';
 
 
-    const iframe =
-      document.getElementById(
-        'uploadFrame'
-      );
+  const extensao =
+    mimeType.includes(
+      'mp4'
+    )
+      ? '.mp4'
+      : '.webm';
 
 
-    /*
-     * Gera um nome exclusivo para o iframe.
-     */
+  bridge.contentWindow.postMessage(
 
-    iframe.name = 'uploadFrame';
-    const form =
-      document.createElement(
-        'form'
-      );
+    {
 
+      type:
+        'UPLOAD_VIDEO',
 
-    form.method =
-  'POST';
+      blob:
+        videoBlob,
 
-form.action =
-  URL_APPS_SCRIPT;
+      mimeType:
+        mimeType,
 
-form.target =
-  'uploadFrame';
-
-form.enctype =
-  'application/x-www-form-urlencoded';
-
-form.acceptCharset =
-  'UTF-8';
-
-form.style.display =
-  'none';
-
-
-    const campos = {
-
-      tipo:
-        'VIDEO',
+      nomeArquivo:
+        'inspecao_' +
+        Date.now() +
+        extensao,
 
       maquina:
         maquina,
 
       operador:
-        operador,
+        document
+          .getElementById(
+            'operador'
+          )
+          .value,
 
       produto:
         produtoAtual.nome,
@@ -2198,111 +2083,20 @@ form.style.display =
       conforme:
         conformidade,
 
-      mimeType:
-        mimeType,
+      ciclo:
+        tempoCiclo
 
-      arquivoBase64:
-        base64
+    },
 
-    };
+    '*'
 
-
-    Object.keys(
-      campos
-    ).forEach(
-      function(nome) {
-
-        const input =
-          document.createElement(
-            'input'
-          );
-
-
-        input.type =
-          'hidden';
-
-
-        input.name =
-          nome;
-
-
-        input.value =
-          campos[nome];
-
-
-        form.appendChild(
-          input
-        );
-
-      }
-    );
-
-
-    document.body.appendChild(
-      form
-    );
-
-
-    mostrarMensagem(
-      '☁️ Enviando vídeo de ' +
-      tamanhoMB +
-      ' MB para o Google Drive...',
-      'warning'
-    );
-
-
-    botao.textContent =
-      'ENVIANDO...';
-
-
-    form.submit();
-
-
-    setTimeout(
-      function() {
-
-        try {
-
-          document.body.removeChild(
-            form
-          );
-
-        }
-        catch (erro) {}
-
-      },
-      30000
-    );
-
-  }
-  catch (erro) {
-
-    console.error(
-      erro
-    );
-
-
-    botao.disabled =
-      false;
-
-
-    botao.textContent =
-      '☁️ ENVIAR VÍDEO';
-
-
-    mostrarMensagem(
-      'Erro ao preparar o upload: ' +
-      erro.message,
-      'error'
-    );
-
-  }
+  );
 
 }
 
 
 /* =====================================================
-   RESPOSTA DO APPS SCRIPT
+   RESPOSTA DO BRIDGE
    ===================================================== */
 
 window.addEventListener(
@@ -2313,10 +2107,32 @@ window.addEventListener(
       evento.data;
 
 
+    if (!dados) {
+
+      return;
+
+    }
+
+
     if (
-      !dados ||
-      dados.tipo !==
-      'VIDEO'
+      dados.type ===
+      'BRIDGE_READY'
+    ) {
+
+      bridgePronto =
+        true;
+
+
+      atualizarStatusBridge();
+
+      return;
+
+    }
+
+
+    if (
+      dados.type !==
+      'UPLOAD_RESULT'
     ) {
 
       return;
@@ -2344,17 +2160,6 @@ window.addEventListener(
 
       document
         .getElementById(
-          'videoResultInfo'
-        )
-        .innerHTML +=
-        '<br><strong>Destino:</strong> ' +
-        dados.pasta +
-        '<br><strong>Arquivo:</strong> ' +
-        dados.nomeArquivo;
-
-
-      document
-        .getElementById(
           'videoResult'
         )
         .classList
@@ -2378,12 +2183,15 @@ window.addEventListener(
           'successInfo'
         )
         .innerHTML =
+
         'Pasta: <strong>' +
         dados.pasta +
         '</strong><br>' +
+
         'Arquivo: <strong>' +
         dados.nomeArquivo +
         '</strong><br>' +
+
         'Tamanho: <strong>' +
         (
           dados.tamanhoBytes /
@@ -2408,7 +2216,10 @@ window.addEventListener(
 
       mostrarMensagem(
         '❌ Erro ao salvar o vídeo: ' +
-        dados.erro,
+        (
+          dados.erro ||
+          'Erro desconhecido.'
+        ),
         'error'
       );
 
@@ -2424,7 +2235,9 @@ window.addEventListener(
 
 function fecharInspecao() {
 
-  if (countdownInterval) {
+  if (
+    countdownInterval
+  ) {
 
     clearInterval(
       countdownInterval
@@ -2436,7 +2249,9 @@ function fecharInspecao() {
   }
 
 
-  if (cicloInterval) {
+  if (
+    cicloInterval
+  ) {
 
     clearInterval(
       cicloInterval
@@ -2529,6 +2344,51 @@ document.addEventListener(
    ===================================================== */
 
 carregarDados();
+
+
+/* =====================================================
+   VERIFICAÇÃO DA PONTE
+   ===================================================== */
+
+window.addEventListener(
+  'load',
+  function() {
+
+    setTimeout(
+      function() {
+
+        const bridge =
+          document.getElementById(
+            'uploadBridge'
+          );
+
+
+        if (
+          bridge &&
+          bridge.contentWindow
+        ) {
+
+          /*
+           * Solicita que a ponte confirme
+           * que está carregada.
+           */
+
+          bridge.contentWindow.postMessage(
+            {
+              type:
+                'PING_BRIDGE'
+            },
+            '*'
+          );
+
+        }
+
+      },
+      1500
+    );
+
+  }
+);
 
 </script>
 
