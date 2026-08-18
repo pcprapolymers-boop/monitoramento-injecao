@@ -678,30 +678,13 @@
   </div>
 
 
-  <!-- BRIDGE INVISÍVEL -->
-
+  <!-- IFRAME DE RETORNO DO UPLOAD -->
   <iframe
-    id="uploadBridge"
-    src="https://script.google.com/macros/s/AKfycbyyczQIADys9S5tG7G9WiR_tFiWubW4mcteLurFO_GOlrlSs9f9CWkcojnjsuG5Jgvt/exec?bridge=1"
-    style="
-      display:none;
-      width:0;
-      height:0;
-      border:0;
-      position:absolute;
-      left:-9999px;
-      top:-9999px;
-    "
-    title="Upload Bridge"
+    id="uploadResponseFrame"
+    name="uploadResponseFrame"
+    style="display:none;width:0;height:0;border:0;position:absolute;left:-9999px;top:-9999px;"
+    title="Retorno do upload"
   ></iframe>
-
-
-  <div
-  id="bridgeStatus"
-  class="bridge-status"
->
-  🟢 Conexão de upload disponível.
-</div>
 
 </div>
 
@@ -769,7 +752,6 @@ let inicioGravacao = null;
 
 let fimGravacao = null;
 
-let bridgePronto = true;
 
 
 /* =====================================================
@@ -972,8 +954,6 @@ function carregarDados() {
   );
 
 
-  atualizarStatusBridge();
-
 }
 
 
@@ -981,24 +961,6 @@ function carregarDados() {
    STATUS DA PONTE
    ===================================================== */
 
-function atualizarStatusBridge() {
-
-  const status =
-    document.getElementById(
-      'bridgeStatus'
-    );
-
-  if (!status) {
-    return;
-  }
-
-  status.textContent =
-    '🟢 Conexão de upload disponível.';
-
-  status.style.color =
-    '#21864d';
-
-}
 
 
 /* =====================================================
@@ -1944,287 +1906,7 @@ async function gravarNovamente() {
 }
 
 
-/* =====================================================
-   UPLOAD PELO BRIDGE
-   ===================================================== */
-
-function enviarVideo() {
-
-  if (!videoBlob) {
-
-    mostrarMensagem(
-      'Nenhum vídeo disponível.',
-      'error'
-    );
-
-    return;
-
-  }
-
-
-  if (!bridgePronto) {
-
-    mostrarMensagem(
-      'A ponte de upload ainda está sendo preparada. Aguarde alguns segundos.',
-      'warning'
-    );
-
-    return;
-
-  }
-
-
-  const botao =
-    document.getElementById(
-      'btnEnviarVideo'
-    );
-
-
-  const tamanhoMB =
-    (
-      videoBlob.size /
-      1024 /
-      1024
-    ).toFixed(2);
-
-
-  botao.disabled =
-    true;
-
-
-  botao.textContent =
-    'ENVIANDO...';
-
-
-  mostrarMensagem(
-    '☁️ Enviando vídeo de ' +
-    tamanhoMB +
-    ' MB...',
-    'warning'
-  );
-
-
-  const bridge =
-    document.getElementById(
-      'uploadBridge'
-    );
-
-
-  if (
-    !bridge ||
-    !bridge.contentWindow
-  ) {
-
-    botao.disabled =
-      false;
-
-    botao.textContent =
-      '☁️ ENVIAR VÍDEO';
-
-    mostrarMensagem(
-      'A ponte de upload não está disponível.',
-      'error'
-    );
-
-    return;
-
-  }
-
-
-  const mimeType =
-    videoBlob.type ||
-    'video/webm';
-
-
-  const extensao =
-    mimeType.includes(
-      'mp4'
-    )
-      ? '.mp4'
-      : '.webm';
-
-
-  bridge.contentWindow.postMessage(
-
-    {
-
-      type:
-        'UPLOAD_VIDEO',
-
-      blob:
-        videoBlob,
-
-      mimeType:
-        mimeType,
-
-      nomeArquivo:
-        'inspecao_' +
-        Date.now() +
-        extensao,
-
-      maquina:
-        maquina,
-
-      operador:
-        document
-          .getElementById(
-            'operador'
-          )
-          .value,
-
-      produto:
-        produtoAtual.nome,
-
-      conforme:
-        conformidade,
-
-      ciclo:
-        tempoCiclo
-
-    },
-
-    '*'
-
-  );
-
-}
-
-
-/* =====================================================
-   RESPOSTA DO BRIDGE
-   ===================================================== */
-
-window.addEventListener(
-  'message',
-  function(evento) {
-
-    const dados =
-      evento.data;
-
-
-    if (!dados) {
-
-      return;
-
-    }
-
-
-    if (
-      dados.type ===
-      'BRIDGE_READY'
-    ) {
-
-      bridgePronto =
-        true;
-
-
-      atualizarStatusBridge();
-
-      return;
-
-    }
-
-
-    if (
-      dados.type !==
-      'UPLOAD_RESULT'
-    ) {
-
-      return;
-
-    }
-
-
-    const botao =
-      document.getElementById(
-        'btnEnviarVideo'
-      );
-
-
-    if (
-      dados.sucesso
-    ) {
-
-      botao.disabled =
-        false;
-
-
-      botao.textContent =
-        '✅ VÍDEO ENVIADO';
-
-
-      document
-        .getElementById(
-          'videoResult'
-        )
-        .classList
-        .add(
-          'hidden'
-        );
-
-
-      document
-        .getElementById(
-          'successScreen'
-        )
-        .classList
-        .remove(
-          'hidden'
-        );
-
-
-      document
-        .getElementById(
-          'successInfo'
-        )
-        .innerHTML =
-
-        'Pasta: <strong>' +
-        dados.pasta +
-        '</strong><br>' +
-
-        'Arquivo: <strong>' +
-        dados.nomeArquivo +
-        '</strong><br>' +
-
-        'Tamanho: <strong>' +
-        (
-          dados.tamanhoBytes /
-          1024 /
-          1024
-        ).toFixed(2) +
-        ' MB</strong>';
-
-
-      limparMensagem();
-
-    }
-    else {
-
-      botao.disabled =
-        false;
-
-
-      botao.textContent =
-        '☁️ ENVIAR VÍDEO';
-
-
-      mostrarMensagem(
-        '❌ Erro ao salvar o vídeo: ' +
-        (
-          dados.erro ||
-          'Erro desconhecido.'
-        ),
-        'error'
-      );
-
-    }
-
-  }
-);
-
-
-/* =====================================================
+/* =====================================================\n   UPLOAD DIRETO POR POST\n   ===================================================== */\n\nfunction enviarVideo() {\n\n  if (!videoBlob) {\n    mostrarMensagem('Nenhum vídeo disponível.', 'error');\n    return;\n  }\n\n  const botao = document.getElementById('btnEnviarVideo');\n  const tamanhoMB = (videoBlob.size / 1024 / 1024).toFixed(2);\n\n  botao.disabled = true;\n  botao.textContent = 'ENVIANDO...';\n\n  mostrarMensagem(\n    '☁️ Preparando vídeo de ' + tamanhoMB + ' MB para envio...',\n    'warning'\n  );\n\n  const leitor = new FileReader();\n\n  leitor.onload = function() {\n    try {\n      const dataUrl = leitor.result;\n\n      if (!dataUrl) {\n        throw new Error('Não foi possível preparar o vídeo.');\n      }\n\n      const formulario = document.createElement('form');\n      formulario.method = 'POST';\n      formulario.action = URL_APPS_SCRIPT;\n      formulario.target = 'uploadResponseFrame';\n      formulario.style.display = 'none';\n\n      adicionarCampo(formulario, 'tipo', 'VIDEO');\n      adicionarCampo(formulario, 'arquivoBase64', dataUrl);\n      adicionarCampo(formulario, 'mimeType', videoBlob.type || 'video/webm');\n      adicionarCampo(formulario, 'maquina', maquina);\n      adicionarCampo(formulario, 'operador', document.getElementById('operador').value);\n      adicionarCampo(formulario, 'produto', produtoAtual.nome);\n      adicionarCampo(formulario, 'conforme', conformidade);\n      adicionarCampo(formulario, 'ciclo', String(tempoCiclo));\n\n      document.body.appendChild(formulario);\n\n      mostrarMensagem(\n        '☁️ Enviando vídeo para o Google Drive...',\n        'warning'\n      );\n\n      formulario.submit();\n\n      setTimeout(function() {\n        try { document.body.removeChild(formulario); } catch (erro) {}\n      }, 60000);\n\n    } catch (erro) {\n      tratarErroUpload(erro);\n    }\n  };\n\n  leitor.onerror = function() {\n    tratarErroUpload(\n      new Error('Falha ao converter o vídeo para envio.')\n    );\n  };\n\n  leitor.readAsDataURL(videoBlob);\n}\n\nfunction adicionarCampo(formulario, nome, valor) {\n  const campo = document.createElement('input');\n  campo.type = 'hidden';\n  campo.name = nome;\n  campo.value = valor == null ? '' : String(valor);\n  formulario.appendChild(campo);\n}\n\nfunction tratarErroUpload(erro) {\n  const botao = document.getElementById('btnEnviarVideo');\n  botao.disabled = false;\n  botao.textContent = '☁️ ENVIAR VÍDEO';\n  mostrarMensagem(\n    '❌ Erro ao preparar o vídeo: ' +\n    (erro && erro.message ? erro.message : 'Erro desconhecido.'),\n    'error'\n  );\n}\n\n/* =====================================================\n   RESPOSTA DO APPS SCRIPT\n   ===================================================== */\n\nwindow.addEventListener('message', function(evento) {\n\n  const dados = evento.data;\n  if (!dados || dados.tipo !== 'VIDEO') {\n    return;\n  }\n\n  const botao = document.getElementById('btnEnviarVideo');\n\n  if (dados.sucesso) {\n\n    botao.disabled = false;\n    botao.textContent = '✅ VÍDEO ENVIADO';\n\n    document.getElementById('videoResult').classList.add('hidden');\n    document.getElementById('successScreen').classList.remove('hidden');\n\n    document.getElementById('successInfo').innerHTML =\n      'Pasta: <strong>' + (dados.pasta || '') + '</strong><br>' +\n      'Arquivo: <strong>' + (dados.nomeArquivo || '') + '</strong><br>' +\n      'Tamanho: <strong>' +\n      ((Number(dados.tamanhoBytes || 0) / 1024 / 1024).toFixed(2)) +\n      ' MB</strong>';\n\n    limparMensagem();\n\n  } else {\n\n    botao.disabled = false;\n    botao.textContent = '☁️ ENVIAR VÍDEO';\n\n    mostrarMensagem(\n      '❌ Erro ao salvar o vídeo: ' +\n      (dados.erro || 'Erro desconhecido.'),\n      'error'\n    );\n  }\n});\n\n\n/* =====================================================
    FECHAR INSPEÇÃO
    ===================================================== */
 
@@ -2341,84 +2023,6 @@ document.addEventListener(
 carregarDados();
 
 
-/* =====================================================
-   VERIFICAÇÃO DA PONTE
-   ===================================================== */
-
-/* =====================================================
-   VERIFICAÇÃO DA PONTE
-   ===================================================== */
-
-window.addEventListener(
-  'load',
-  function() {
-
-    const bridge =
-      document.getElementById(
-        'uploadBridge'
-      );
-
-
-    if (!bridge) {
-
-      console.error(
-        'UploadBridge não encontrado.'
-      );
-
-      return;
-
-    }
-
-
-    /*
-     * Quando o iframe terminar de carregar,
-     * consideramos a ponte disponível.
-     */
-
-    bridge.addEventListener(
-      'load',
-      function() {
-
-        bridgePronto =
-          true;
-
-
-        atualizarStatusBridge();
-
-
-        console.log(
-          'Upload Bridge carregado.'
-        );
-
-      }
-    );
-
-
-    /*
-     * Alguns navegadores podem carregar
-     * o iframe antes do listener ser criado.
-     *
-     * Por isso fazemos também uma
-     * verificação de segurança.
-     */
-
-    setTimeout(
-      function() {
-
-        if (!bridgePronto) {
-
-          console.warn(
-            'Bridge ainda não confirmou carregamento.'
-          );
-
-        }
-
-      },
-      3000
-    );
-
-  }
-);
 </script>
 
 </body>
