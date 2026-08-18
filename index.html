@@ -984,24 +984,19 @@ function carregarDados() {
 function atualizarStatusBridge() {
 
   const status =
-    document
-      .getElementById(
-        'bridgeStatus'
-      );
+    document.getElementById(
+      'uploadStatus'
+    );
 
-
-  if (bridgePronto) {
-
-    status.textContent =
-      'Conexão de upload pronta.';
-
+  if (!status) {
+    return;
   }
-  else {
 
-    status.textContent =
-      'Preparando conexão de upload...';
+  status.textContent =
+    '🟢 Conexão de upload disponível.';
 
-  }
+  status.style.color =
+    '#21864d';
 
 }
 
