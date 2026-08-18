@@ -954,17 +954,12 @@ function carregarDados() {
   );
 
 
+
 }
 
 
 /* =====================================================
    STATUS DA PONTE
-   ===================================================== */
-
-
-
-/* =====================================================
-   PRODUTO
    ===================================================== */
 
 function produtoSelecionado() {
@@ -1906,7 +1901,245 @@ async function gravarNovamente() {
 }
 
 
-/* =====================================================\n   UPLOAD DIRETO POR POST\n   ===================================================== */\n\nfunction enviarVideo() {\n\n  if (!videoBlob) {\n    mostrarMensagem('Nenhum vídeo disponível.', 'error');\n    return;\n  }\n\n  const botao = document.getElementById('btnEnviarVideo');\n  const tamanhoMB = (videoBlob.size / 1024 / 1024).toFixed(2);\n\n  botao.disabled = true;\n  botao.textContent = 'ENVIANDO...';\n\n  mostrarMensagem(\n    '☁️ Preparando vídeo de ' + tamanhoMB + ' MB para envio...',\n    'warning'\n  );\n\n  const leitor = new FileReader();\n\n  leitor.onload = function() {\n    try {\n      const dataUrl = leitor.result;\n\n      if (!dataUrl) {\n        throw new Error('Não foi possível preparar o vídeo.');\n      }\n\n      const formulario = document.createElement('form');\n      formulario.method = 'POST';\n      formulario.action = URL_APPS_SCRIPT;\n      formulario.target = 'uploadResponseFrame';\n      formulario.style.display = 'none';\n\n      adicionarCampo(formulario, 'tipo', 'VIDEO');\n      adicionarCampo(formulario, 'arquivoBase64', dataUrl);\n      adicionarCampo(formulario, 'mimeType', videoBlob.type || 'video/webm');\n      adicionarCampo(formulario, 'maquina', maquina);\n      adicionarCampo(formulario, 'operador', document.getElementById('operador').value);\n      adicionarCampo(formulario, 'produto', produtoAtual.nome);\n      adicionarCampo(formulario, 'conforme', conformidade);\n      adicionarCampo(formulario, 'ciclo', String(tempoCiclo));\n\n      document.body.appendChild(formulario);\n\n      mostrarMensagem(\n        '☁️ Enviando vídeo para o Google Drive...',\n        'warning'\n      );\n\n      formulario.submit();\n\n      setTimeout(function() {\n        try { document.body.removeChild(formulario); } catch (erro) {}\n      }, 60000);\n\n    } catch (erro) {\n      tratarErroUpload(erro);\n    }\n  };\n\n  leitor.onerror = function() {\n    tratarErroUpload(\n      new Error('Falha ao converter o vídeo para envio.')\n    );\n  };\n\n  leitor.readAsDataURL(videoBlob);\n}\n\nfunction adicionarCampo(formulario, nome, valor) {\n  const campo = document.createElement('input');\n  campo.type = 'hidden';\n  campo.name = nome;\n  campo.value = valor == null ? '' : String(valor);\n  formulario.appendChild(campo);\n}\n\nfunction tratarErroUpload(erro) {\n  const botao = document.getElementById('btnEnviarVideo');\n  botao.disabled = false;\n  botao.textContent = '☁️ ENVIAR VÍDEO';\n  mostrarMensagem(\n    '❌ Erro ao preparar o vídeo: ' +\n    (erro && erro.message ? erro.message : 'Erro desconhecido.'),\n    'error'\n  );\n}\n\n/* =====================================================\n   RESPOSTA DO APPS SCRIPT\n   ===================================================== */\n\nwindow.addEventListener('message', function(evento) {\n\n  const dados = evento.data;\n  if (!dados || dados.tipo !== 'VIDEO') {\n    return;\n  }\n\n  const botao = document.getElementById('btnEnviarVideo');\n\n  if (dados.sucesso) {\n\n    botao.disabled = false;\n    botao.textContent = '✅ VÍDEO ENVIADO';\n\n    document.getElementById('videoResult').classList.add('hidden');\n    document.getElementById('successScreen').classList.remove('hidden');\n\n    document.getElementById('successInfo').innerHTML =\n      'Pasta: <strong>' + (dados.pasta || '') + '</strong><br>' +\n      'Arquivo: <strong>' + (dados.nomeArquivo || '') + '</strong><br>' +\n      'Tamanho: <strong>' +\n      ((Number(dados.tamanhoBytes || 0) / 1024 / 1024).toFixed(2)) +\n      ' MB</strong>';\n\n    limparMensagem();\n\n  } else {\n\n    botao.disabled = false;\n    botao.textContent = '☁️ ENVIAR VÍDEO';\n\n    mostrarMensagem(\n      '❌ Erro ao salvar o vídeo: ' +\n      (dados.erro || 'Erro desconhecido.'),\n      'error'\n    );\n  }\n});\n\n\n/* =====================================================
+/* =====================================================
+   UPLOAD DIRETO VIA POST
+   ===================================================== */
+
+async function enviarVideo() {
+
+  if (!videoBlob) {
+
+    mostrarMensagem(
+      'Nenhum vídeo disponível.',
+      'error'
+    );
+
+    return;
+
+  }
+
+  const botao =
+    document.getElementById(
+      'btnEnviarVideo'
+    );
+
+  const tamanhoMB =
+    (
+      videoBlob.size /
+      1024 /
+      1024
+    ).toFixed(2);
+
+  botao.disabled = true;
+  botao.textContent = 'ENVIANDO...';
+
+  mostrarMensagem(
+    '☁️ Preparando vídeo de ' +
+    tamanhoMB +
+    ' MB...',
+    'warning'
+  );
+
+  try {
+
+    const base64 =
+      await blobParaBase64(
+        videoBlob
+      );
+
+    const dados =
+      new URLSearchParams();
+
+    dados.append(
+      'tipo',
+      'VIDEO'
+    );
+
+    dados.append(
+      'arquivoBase64',
+      base64
+    );
+
+    dados.append(
+      'mimeType',
+      videoBlob.type ||
+      'video/webm'
+    );
+
+    dados.append(
+      'maquina',
+      maquina
+    );
+
+    dados.append(
+      'operador',
+      document
+        .getElementById(
+          'operador'
+        )
+        .value
+    );
+
+    dados.append(
+      'produto',
+      produtoAtual.nome
+    );
+
+    dados.append(
+      'conforme',
+      conformidade
+    );
+
+    dados.append(
+      'ciclo',
+      String(
+        tempoCiclo
+      )
+    );
+
+    mostrarMensagem(
+      '☁️ Enviando vídeo para o Google Drive...',
+      'warning'
+    );
+
+    await fetch(
+      URL_APPS_SCRIPT,
+      {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: {
+          'Content-Type':
+            'application/x-www-form-urlencoded;charset=UTF-8'
+        },
+        body: dados.toString()
+      }
+    );
+
+    mostrarMensagem(
+      '⏳ Vídeo enviado ao servidor. Processando...',
+      'warning'
+    );
+
+    /*
+     * Com no-cors, o navegador não permite
+     * ler a resposta do Apps Script.
+     * O resultado real será confirmado
+     * pelo Apps Script e pelo Google Drive.
+     */
+
+    setTimeout(
+      function() {
+
+        botao.disabled = false;
+        botao.textContent =
+          '☁️ ENVIAR VÍDEO';
+
+        mostrarMensagem(
+          '✅ Envio concluído. Confirme o arquivo no Google Drive.',
+          'success'
+        );
+
+      },
+      8000
+    );
+
+  }
+  catch (erro) {
+
+    console.error(
+      'Erro no envio:',
+      erro
+    );
+
+    botao.disabled = false;
+    botao.textContent =
+      '☁️ ENVIAR VÍDEO';
+
+    mostrarMensagem(
+      '❌ Erro ao enviar: ' +
+      (
+        erro && erro.message
+          ? erro.message
+          : 'Erro desconhecido.'
+      ),
+      'error'
+    );
+
+  }
+
+}
+
+
+/* =====================================================
+   BLOB → BASE64
+   ===================================================== */
+
+function blobParaBase64(
+  blob
+) {
+
+  return new Promise(
+    function(resolve, reject) {
+
+      const leitor =
+        new FileReader();
+
+      leitor.onload =
+        function() {
+
+          const resultado =
+            leitor.result;
+
+          if (!resultado) {
+
+            reject(
+              new Error(
+                'Não foi possível ler o vídeo.'
+              )
+            );
+
+            return;
+
+          }
+
+          const separador =
+            resultado.indexOf(',');
+
+          const base64 =
+            separador >= 0
+              ? resultado.substring(
+                  separador + 1
+                )
+              : resultado;
+
+          resolve(
+            base64
+          );
+
+        };
+
+      leitor.onerror =
+        function() {
+
+          reject(
+            new Error(
+              'Falha ao converter o vídeo para Base64.'
+            )
+          );
+
+        };
+
+      leitor.readAsDataURL(
+        blob
+      );
+
+    }
+  );
+
+}
+
+
+/* =====================================================
    FECHAR INSPEÇÃO
    ===================================================== */
 
