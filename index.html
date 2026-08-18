@@ -2350,46 +2350,80 @@ carregarDados();
    VERIFICAÇÃO DA PONTE
    ===================================================== */
 
+/* =====================================================
+   VERIFICAÇÃO DA PONTE
+   ===================================================== */
+
 window.addEventListener(
   'load',
   function() {
 
+    const bridge =
+      document.getElementById(
+        'uploadBridge'
+      );
+
+
+    if (!bridge) {
+
+      console.error(
+        'UploadBridge não encontrado.'
+      );
+
+      return;
+
+    }
+
+
+    /*
+     * Quando o iframe terminar de carregar,
+     * consideramos a ponte disponível.
+     */
+
+    bridge.addEventListener(
+      'load',
+      function() {
+
+        bridgePronto =
+          true;
+
+
+        atualizarStatusBridge();
+
+
+        console.log(
+          'Upload Bridge carregado.'
+        );
+
+      }
+    );
+
+
+    /*
+     * Alguns navegadores podem carregar
+     * o iframe antes do listener ser criado.
+     *
+     * Por isso fazemos também uma
+     * verificação de segurança.
+     */
+
     setTimeout(
       function() {
 
-        const bridge =
-          document.getElementById(
-            'uploadBridge'
-          );
+        if (!bridgePronto) {
 
-
-        if (
-          bridge &&
-          bridge.contentWindow
-        ) {
-
-          /*
-           * Solicita que a ponte confirme
-           * que está carregada.
-           */
-
-          bridge.contentWindow.postMessage(
-            {
-              type:
-                'PING_BRIDGE'
-            },
-            '*'
+          console.warn(
+            'Bridge ainda não confirmou carregamento.'
           );
 
         }
 
       },
-      1500
+      3000
     );
 
   }
 );
-
 </script>
 
 </body>
