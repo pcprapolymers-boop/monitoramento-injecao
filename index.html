@@ -1992,79 +1992,236 @@ function formatarTempo(
    DADOS TEMPORÁRIOS
    ===================================================== */
 
-function carregarDados() {
+async function carregarDados() {
 
-  operadores = [
-
-    'Guilherme',
-    'Jessica',
-    'Airton',
-    'Célio',
-    'Walisson',
-    'Marco'
-
-  ];
+  /*
+   * Primeiro mostra a máquina imediatamente a partir da URL.
+   */
+  const machineElement =
+    document.getElementById(
+      'machine'
+    );
 
 
-  produtos = [
+  if (machineElement) {
 
-    {
-      nome:
-        'Reservatório 25L',
+    machineElement.textContent =
+      maquina
+        ? (
+            maquina.startsWith('M')
+              ? 'M-' +
+                maquina.substring(1)
+              : maquina
+          )
+        : 'MÁQUINA NÃO INFORMADA';
 
-      ciclo:
-        130
+  }
 
-    },
 
-    {
-      nome:
-        'Reservatório 50L',
+  /*
+   * Carrega os cadastros do Google Sheets via JSONP.
+   */
+  try {
 
-      ciclo:
-        140
+    const dados =
+      await carregarDadosRemotos();
 
-    },
 
-    {
-      nome:
-        'Tampa de 50L cinza',
+    if (
+      !dados ||
+      !dados.sucesso
+    ) {
 
-      ciclo:
-        100
-
-    },
-
-    {
-      nome:
-        'Tampa de 100L Cinza',
-
-      ciclo:
-        155
+      throw new Error(
+        dados &&
+        dados.erro
+          ? dados.erro
+          : 'Não foi possível carregar os cadastros.'
+      );
 
     }
 
-  ];
+
+    if (
+      dados.maquinaValida ===
+      false
+    ) {
+
+      if (machineElement) {
+
+        machineElement.textContent =
+          maquina
+            ? (
+                'M-' +
+                maquina.replace(
+                  /^M/i,
+                  ''
+                )
+              ) +
+              ' — NÃO CADASTRADA'
+            : 'MÁQUINA NÃO INFORMADA';
+
+      }
+
+    }
 
 
-  document
-    .getElementById(
-      'machine'
-    )
-    .textContent =
-    maquina
-      ? maquina.replace(
-          'M',
-          'M-'
-        )
-      : 'MÁQUINA NÃO INFORMADA';
+    /*
+     * O backend retorna objetos completos.
+     * O front mantém apenas os nomes para a seleção atual.
+     */
+    operadores =
+      Array.isArray(
+        dados.operadores
+      )
+        ? dados.operadores
+            .map(
+              function(item) {
 
+                return item.nome ||
+                  item;
+
+              }
+            )
+        : [];
+
+
+    produtos =
+      Array.isArray(
+        dados.produtos
+      )
+        ? dados.produtos
+            .map(
+              function(item) {
+
+                return (
+                  typeof item ===
+                  'string'
+                )
+                  ? item
+                  : item.nome;
+
+              }
+            )
+        : [];
+
+
+    preencherSelecoes();
+
+
+    verificarFormulario();
+
+
+  }
+  catch (erro) {
+
+    console.error(
+      'Erro ao carregar dados remotos:',
+      erro
+    );
+
+
+    /*
+     * Em caso de indisponibilidade do Apps Script,
+     * mantemos uma lista mínima de contingência
+     * para não deixar o equipamento inutilizável.
+     */
+
+    operadores = [
+
+      'Guilherme',
+      'Jessica',
+      'Airton',
+      'Marco',
+      'Célio',
+      'Walisson'
+
+    ];
+
+
+    produtos = [
+
+      {
+        nome:
+          'Reservatório 25L',
+
+        ciclo:
+          130
+
+      },
+
+      {
+        nome:
+          'Reservatório 50L',
+
+        ciclo:
+          140
+
+      },
+
+      {
+        nome:
+          'Tampa de 50L cinza',
+
+        ciclo:
+          100
+
+      },
+
+      {
+        nome:
+          'Tampa de 100L Cinza',
+
+        ciclo:
+          155
+
+      }
+
+    ];
+
+
+    preencherSelecoes();
+
+
+    verificarFormulario();
+
+
+    mostrarMensagem(
+      '⚠️ Cadastros temporariamente carregados em modo de contingência.',
+      'warning'
+    );
+
+  }
+
+}
+
+
+function preencherSelecoes() {
 
   const selectOperador =
-    document
-      .getElementById(
-        'operador'
-      );
+    document.getElementById(
+      'operador'
+    );
+
+
+  const selectProduto =
+    document.getElementById(
+      'produto'
+    );
+
+
+  if (
+    !selectOperador ||
+    !selectProduto
+  ) {
+
+    return;
+
+  }
+
+
+  selectOperador.innerHTML =
+    '<option value="">Selecione o operador</option>';
 
 
   operadores.forEach(
@@ -2075,11 +2232,14 @@ function carregarDados() {
           'option'
         );
 
+
       option.value =
         nome;
 
+
       option.textContent =
         nome;
+
 
       selectOperador
         .appendChild(
@@ -2090,26 +2250,33 @@ function carregarDados() {
   );
 
 
-  const selectProduto =
-    document
-      .getElementById(
-        'produto'
-      );
+  selectProduto.innerHTML =
+    '<option value="">Selecione o produto</option>';
 
 
   produtos.forEach(
     function(produto) {
+
+      const nome =
+        typeof produto ===
+        'string'
+          ? produto
+          : produto.nome;
+
 
       const option =
         document.createElement(
           'option'
         );
 
+
       option.value =
-        produto.nome;
+        nome;
+
 
       option.textContent =
-        produto.nome;
+        nome;
+
 
       selectProduto
         .appendChild(
@@ -2119,9 +2286,201 @@ function carregarDados() {
     }
   );
 
+}
 
+
+function carregarDadosRemotos() {
+
+  return new Promise(
+    function(
+      resolve,
+      reject
+    ) {
+
+      const callbackName =
+        'dadosInicial_' +
+        Date.now() +
+        '_' +
+        Math.random()
+          .toString(36)
+          .substring(
+            2,
+            10
+          );
+
+
+      let script =
+        null;
+
+
+      let terminou =
+        false;
+
+
+      const limpar =
+        function() {
+
+          try {
+
+            if (
+              script &&
+              script.parentNode
+            ) {
+
+              script.parentNode
+                .removeChild(
+                  script
+                );
+
+            }
+
+          }
+          catch (erro) {}
+
+
+          try {
+
+            delete window[
+              callbackName
+            ];
+
+          }
+          catch (erro) {}
+
+        };
+
+
+      const timeout =
+        setTimeout(
+          function() {
+
+            if (
+              terminou
+            ) {
+
+              return;
+
+            }
+
+
+            terminou =
+              true;
+
+
+            limpar();
+
+
+            reject(
+              new Error(
+                'Tempo excedido ao carregar os cadastros.'
+              )
+            );
+
+          },
+          15000
+        );
+
+
+      window[
+        callbackName
+      ] =
+      function(
+        dados
+      ) {
+
+        if (
+          terminou
+        ) {
+
+          return;
+
+        }
+
+
+        terminou =
+          true;
+
+
+        clearTimeout(
+          timeout
+        );
+
+
+        limpar();
+
+
+        resolve(
+          dados
+        );
+
+      };
+
+
+      script =
+        document.createElement(
+          'script'
+        );
+
+
+      script.src =
+        URL_APPS_SCRIPT +
+        '?status=data' +
+        '&m=' +
+        encodeURIComponent(
+          maquina
+        ) +
+        '&callback=' +
+        encodeURIComponent(
+          callbackName
+        ) +
+        '&_=' +
+        Date.now();
+
+
+      script.onerror =
+        function() {
+
+          if (
+            terminou
+          ) {
+
+            return;
+
+          }
+
+
+          terminou =
+            true;
+
+
+          clearTimeout(
+            timeout
+          );
+
+
+          limpar();
+
+
+          reject(
+            new Error(
+              'Não foi possível carregar os cadastros.'
+            )
+          );
+
+        };
+
+
+      document.head.appendChild(
+        script
+      );
+
+    }
+  );
 
 }
+
+
+
 
 
 /* =====================================================
@@ -4565,10 +4924,21 @@ window.addEventListener(
 
 
 /* =====================================================
-   INICIALIZAÇÃO DA FILA
+   INICIALIZAÇÃO DO SISTEMA
    ===================================================== */
 
-inicializarFilaUploads();
+/*
+ * Carrega operadores, produtos e identifica a máquina
+ * antes de iniciar a fila de uploads.
+ */
+carregarDados()
+  .finally(
+    function() {
+
+      inicializarFilaUploads();
+
+    }
+  );
 </script>
 
 </body>
