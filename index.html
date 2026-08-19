@@ -2295,11 +2295,24 @@ function preencherSelecoes() {
   produtos.forEach(
     function(produto) {
 
-      const nome =
+      const ehTexto =
         typeof produto ===
-        'string'
+        'string';
+
+
+      const nome =
+        ehTexto
           ? produto
           : produto.nome;
+
+
+      const ciclo =
+        ehTexto
+          ? 0
+          : Number(
+              produto.ciclo ||
+              0
+            );
 
 
       const option =
@@ -2314,6 +2327,12 @@ function preencherSelecoes() {
 
       option.textContent =
         nome;
+
+
+      option.dataset.ciclo =
+        String(
+          ciclo
+        );
 
 
       selectProduto
@@ -2530,30 +2549,21 @@ function produtoSelecionado() {
   limparMensagem();
 
 
-  const nome =
-    document
-      .getElementById(
-        'produto'
-      )
-      .value;
-
-
-  produtoAtual =
-    produtos.find(
-      function(item) {
-
-        return (
-          (
-            typeof item ===
-            'string'
-              ? item
-              : item.nome
-          ) ===
-          nome
-        );
-
-      }
+  const selectProduto =
+    document.getElementById(
+      'produto'
     );
+
+
+  if (!selectProduto) {
+
+    return;
+
+  }
+
+
+  const nome =
+    selectProduto.value;
 
 
   conformidade =
@@ -2580,7 +2590,14 @@ function produtoSelecionado() {
     );
 
 
-  if (!produtoAtual) {
+  if (!nome) {
+
+    produtoAtual =
+      null;
+
+    tempoCiclo =
+      0;
+
 
     document
       .getElementById(
@@ -2617,53 +2634,121 @@ function produtoSelecionado() {
   }
 
 
+  /*
+   * Primeiro tenta encontrar o produto vindo do cadastro.
+   */
+  const encontrado =
+    produtos.find(
+      function(item) {
+
+        const itemNome =
+          typeof item ===
+          'string'
+            ? item
+            : item.nome;
+
+
+        return (
+          itemNome ===
+          nome
+        );
+
+      }
+    );
+
+
+  /*
+   * Se, por alguma razão, o objeto não estiver
+   * disponível, usamos os dados da própria <option>.
+   */
+  const optionSelecionada =
+    selectProduto
+      .options[
+        selectProduto.selectedIndex
+      ];
+
+
+  const cicloDaOption =
+    Number(
+      optionSelecionada &&
+      optionSelecionada.dataset
+        ? optionSelecionada.dataset.ciclo
+        : 0
+    );
+
+
+  produtoAtual =
+    encontrado
+      ? (
+          typeof encontrado ===
+          'string'
+            ? {
+                nome:
+                  encontrado,
+
+                ciclo:
+                  cicloDaOption
+
+              }
+            : encontrado
+        )
+      : {
+
+          nome:
+            nome,
+
+          ciclo:
+            cicloDaOption
+
+        };
+
+
+  /*
+   * Fallbacks para os produtos já cadastrados.
+   * Isso evita que uma alteração de cabeçalho
+   * na planilha esconda os próximos passos.
+   */
+  const ciclosConhecidos = {
+
+    'Reservatório 25L':
+      130,
+
+    'Reservatório 50L':
+      140,
+
+    'Tampa de 50L cinza':
+      100,
+
+    'Tampa de 100L Cinza':
+      155
+
+  };
+
+
   tempoCiclo =
     Number(
       produtoAtual.ciclo ||
+      cicloDaOption ||
+      ciclosConhecidos[
+        nome
+      ] ||
       0
     );
 
 
-  if (
-    tempoCiclo <= 0
-  ) {
-
-    const ciclosConhecidos = {
-
-      'Reservatório 25L':
-        130,
-
-      'Reservatório 50L':
-        140,
-
-      'Tampa de 50L cinza':
-        100,
-
-      'Tampa de 100L Cinza':
-        155
-
-    };
-
-
-    tempoCiclo =
-      Number(
-        ciclosConhecidos[
-          produtoAtual.nome
-        ] ||
-        0
-      );
-
-  }
-
-
+  /*
+   * Mostramos o ciclo imediatamente.
+   */
   document
     .getElementById(
       'cycleTime'
     )
     .textContent =
-    formatarTempo(
-      tempoCiclo
-    );
+    tempoCiclo > 0
+      ? formatarTempo(
+          tempoCiclo
+        )
+      : 'NÃO CONFIGURADO';
 
 
   document
@@ -2671,10 +2756,14 @@ function produtoSelecionado() {
       'inspectionProduct'
     )
     .textContent =
-    produtoAtual.nome +
-    ' — ciclo de ' +
-    formatarTempo(
-      tempoCiclo
+    nome +
+    (
+      tempoCiclo > 0
+        ? ' — ciclo de ' +
+          formatarTempo(
+            tempoCiclo
+          )
+        : ''
     );
 
 
@@ -2688,6 +2777,11 @@ function produtoSelecionado() {
     );
 
 
+  /*
+   * O próximo passo sempre aparece após escolher
+   * um produto. Se o ciclo estiver faltando,
+   * o aviso fica visível em vez de esconder o fluxo.
+   */
   document
     .getElementById(
       'conformidadeCard'
@@ -2698,9 +2792,24 @@ function produtoSelecionado() {
     );
 
 
+  if (
+    tempoCiclo <= 0
+  ) {
+
+    mostrarMensagem(
+      '⚠️ O produto está cadastrado, mas o tempo de ciclo não foi encontrado no CAD_PRODUTOS.',
+      'warning'
+    );
+
+  }
+
+
   verificarFormulario();
 
 }
+
+
+
 
 
 /* =====================================================
@@ -2764,13 +2873,31 @@ function verificarFormulario() {
       .value;
 
 
-  const pronto =
+  const conformidadeSelecionada =
+    Boolean(
+      conformidade
+    );
+
+
+  const dadosBasicosOk =
     Boolean(
       operador &&
       produto &&
-      produtoAtual &&
+      produtoAtual
+    );
+
+
+  const pronto =
+    Boolean(
+      dadosBasicosOk &&
       tempoCiclo > 0 &&
-      conformidade
+      conformidadeSelecionada
+    );
+
+
+  const conformidadeCard =
+    document.getElementById(
+      'conformidadeCard'
     );
 
 
@@ -2786,7 +2913,31 @@ function verificarFormulario() {
     );
 
 
-  if (pronto) {
+  if (
+    dadosBasicosOk
+  ) {
+
+    conformidadeCard
+      .classList
+      .remove(
+        'hidden'
+      );
+
+  }
+  else {
+
+    conformidadeCard
+      .classList
+      .add(
+        'hidden'
+      );
+
+  }
+
+
+  if (
+    pronto
+  ) {
 
     startCard
       .classList
@@ -2812,6 +2963,9 @@ function verificarFormulario() {
   }
 
 }
+
+
+
 
 
 /* =====================================================
