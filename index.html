@@ -1908,6 +1908,110 @@ async function gravarNovamente() {
 }
 
 
+
+/*
+ * Blob → Base64
+ *
+ * O FileReader retorna:
+ * data:video/webm;base64,AAAA...
+ *
+ * Para o POST enviamos somente:
+ * AAAA...
+ */
+function blobParaBase64(
+  blob
+) {
+
+  return new Promise(
+    function(
+      resolve,
+      reject
+    ) {
+
+      const leitor =
+        new FileReader();
+
+
+      leitor.onload =
+        function() {
+
+          const resultado =
+            leitor.result;
+
+
+          if (
+            !resultado
+          ) {
+
+            reject(
+              new Error(
+                'Não foi possível ler a parte do vídeo.'
+              )
+            );
+
+            return;
+
+          }
+
+
+          const separador =
+            resultado.indexOf(
+              ','
+            );
+
+
+          const base64 =
+            separador >= 0
+              ? resultado.substring(
+                  separador + 1
+                )
+              : resultado;
+
+
+          if (
+            !base64
+          ) {
+
+            reject(
+              new Error(
+                'A conversão da parte do vídeo resultou em vazio.'
+              )
+            );
+
+            return;
+
+          }
+
+
+          resolve(
+            base64
+          );
+
+        };
+
+
+      leitor.onerror =
+        function() {
+
+          reject(
+            new Error(
+              'Falha ao converter a parte do vídeo para Base64.'
+            )
+          );
+
+        };
+
+
+      leitor.readAsDataURL(
+        blob
+      );
+
+    }
+  );
+
+}
+
+
 /* =====================================================
    UPLOAD EM PARTES (CHUNKED)
    ===================================================== */
