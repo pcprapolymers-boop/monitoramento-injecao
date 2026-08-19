@@ -385,49 +385,30 @@
     class="message"
   ></div>
 
-  <!-- UPLOAD PENDENTE -->
+  <!-- FILA DE UPLOADS -->
   <div
-    id="pendingUploadCard"
-    class="card hidden"
+    id="uploadQueueCard"
+    class="card queue-card hidden"
   >
 
     <div
-      class="inspection-title"
-      style="text-align:center;"
+      id="uploadQueueTitle"
+      class="queue-title"
     >
-      ⚠️ ENVIO PENDENTE
+      ☁️ Envio em segundo plano
     </div>
 
     <div
-      id="pendingUploadInfo"
-      class="result-info"
+      id="uploadQueueText"
+      class="queue-text"
+    >
+      Nenhum vídeo aguardando envio.
+    </div>
+
+    <div
+      id="uploadQueueProgress"
+      class="pending-progress hidden"
     ></div>
-
-    <div
-      class="video-actions"
-    >
-
-      <button
-        id="btnRetomarUpload"
-        class="btn-primary"
-        onclick="retomarUploadPendente()"
-      >
-        ▶️ RETOMAR ENVIO
-      </button>
-
-      <button
-        id="btnDescartarUpload"
-        class="btn-secondary"
-        onclick="descartarUploadPendente()"
-      >
-        🗑️ DESCARTAR
-      </button>
-
-    </div>
-
-    <div class="info-line">
-      O vídeo foi salvo no aparelho. Você pode retomar o envio sem gravar novamente.
-    </div>
 
   </div>
 
@@ -688,11 +669,11 @@
       </button>
 
       <button
-        id="btnEnviarVideo"
-        class="btn-enviar"
-        onclick="enviarVideo()"
+        id="btnNovaInspecaoVideo"
+        class="btn-primary"
+        onclick="novoRegistro()"
       >
-        ☁️ ENVIAR VÍDEO
+        ➕ NOVA INSPEÇÃO
       </button>
 
     </div>
@@ -817,56 +798,53 @@ let fimGravacao = null;
 
 
 /* =====================================================
-   PERSISTÊNCIA LOCAL
+   FILA LOCAL DE UPLOADS - INDEXEDDB
    ===================================================== */
 
 const NOME_DB_VIDEO =
   'RAPolymersMonitoramentoVideo';
 
 const VERSAO_DB_VIDEO =
-  1;
+  2;
 
-const STORE_UPLOADS =
-  'uploads';
+const STORE_JOBS =
+  'jobs';
 
-const CHAVE_UPLOAD_ATIVO =
-  'ativo';
+const STORE_CHUNKS =
+  'chunks';
 
-let uploadEmAndamento =
+const TAMANHO_CHUNK =
+  512 * 1024;
+
+const TIMESLICE_GRAVACAO =
+  5000;
+
+let filaProcessando =
   false;
 
-let uploadRetomando =
+let uploadJobAtual =
+  null;
+
+let gravacaoUploadId =
+  null;
+
+let gravacaoChunkPromises =
+  [];
+
+let gravacaoChunkIndex =
+  0;
+
+let gravacaoPersistenciaFalhou =
   false;
 
+let ultimaVideoUrl =
+  null;
 
-
-
-/* =====================================================
-   BANCO LOCAL - INDEXEDDB
-   ===================================================== */
 
 function abrirBancoVideo() {
 
   return new Promise(
-    function(
-      resolve,
-      reject
-    ) {
-
-      if (
-        !('indexedDB' in window)
-      ) {
-
-        reject(
-          new Error(
-            'Este navegador não oferece armazenamento local suficiente para retomar o vídeo.'
-          )
-        );
-
-        return;
-
-      }
-
+    function(resolve, reject) {
 
       const requisicao =
         indexedDB.open(
@@ -874,50 +852,75 @@ function abrirBancoVideo() {
           VERSAO_DB_VIDEO
         );
 
-
       requisicao.onupgradeneeded =
         function(evento) {
 
           const db =
             evento.target.result;
 
+          if (!db.objectStoreNames.contains(STORE_JOBS)) {
 
-          if (
-            !db.objectStoreNames
-              .contains(
-                STORE_UPLOADS
-              )
-          ) {
+            const jobs =
+              db.createObjectStore(
+                STORE_JOBS,
+                {
+                  keyPath: 'uploadId'
+                }
+              );
 
-            db.createObjectStore(
-              STORE_UPLOADS
+            jobs.createIndex(
+              'createdAt',
+              'createdAt',
+              {
+                unique: false
+              }
+            );
+
+            jobs.createIndex(
+              'status',
+              'status',
+              {
+                unique: false
+              }
+            );
+
+          }
+
+          if (!db.objectStoreNames.contains(STORE_CHUNKS)) {
+
+            const chunks =
+              db.createObjectStore(
+                STORE_CHUNKS,
+                {
+                  keyPath: 'key'
+                }
+              );
+
+            chunks.createIndex(
+              'uploadId',
+              'uploadId',
+              {
+                unique: false
+              }
             );
 
           }
 
         };
 
-
       requisicao.onsuccess =
         function(evento) {
-
-          resolve(
-            evento.target.result
-          );
-
+          resolve(evento.target.result);
         };
-
 
       requisicao.onerror =
         function() {
-
           reject(
             requisicao.error ||
             new Error(
               'Não foi possível abrir o armazenamento local.'
             )
           );
-
         };
 
     }
@@ -926,248 +929,16 @@ function abrirBancoVideo() {
 }
 
 
-async function salvarEstadoUpload(
-  estado
-) {
-
-  const db =
-    await abrirBancoVideo();
-
-
-  return new Promise(
-    function(
-      resolve,
-      reject
-    ) {
-
-      const transacao =
-        db.transaction(
-          STORE_UPLOADS,
-          'readwrite'
-        );
-
-
-      transacao.objectStore(
-        STORE_UPLOADS
-      ).put(
-        estado,
-        CHAVE_UPLOAD_ATIVO
-      );
-
-
-      transacao.oncomplete =
-        function() {
-
-          db.close();
-
-          resolve();
-
-        };
-
-
-      transacao.onerror =
-        function() {
-
-          db.close();
-
-          reject(
-            transacao.error ||
-            new Error(
-              'Não foi possível salvar o progresso do upload.'
-            )
-          );
-
-        };
-
-    }
-  );
-
-}
-
-
-async function obterEstadoUpload() {
-
-  const db =
-    await abrirBancoVideo();
-
-
-  return new Promise(
-    function(
-      resolve,
-      reject
-    ) {
-
-      const transacao =
-        db.transaction(
-          STORE_UPLOADS,
-          'readonly'
-        );
-
-
-      const requisicao =
-        transacao.objectStore(
-          STORE_UPLOADS
-        ).get(
-          CHAVE_UPLOAD_ATIVO
-        );
-
-
-      requisicao.onsuccess =
-        function() {
-
-          db.close();
-
-          resolve(
-            requisicao.result ||
-            null
-          );
-
-        };
-
-
-      requisicao.onerror =
-        function() {
-
-          db.close();
-
-          reject(
-            requisicao.error ||
-            new Error(
-              'Não foi possível consultar o upload pendente.'
-            )
-          );
-
-        };
-
-    }
-  );
-
-}
-
-
-async function limparEstadoUpload() {
-
-  const db =
-    await abrirBancoVideo();
-
-
-  return new Promise(
-    function(
-      resolve,
-      reject
-    ) {
-
-      const transacao =
-        db.transaction(
-          STORE_UPLOADS,
-          'readwrite'
-        );
-
-
-      transacao.objectStore(
-        STORE_UPLOADS
-      ).delete(
-        CHAVE_UPLOAD_ATIVO
-      );
-
-
-      transacao.oncomplete =
-        function() {
-
-          db.close();
-
-          resolve();
-
-        };
-
-
-      transacao.onerror =
-        function() {
-
-          db.close();
-
-          reject(
-            transacao.error ||
-            new Error(
-              'Não foi possível limpar o upload pendente.'
-            )
-          );
-
-        };
-
-    }
-  );
-
-}
-
-
-function formatarDataHoraLocal(
-  valor
-) {
-
-  if (!valor) {
-
-    return '';
-
-  }
-
+async function solicitarArmazenamentoPersistente() {
 
   try {
-
-    return new Date(
-      valor
-    ).toLocaleString(
-      'pt-BR'
-    );
-
-  }
-  catch (erro) {
-
-    return '';
-
-  }
-
-}
-
-
-async function verificarUploadPendente() {
-
-  try {
-
-    const estado =
-      await obterEstadoUpload();
-
 
     if (
-      !estado ||
-      !estado.blob
+      navigator.storage &&
+      typeof navigator.storage.persist === 'function'
     ) {
 
-      return;
-
-    }
-
-
-    mostrarUploadPendente(
-      estado
-    );
-
-
-    /*
-     * Impede iniciar uma nova inspeção enquanto
-     * existe um vídeo aguardando envio.
-     */
-
-    const btn =
-      document.getElementById(
-        'btnIniciar'
-      );
-
-
-    if (btn) {
-
-      btn.disabled =
-        true;
+      await navigator.storage.persist();
 
     }
 
@@ -1175,7 +946,7 @@ async function verificarUploadPendente() {
   catch (erro) {
 
     console.warn(
-      'Falha ao verificar upload pendente:',
+      'Armazenamento persistente não disponível:',
       erro
     );
 
@@ -1184,302 +955,967 @@ async function verificarUploadPendente() {
 }
 
 
-function mostrarUploadPendente(
-  estado
+async function estimarArmazenamentoLocal() {
+
+  if (
+    !navigator.storage ||
+    typeof navigator.storage.estimate !== 'function'
+  ) {
+
+    return null;
+
+  }
+
+  try {
+
+    return await navigator.storage.estimate();
+
+  }
+  catch (erro) {
+
+    return null;
+
+  }
+
+}
+
+
+function chaveChunk(
+  uploadId,
+  chunkIndex
 ) {
 
-  const card =
-    document.getElementById(
-      'pendingUploadCard'
+  return (
+    uploadId +
+    '|' +
+    String(chunkIndex)
+  );
+
+}
+
+
+async function salvarJobLocal(
+  job
+) {
+
+  const db =
+    await abrirBancoVideo();
+
+  return new Promise(
+    function(resolve, reject) {
+
+      const tx =
+        db.transaction(
+          STORE_JOBS,
+          'readwrite'
+        );
+
+      tx.objectStore(
+        STORE_JOBS
+      ).put(job);
+
+      tx.oncomplete =
+        function() {
+          db.close();
+          resolve();
+        };
+
+      tx.onerror =
+        function() {
+          db.close();
+          reject(
+            tx.error ||
+            new Error(
+              'Não foi possível salvar o estado da fila.'
+            )
+          );
+        };
+
+    }
+  );
+
+}
+
+
+async function obterJobLocal(
+  uploadId
+) {
+
+  const db =
+    await abrirBancoVideo();
+
+  return new Promise(
+    function(resolve, reject) {
+
+      const tx =
+        db.transaction(
+          STORE_JOBS,
+          'readonly'
+        );
+
+      const req =
+        tx.objectStore(
+          STORE_JOBS
+        ).get(uploadId);
+
+      req.onsuccess =
+        function() {
+          db.close();
+          resolve(req.result || null);
+        };
+
+      req.onerror =
+        function() {
+          db.close();
+          reject(
+            req.error ||
+            new Error(
+              'Não foi possível consultar o estado da fila.'
+            )
+          );
+        };
+
+    }
+  );
+
+}
+
+
+async function listarJobsLocais() {
+
+  const db =
+    await abrirBancoVideo();
+
+  return new Promise(
+    function(resolve, reject) {
+
+      const tx =
+        db.transaction(
+          STORE_JOBS,
+          'readonly'
+        );
+
+      const req =
+        tx.objectStore(
+          STORE_JOBS
+        ).getAll();
+
+      req.onsuccess =
+        function() {
+
+          db.close();
+
+          const jobs =
+            (req.result || [])
+              .filter(
+                function(job) {
+                  return job && job.status !== 'completed';
+                }
+              )
+              .sort(
+                function(a, b) {
+                  return Number(a.createdAt || 0) - Number(b.createdAt || 0);
+                }
+              );
+
+          resolve(jobs);
+
+        };
+
+      req.onerror =
+        function() {
+          db.close();
+          reject(
+            req.error ||
+            new Error(
+              'Não foi possível listar a fila local.'
+            )
+          );
+        };
+
+    }
+  );
+
+}
+
+
+async function salvarChunkLocal(
+  uploadId,
+  chunkIndex,
+  blob
+) {
+
+  const db =
+    await abrirBancoVideo();
+
+  return new Promise(
+    function(resolve, reject) {
+
+      const tx =
+        db.transaction(
+          STORE_CHUNKS,
+          'readwrite'
+        );
+
+      tx.objectStore(
+        STORE_CHUNKS
+      ).put(
+        {
+          key:
+            chaveChunk(
+              uploadId,
+              chunkIndex
+            ),
+
+          uploadId:
+            uploadId,
+
+          chunkIndex:
+            chunkIndex,
+
+          blob:
+            blob
+        }
+      );
+
+      tx.oncomplete =
+        function() {
+          db.close();
+          resolve();
+        };
+
+      tx.onerror =
+        function() {
+          db.close();
+          reject(
+            tx.error ||
+            new Error(
+              'Não foi possível salvar uma parte do vídeo.'
+            )
+          );
+        };
+
+    }
+  );
+
+}
+
+
+async function obterChunkLocal(
+  uploadId,
+  chunkIndex
+) {
+
+  const db =
+    await abrirBancoVideo();
+
+  return new Promise(
+    function(resolve, reject) {
+
+      const tx =
+        db.transaction(
+          STORE_CHUNKS,
+          'readonly'
+        );
+
+      const req =
+        tx.objectStore(
+          STORE_CHUNKS
+        ).get(
+          chaveChunk(
+            uploadId,
+            chunkIndex
+          )
+        );
+
+      req.onsuccess =
+        function() {
+          db.close();
+          resolve(req.result || null);
+        };
+
+      req.onerror =
+        function() {
+          db.close();
+          reject(
+            req.error ||
+            new Error(
+              'Não foi possível ler uma parte do vídeo.'
+            )
+          );
+        };
+
+    }
+  );
+
+}
+
+
+async function apagarJobLocal(
+  uploadId
+) {
+
+  const db =
+    await abrirBancoVideo();
+
+  return new Promise(
+    function(resolve, reject) {
+
+      const tx =
+        db.transaction(
+          [
+            STORE_JOBS,
+            STORE_CHUNKS
+          ],
+          'readwrite'
+        );
+
+      tx.objectStore(
+        STORE_JOBS
+      ).delete(uploadId);
+
+      const chunksStore =
+        tx.objectStore(
+          STORE_CHUNKS
+        );
+
+      const index =
+        chunksStore.index(
+          'uploadId'
+        );
+
+      const req =
+        index.openCursor(
+          IDBKeyRange.only(
+            uploadId
+          )
+        );
+
+      req.onsuccess =
+        function(evento) {
+
+          const cursor =
+            evento.target.result;
+
+          if (!cursor) {
+            return;
+          }
+
+          cursor.delete();
+          cursor.continue();
+
+        };
+
+      tx.oncomplete =
+        function() {
+          db.close();
+          resolve();
+        };
+
+      tx.onerror =
+        function() {
+          db.close();
+          reject(
+            tx.error ||
+            new Error(
+              'Não foi possível limpar o vídeo do aparelho.'
+            )
+          );
+        };
+
+    }
+  );
+
+}
+
+
+async function excluirJobsAntigosIncompletos() {
+
+  const jobs =
+    await listarJobsLocais();
+
+  const limite =
+    Date.now() -
+    24 *
+    60 *
+    60 *
+    1000;
+
+  for (const job of jobs) {
+
+    if (
+      job.status === 'recording' &&
+      Number(job.updatedAt || 0) < limite
+    ) {
+
+      await apagarJobLocal(
+        job.uploadId
+      );
+
+    }
+
+  }
+
+}
+
+
+async function atualizarFilaUI() {
+
+  try {
+
+    const jobs =
+      await listarJobsLocais();
+
+    const card =
+      document.getElementById(
+        'uploadQueueCard'
+      );
+
+    const text =
+      document.getElementById(
+        'uploadQueueText'
+      );
+
+    const progress =
+      document.getElementById(
+        'uploadQueueProgress'
+      );
+
+    if (!card || !text || !progress) {
+      return;
+    }
+
+    if (jobs.length === 0) {
+
+      card.classList.add('hidden');
+      return;
+
+    }
+
+    card.classList.remove('hidden');
+
+    const enviando =
+      jobs.filter(
+        function(job) {
+          return job.status === 'uploading' || job.status === 'finalizing';
+        }
+      ).length;
+
+    const aguardando =
+      Math.max(
+        0,
+        jobs.length - enviando
+      );
+
+    const totalMB =
+      jobs.reduce(
+        function(soma, job) {
+          return soma + Number(job.tamanhoBytes || 0);
+        },
+        0
+      ) /
+      1024 /
+      1024;
+
+    text.textContent =
+      '📦 ' +
+      jobs.length +
+      ' vídeo(s) na fila • ' +
+      enviando +
+      ' enviando • ' +
+      aguardando +
+      ' aguardando • ' +
+      totalMB.toFixed(1) +
+      ' MB no aparelho';
+
+    const job =
+      uploadJobAtual ||
+      jobs.find(
+        function(item) {
+          return item.status === 'uploading' || item.status === 'finalizing';
+        }
+      ) ||
+      jobs[0];
+
+    if (job) {
+
+      const percentual =
+        job.totalChunks > 0
+          ? Math.min(
+              100,
+              Math.round(
+                (Number(job.nextChunk || 0) /
+                  Number(job.totalChunks)) *
+                  100
+              )
+            )
+          : 0;
+
+      progress.classList.remove('hidden');
+      progress.textContent =
+        job.status === 'finalizing'
+          ? '🧩 Finalizando ' + job.produto + '...'
+          : '☁️ ' +
+            job.produto +
+            ' — ' +
+            percentual +
+            '% (' +
+            Number(job.nextChunk || 0) +
+            '/' +
+            Number(job.totalChunks || 0) +
+            ')';
+
+    }
+    else {
+      progress.classList.add('hidden');
+    }
+
+  }
+  catch (erro) {
+
+    console.warn(
+      'Falha ao atualizar fila:',
+      erro
     );
 
+  }
 
-  if (!card) {
+}
+
+
+function atualizarFilaPeriodicamente() {
+
+  atualizarFilaUI();
+
+  setTimeout(
+    atualizarFilaPeriodicamente,
+    3000
+  );
+
+}
+
+
+async function salvarEstadoInicialGravacao() {
+
+  const job = {
+
+    uploadId:
+      gravacaoUploadId,
+
+    maquina:
+      maquina,
+
+    operador:
+      document
+        .getElementById('operador')
+        .value,
+
+    produto:
+      produtoAtual.nome,
+
+    conforme:
+      conformidade,
+
+    ciclo:
+      String(tempoCiclo),
+
+    mimeType:
+      mediaRecorder.mimeType ||
+      'video/webm',
+
+    totalChunks:
+      0,
+
+    nextChunk:
+      0,
+
+    status:
+      'recording',
+
+    createdAt:
+      Date.now(),
+
+    updatedAt:
+      Date.now(),
+
+    tamanhoBytes:
+      0
+
+  };
+
+  await salvarJobLocal(job);
+
+  return job;
+
+}
+
+
+async function obterJobECriarSeNecessario() {
+
+  let job =
+    await obterJobLocal(
+      gravacaoUploadId
+    );
+
+  if (!job) {
+    job =
+      await salvarEstadoInicialGravacao();
+  }
+
+  return job;
+
+}
+
+
+async function processarFilaUploads() {
+
+  if (filaProcessando) {
+    return;
+  }
+
+  if (navigator.onLine === false) {
+
+    atualizarFilaUI();
+    return;
+
+  }
+
+  filaProcessando =
+    true;
+
+  try {
+
+    await solicitarArmazenamentoPersistente();
+
+    while (true) {
+
+      const jobs =
+        await listarJobsLocais();
+
+      const job =
+        jobs.find(
+          function(item) {
+
+            if (
+              item.status === 'recording'
+            ) {
+              return false;
+            }
+
+            if (
+              item.nextAttemptAt &&
+              Date.now() <
+                Number(item.nextAttemptAt)
+            ) {
+              return false;
+            }
+
+            return true;
+
+          }
+        );
+
+      if (!job) {
+        break;
+      }
+
+      uploadJobAtual =
+        job;
+
+      await atualizarFilaUI();
+
+      const ok =
+        await processarJobUpload(job);
+
+      if (!ok) {
+        /*
+         * Um upload pausado não bloqueia os demais.
+         * A próxima tentativa será controlada por nextAttemptAt.
+         */
+        continue;
+      }
+
+    }
+
+  }
+  catch (erro) {
+
+    console.warn(
+      'Fila de uploads pausada:',
+      erro
+    );
+
+  }
+  finally {
+
+    uploadJobAtual =
+      null;
+
+    filaProcessando =
+      false;
+
+    await atualizarFilaUI();
+
+  }
+
+}
+
+
+async function liberarWakeLockSeSeguro() {
+
+  if (
+    mediaRecorder &&
+    mediaRecorder.state !==
+      'inactive'
+  ) {
 
     return;
 
   }
 
-
-  document
-    .getElementById(
-      'pendingUploadInfo'
-    )
-    .innerHTML =
-
-    '<strong>' +
-    (
-      estado.produto ||
-      'Vídeo'
-    ) +
-    '</strong><br>' +
-
-    'Máquina: ' +
-    (
-      estado.maquina ||
-      ''
-    ) +
-    '<br>' +
-
-    'Operador: ' +
-    (
-      estado.operador ||
-      ''
-    ) +
-    '<br>' +
-
-    'Ciclo: ' +
-    formatarTempo(
-      Number(
-        estado.ciclo ||
-        0
-      )
-    ) +
-    '<br>' +
-
-    'Progresso: ' +
-    Number(
-      estado.nextChunk ||
-      0
-    ) +
-    ' / ' +
-    Number(
-      estado.totalChunks ||
-      0
-    ) +
-    ' partes<br>' +
-
-    'Gravado em: ' +
-    formatarDataHoraLocal(
-      estado.criadoEm
-    );
-
-
-  card
-    .classList
-    .remove(
-      'hidden'
-    );
+  await liberarWakeLock();
 
 }
 
 
-function esconderUploadPendente() {
-
-  const card =
-    document.getElementById(
-      'pendingUploadCard'
-    );
-
-
-  if (card) {
-
-    card
-      .classList
-      .add(
-        'hidden'
-      );
-
-  }
-
-}
-
-
-async function retomarUploadPendente() {
+async function processarJobUpload(
+  job
+) {
 
   try {
 
-    const estado =
-      await obterEstadoUpload();
+    job.status =
+      'uploading';
 
+    job.updatedAt =
+      Date.now();
 
-    if (
-      !estado ||
-      !estado.blob
+    job.retryCount =
+      Number(job.retryCount || 0);
+
+    job.nextAttemptAt =
+      0;
+
+    await salvarJobLocal(job);
+
+    await solicitarWakeLock();
+
+    for (
+      let indice =
+        Number(job.nextChunk || 0);
+      indice <
+        Number(job.totalChunks || 0);
+      indice++
     ) {
 
-      esconderUploadPendente();
+      if (navigator.onLine === false) {
+        throw new Error('SEM_INTERNET');
+      }
 
+      const registroChunk =
+        await obterChunkLocal(
+          job.uploadId,
+          indice
+        );
+
+      if (!registroChunk || !registroChunk.blob) {
+        throw new Error(
+          'Parte local ' +
+          (indice + 1) +
+          ' não encontrada.'
+        );
+      }
+
+      const base64 =
+        await blobParaBase64(
+          registroChunk.blob
+        );
 
       mostrarMensagem(
-        'Nenhum upload pendente foi encontrado.',
-        'error'
+        '☁️ Enviando ' +
+        job.produto +
+        ' — parte ' +
+        (indice + 1) +
+        ' de ' +
+        job.totalChunks +
+        '...',
+        'warning'
       );
 
+      await enviarChunk(
+        {
 
-      return;
+          uploadId:
+            job.uploadId,
+
+          chunkIndex:
+            indice,
+
+          totalChunks:
+            job.totalChunks,
+
+          chunkBase64:
+            base64,
+
+          mimeType:
+            job.mimeType,
+
+          maquina:
+            job.maquina,
+
+          operador:
+            job.operador,
+
+          produto:
+            job.produto,
+
+          conforme:
+            job.conforme,
+
+          ciclo:
+            job.ciclo
+
+        }
+      );
+
+      job.nextChunk =
+        indice +
+        1;
+
+      job.updatedAt =
+        Date.now();
+
+      job.status =
+        job.nextChunk >=
+          job.totalChunks
+          ? 'finalizing'
+          : 'uploading';
+
+      await salvarJobLocal(job);
+
+      await atualizarFilaUI();
 
     }
 
+    job.status =
+      'finalizing';
 
-    uploadRetomando =
-      true;
+    job.updatedAt =
+      Date.now();
 
+    await salvarJobLocal(job);
 
-    videoBlob =
-      estado.blob;
+    await atualizarFilaUI();
 
-
-    uploadAtualId =
-      estado.uploadId;
-
-
-    produtoAtual =
-      produtos.find(
-        function(item) {
-
-          return (
-            item.nome ===
-            estado.produto
-          );
-
-        }
-      ) ||
-      {
-        nome:
-          estado.produto,
-
-        ciclo:
-          Number(
-            estado.ciclo
-          )
-
-      };
-
-
-    tempoCiclo =
-      Number(
-        estado.ciclo
+    const resultado =
+      await finalizarUpload(
+        job
       );
 
-
-    conformidade =
-      estado.conforme ||
-      '';
-
-
-    esconderUploadPendente();
-
-
-    document
-      .getElementById(
-        'mainForm'
-      )
-      .classList
-      .add(
-        'hidden'
+    if (
+      !resultado ||
+      !resultado.idArquivo
+    ) {
+      throw new Error(
+        'CONFIRMACAO_FINAL_NAO_RECEBIDA'
       );
+    }
 
-
-    document
-      .getElementById(
-        'videoResult'
-      )
-      .classList
-      .remove(
-        'hidden'
-      );
-
-
-    document
-      .getElementById(
-        'videoResultInfo'
-      )
-      .innerHTML =
-
-      produtoAtual.nome +
-      '<br>' +
-      'Ciclo: <strong>' +
-      formatarTempo(
-        tempoCiclo
-      ) +
-      '</strong><br>' +
-      'Status: <strong>Envio retomado</strong>';
-
-
-    const url =
-      URL.createObjectURL(
-        videoBlob
-      );
-
-
-    document
-      .getElementById(
-        'videoPreview'
-      )
-      .src =
-      url;
-
-
-    await enviarVideo(
-      {
-        retomar:
-          true
-      }
+    await apagarJobLocal(
+      job.uploadId
     );
+
+    limparMensagem();
+
+    await atualizarFilaUI();
+
+    await liberarWakeLockSeSeguro();
+
+    return true;
 
   }
   catch (erro) {
 
-    uploadRetomando =
-      false;
-
-
-    mostrarMensagem(
-      '❌ Não foi possível retomar o envio: ' +
-      (
-        erro &&
-        erro.message
-          ? erro.message
-          : 'erro desconhecido.'
-      ),
-      'error'
+    console.warn(
+      'Job pausado:',
+      job.uploadId,
+      erro
     );
+
+    job.status =
+      'paused';
+
+    job.retryCount =
+      Number(job.retryCount || 0) +
+      1;
+
+    const espera =
+      Math.min(
+        60000,
+        5000 *
+          Math.pow(
+            2,
+            Math.min(
+              4,
+              job.retryCount - 1
+            )
+          )
+      );
+
+    job.nextAttemptAt =
+      Date.now() +
+      espera;
+
+    job.updatedAt =
+      Date.now();
+
+    await salvarJobLocal(job);
+
+    await atualizarFilaUI();
+
+    await liberarWakeLockSeSeguro();
+
+    if (
+      erro &&
+      erro.message === 'SEM_INTERNET'
+    ) {
+
+      mostrarMensagem(
+        '📡 Sem conexão. O vídeo ficou salvo e será retomado quando a internet voltar.',
+        'warning'
+      );
+
+    }
+    else {
+
+      mostrarMensagem(
+        '⚠️ O envio foi pausado. O vídeo permanece salvo no aparelho e será retomado automaticamente.',
+        'warning'
+      );
+
+    }
+
+    return false;
 
   }
 
 }
 
 
-async function descartarUploadPendente() {
+async function inicializarFilaUploads() {
+
+  await solicitarArmazenamentoPersistente();
 
   try {
-
-    await limparEstadoUpload();
-
-
-    esconderUploadPendente();
-
-
-    const btn =
-      document.getElementById(
-        'btnIniciar'
-      );
-
-
-    if (
-      btn
-    ) {
-
-      verificarFormulario();
-
-    }
-
-
-    mostrarMensagem(
-      'Upload pendente descartado.',
-      'success'
-    );
-
+    await excluirJobsAntigosIncompletos();
   }
-  catch (erro) {
+  catch (erro) {}
 
-    mostrarMensagem(
-      'Não foi possível descartar o upload pendente.',
-      'error'
-    );
+  await atualizarFilaUI();
 
-  }
+  await processarFilaUploads();
+
+  atualizarFilaPeriodicamente();
 
 }
 
@@ -2281,6 +2717,17 @@ function iniciarGravacao() {
   inicioGravacao =
     new Date();
 
+  gravacaoChunkPromises =
+    [];
+
+  gravacaoChunkIndex =
+    0;
+
+  gravacaoPersistenciaFalhou =
+    false;
+
+  gravacaoUploadId =
+    criarIdUpload();
 
   document
     .getElementById(
@@ -2291,7 +2738,6 @@ function iniciarGravacao() {
       'hidden'
     );
 
-
   document
     .getElementById(
       'recordingBlock'
@@ -2301,10 +2747,8 @@ function iniciarGravacao() {
       'hidden'
     );
 
-
   segundosRestantes =
     tempoCiclo;
-
 
   document
     .getElementById(
@@ -2315,10 +2759,8 @@ function iniciarGravacao() {
       segundosRestantes
     );
 
-
   const mimeType =
     escolherMimeType();
-
 
   const opcoes = {
 
@@ -2327,14 +2769,10 @@ function iniciarGravacao() {
 
   };
 
-
   if (mimeType) {
-
     opcoes.mimeType =
       mimeType;
-
   }
-
 
   try {
 
@@ -2353,28 +2791,54 @@ function iniciarGravacao() {
     );
 
     fecharInspecao();
-
     return;
 
   }
-
 
   mediaRecorder.ondataavailable =
     function(evento) {
 
       if (
-        evento.data &&
-        evento.data.size > 0
+        !evento.data ||
+        evento.data.size <= 0
       ) {
-
-        partesVideo.push(
-          evento.data
-        );
-
+        return;
       }
 
-    };
+      const indice =
+        gravacaoChunkIndex++;
 
+      partesVideo.push(
+        evento.data
+      );
+
+      const promessa =
+        salvarChunkLocal(
+          gravacaoUploadId,
+          indice,
+          evento.data
+        )
+        .catch(
+          function(erro) {
+
+            gravacaoPersistenciaFalhou =
+              true;
+
+            console.error(
+              'Falha ao salvar chunk local:',
+              erro
+            );
+
+            throw erro;
+
+          }
+        );
+
+      gravacaoChunkPromises.push(
+        promessa
+      );
+
+    };
 
   mediaRecorder.onstop =
     async function() {
@@ -2382,21 +2846,23 @@ function iniciarGravacao() {
       fimGravacao =
         new Date();
 
-      const botaoEnviar =
-        document.getElementById(
-          'btnEnviarVideo'
+      try {
+
+        await Promise.all(
+          gravacaoChunkPromises
         );
 
-      if (botaoEnviar) {
-        botaoEnviar.disabled = true;
-        botaoEnviar.textContent = '💾 SALVANDO NO APARELHO...';
       }
+      catch (erro) {
 
+        gravacaoPersistenciaFalhou =
+          true;
+
+      }
 
       const tipo =
         mediaRecorder.mimeType ||
         'video/webm';
-
 
       videoBlob =
         new Blob(
@@ -2407,12 +2873,22 @@ function iniciarGravacao() {
           }
         );
 
-
       const url =
         URL.createObjectURL(
           videoBlob
         );
 
+      if (ultimaVideoUrl) {
+        try {
+          URL.revokeObjectURL(
+            ultimaVideoUrl
+          );
+        }
+        catch (erro) {}
+      }
+
+      ultimaVideoUrl =
+        url;
 
       document
         .getElementById(
@@ -2420,7 +2896,6 @@ function iniciarGravacao() {
         )
         .src =
         url;
-
 
       const duracaoReal =
         Math.max(
@@ -2433,7 +2908,6 @@ function iniciarGravacao() {
           )
         );
 
-
       const tamanhoMB =
         (
           videoBlob.size /
@@ -2441,6 +2915,90 @@ function iniciarGravacao() {
           1024
         ).toFixed(2);
 
+      if (
+        gravacaoPersistenciaFalhou
+      ) {
+
+        mostrarMensagem(
+          '❌ Não foi possível salvar o vídeo no armazenamento local. Não iniciaremos o upload automático.',
+          'error'
+        );
+
+      }
+      else {
+
+        const totalChunks =
+          gravacaoChunkIndex;
+
+        const job = {
+
+          uploadId:
+            gravacaoUploadId,
+
+          maquina:
+            maquina,
+
+          operador:
+            document
+              .getElementById(
+                'operador'
+              )
+              .value,
+
+          produto:
+            produtoAtual.nome,
+
+          conforme:
+            conformidade,
+
+          ciclo:
+            String(
+              tempoCiclo
+            ),
+
+          mimeType:
+            tipo,
+
+          totalChunks:
+            totalChunks,
+
+          nextChunk:
+            0,
+
+          status:
+            'queued',
+
+          createdAt:
+            Date.now(),
+
+          updatedAt:
+            Date.now(),
+
+          tamanhoBytes:
+            videoBlob.size,
+
+          retryCount:
+            0,
+
+          nextAttemptAt:
+            0
+
+        };
+
+        await salvarJobLocal(
+          job
+        );
+
+        mostrarMensagem(
+          '✅ Ciclo salvo. O envio do vídeo começou em segundo plano; você já pode iniciar outra inspeção.',
+          'success'
+        );
+
+        await atualizarFilaUI();
+
+        processarFilaUploads();
+
+      }
 
       document
         .getElementById(
@@ -2453,146 +3011,18 @@ function iniciarGravacao() {
         formatarTempo(
           tempoCiclo
         ) +
-        '</strong>' +
-        '<br>' +
+        '</strong><br>' +
         'Duração real: <strong>' +
         duracaoReal +
-        ' s</strong>' +
-        '<br>' +
+        ' s</strong><br>' +
         'Tamanho: <strong>' +
         tamanhoMB +
-        ' MB</strong>';
-
-
-      /*
-       * Persistir imediatamente no aparelho.
-       *
-       * Se o usuário sair da tela durante o upload, o Blob
-       * continua disponível para retomada.
-       */
-      try {
-
-        const totalChunks =
-          Math.ceil(
-            videoBlob.size /
-            TAMANHO_CHUNK
-          );
-
-
-        const uploadId =
-          criarIdUpload();
-
-
-        const estado =
-          {
-
-            uploadId:
-              uploadId,
-
-            maquina:
-              maquina,
-
-            operador:
-              document
-                .getElementById(
-                  'operador'
-                )
-                .value,
-
-            produto:
-              produtoAtual.nome,
-
-            conforme:
-              conformidade,
-
-            ciclo:
-              String(
-                tempoCiclo
-              ),
-
-            mimeType:
-              videoBlob.type ||
-              'video/webm',
-
-            blob:
-              videoBlob,
-
-            totalChunks:
-              totalChunks,
-
-            nextChunk:
-              0,
-
-            status:
-              'ready',
-
-            criadoEm:
-              Date.now(),
-
-            atualizadoEm:
-              Date.now()
-
-          };
-
-
-        await salvarEstadoUpload(
-          estado
+        ' MB</strong><br>' +
+        (
+          gravacaoPersistenciaFalhou
+            ? '<strong>⚠️ Não foi possível proteger o vídeo localmente.</strong>'
+            : '<strong>✅ Vídeo protegido no armazenamento local. Envio em segundo plano.</strong>'
         );
-
-
-        uploadAtualId =
-          uploadId;
-
-
-        uploadEmAndamento =
-          false;
-
-
-        document
-          .getElementById(
-            'videoResultInfo'
-          )
-          .innerHTML +=
-          '<br><strong>✅ Vídeo salvo no aparelho e pronto para envio.</strong>';
-
-
-        if (botaoEnviar) {
-
-          botaoEnviar.disabled =
-            false;
-
-          botaoEnviar.textContent =
-            '☁️ ENVIAR VÍDEO';
-
-        }
-
-      }
-      catch (erro) {
-
-        console.error(
-          'Erro ao salvar vídeo localmente:',
-          erro
-        );
-
-
-        if (botaoEnviar) {
-
-          botaoEnviar.disabled =
-            false;
-
-          botaoEnviar.textContent =
-            '☁️ ENVIAR VÍDEO';
-
-        }
-
-
-        mostrarMensagem(
-          '⚠️ O vídeo foi gravado, mas não foi possível criar a cópia de segurança no aparelho. Não recomendamos fechar a página antes do envio.',
-          'warning'
-        );
-
-      }
-
 
       document
         .getElementById(
@@ -2603,7 +3033,6 @@ function iniciarGravacao() {
           'hidden'
         );
 
-
       document
         .getElementById(
           'videoResult'
@@ -2613,19 +3042,30 @@ function iniciarGravacao() {
           'hidden'
         );
 
-
       liberarWakeLock();
 
     };
 
+  try {
 
-  mediaRecorder.start(
-    250
-  );
+    mediaRecorder.start(
+      TIMESLICE_GRAVACAO
+    );
 
+  }
+  catch (erro) {
+
+    mostrarMensagem(
+      'Não foi possível iniciar a gravação.',
+      'error'
+    );
+
+    fecharInspecao();
+    return;
+
+  }
 
   atualizarContadorCiclo();
-
 
   cicloInterval =
     setInterval(
@@ -2633,9 +3073,7 @@ function iniciarGravacao() {
 
         segundosRestantes--;
 
-
         atualizarContadorCiclo();
-
 
         if (
           segundosRestantes <= 0
@@ -2645,10 +3083,8 @@ function iniciarGravacao() {
             cicloInterval
           );
 
-
           cicloInterval =
             null;
-
 
           pararGravacao();
 
@@ -2734,21 +3170,27 @@ function desligarCamera() {
 
 async function gravarNovamente() {
 
-  try {
+  if (
+    ultimaVideoUrl
+  ) {
 
-    await limparEstadoUpload();
+    try {
+      URL.revokeObjectURL(
+        ultimaVideoUrl
+      );
+    }
+    catch (erro) {}
+
+    ultimaVideoUrl =
+      null;
 
   }
-  catch (erro) {}
 
-
-  uploadAtualId =
+  videoBlob =
     null;
 
-
-  uploadRetomando =
-    false;
-
+  partesVideo =
+    [];
 
   document
     .getElementById(
@@ -2759,43 +3201,58 @@ async function gravarNovamente() {
       'hidden'
     );
 
-
   document
     .getElementById(
-      'inspectionScreen'
+      'mainForm'
     )
     .classList
     .remove(
       'hidden'
     );
 
-
-  document
-    .getElementById(
-      'recordingBlock'
-    )
-    .classList
-    .add(
-      'hidden'
-    );
-
-
-  await solicitarWakeLock();
-
-  await iniciarCamera();
-
 }
 
 
 
+/* =====================================================
+   UPLOAD EM PARTES - SERVIDOR
+   ===================================================== */
+
+async function enviarVideo() {
+
+  await processarFilaUploads();
+
+}
+
+
+function criarIdUpload() {
+
+  const agora =
+    Date.now()
+      .toString(36);
+
+
+  const aleatorio =
+    Math.random()
+      .toString(36)
+      .substring(
+        2,
+        10
+      );
+
+
+  return (
+    'UP_' +
+    agora +
+    '_' +
+    aleatorio
+  );
+
+}
+
+
 /*
- * Blob → Base64
- *
- * O FileReader retorna:
- * data:video/webm;base64,AAAA...
- *
- * Para o POST enviamos somente:
- * AAAA...
+ * Envia uma parte pelo formulário para o iframe.
  */
 function blobParaBase64(
   blob
@@ -2930,631 +3387,6 @@ function adicionarCampo(
 }
 
 
-/* =====================================================
-   UPLOAD EM PARTES (CHUNKED)
-   ===================================================== */
-
-const TAMANHO_CHUNK =
-  512 * 1024; // 512 KB por parte
-
-
-let uploadAtualId = null;
-let uploadChunksPendentes = null;
-
-
-/*
- * Envia o vídeo inteiro em partes pequenas.
- *
- * Cada parte é enviada por um formulário POST para o
- * Apps Script e a resposta retorna pelo iframe oculto.
- */
-async function enviarVideo(
-  opcoes = {}
-) {
-
-  let estado =
-    await obterEstadoUpload();
-
-
-  /*
-   * Se estamos começando um envio novo e já existe
-   * estado persistido, usamos esse estado.
-   */
-
-  if (
-    !estado ||
-    !estado.blob
-  ) {
-
-    if (!videoBlob) {
-
-      mostrarMensagem(
-        'Nenhum vídeo disponível.',
-        'error'
-      );
-
-      return;
-
-    }
-
-
-    const totalChunks =
-      Math.ceil(
-        videoBlob.size /
-        TAMANHO_CHUNK
-      );
-
-
-    const novoUploadId =
-      uploadAtualId ||
-      criarIdUpload();
-
-
-    estado =
-      {
-
-        uploadId:
-          novoUploadId,
-
-        maquina:
-          maquina,
-
-        operador:
-          document
-            .getElementById(
-              'operador'
-            )
-            .value,
-
-        produto:
-          produtoAtual.nome,
-
-        conforme:
-          conformidade,
-
-        ciclo:
-          String(
-            tempoCiclo
-          ),
-
-        mimeType:
-          videoBlob.type ||
-          'video/webm',
-
-        blob:
-          videoBlob,
-
-        totalChunks:
-          totalChunks,
-
-        nextChunk:
-          0,
-
-        status:
-          'ready',
-
-        criadoEm:
-          Date.now(),
-
-        atualizadoEm:
-          Date.now()
-
-      };
-
-
-    await salvarEstadoUpload(
-      estado
-    );
-
-  }
-
-
-  /*
-   * Restaurar estado global.
-   */
-
-  uploadAtualId =
-    estado.uploadId;
-
-
-  videoBlob =
-    estado.blob;
-
-
-  const totalChunks =
-    Number(
-      estado.totalChunks
-    );
-
-
-  let proximoChunk =
-    Number(
-      estado.nextChunk ||
-      0
-    );
-
-
-  const botao =
-    document.getElementById(
-      'btnEnviarVideo'
-    );
-
-
-  const tamanhoMB =
-    (
-      videoBlob.size /
-      1024 /
-      1024
-    ).toFixed(2);
-
-
-  uploadEmAndamento =
-    true;
-
-
-  if (botao) {
-
-    botao.disabled =
-      true;
-
-    botao.textContent =
-      'ENVIANDO...';
-
-  }
-
-
-  mostrarMensagem(
-    '☁️ Preparando envio retomável de ' +
-    tamanhoMB +
-    ' MB...',
-    'warning'
-  );
-
-
-  /*
-   * Reforçar wake lock durante o upload.
-   */
-
-  await solicitarWakeLock();
-
-
-  estado.status =
-    'uploading';
-
-
-  estado.atualizadoEm =
-    Date.now();
-
-
-  await salvarEstadoUpload(
-    estado
-  );
-
-
-  try {
-
-    for (
-      let indice =
-        proximoChunk;
-      indice <
-        totalChunks;
-      indice++
-    ) {
-
-      /*
-       * Se o aparelho ficou sem conexão, não
-       * desperdiçamos a parte. Esperamos voltar online.
-       */
-
-      await esperarInternet();
-
-
-      const inicio =
-        indice *
-        TAMANHO_CHUNK;
-
-
-      const fim =
-        Math.min(
-          inicio +
-          TAMANHO_CHUNK,
-          videoBlob.size
-        );
-
-
-      const chunk =
-        videoBlob.slice(
-          inicio,
-          fim,
-          videoBlob.type ||
-          'video/webm'
-        );
-
-
-      const base64 =
-        await blobParaBase64(
-          chunk
-        );
-
-
-      mostrarMensagem(
-        '☁️ Enviando parte ' +
-        (
-          indice +
-          1
-        ) +
-        ' de ' +
-        totalChunks +
-        ' (' +
-        Math.round(
-          (
-            (
-              indice +
-              1
-            ) /
-            totalChunks
-          ) * 100
-        ) +
-        '%)...',
-        'warning'
-      );
-
-
-      await enviarChunk(
-        {
-
-          uploadId:
-            uploadAtualId,
-
-          chunkIndex:
-            indice,
-
-          totalChunks:
-            totalChunks,
-
-          chunkBase64:
-            base64,
-
-          mimeType:
-            estado.mimeType,
-
-          maquina:
-            estado.maquina,
-
-          operador:
-            estado.operador,
-
-          produto:
-            estado.produto,
-
-          conforme:
-            estado.conforme,
-
-          ciclo:
-            estado.ciclo
-
-        }
-      );
-
-
-      /*
-       * Só avançamos o estado depois da confirmação.
-       *
-       * Se o aparelho desligar aqui, retomaremos
-       * exatamente a partir da próxima parte.
-       */
-
-      estado.nextChunk =
-        indice +
-        1;
-
-
-      estado.atualizadoEm =
-        Date.now();
-
-
-      estado.status =
-        estado.nextChunk >=
-        totalChunks
-          ? 'finalizing'
-          : 'uploading';
-
-
-      await salvarEstadoUpload(
-        estado
-      );
-
-
-      proximoChunk =
-        indice +
-        1;
-
-    }
-
-
-    mostrarMensagem(
-      '🧩 Todas as partes chegaram. Finalizando o vídeo no Google Drive...',
-      'warning'
-    );
-
-
-    estado.status =
-      'finalizing';
-
-
-    estado.atualizadoEm =
-      Date.now();
-
-
-    await salvarEstadoUpload(
-      estado
-    );
-
-
-    const resultadoFinal =
-      await finalizarUpload();
-
-
-    /*
-     * Confirmação real.
-     */
-
-    if (
-      resultadoFinal &&
-      resultadoFinal.idArquivo
-    ) {
-
-      await concluirUploadLocalmente(
-        resultadoFinal
-      );
-
-      return;
-
-    }
-
-
-    throw new Error(
-      'O servidor não confirmou a criação do arquivo final.'
-    );
-
-  }
-  catch (erro) {
-
-    console.error(
-      'Erro no upload retomável:',
-      erro
-    );
-
-
-    /*
-     * Mantemos o estado no IndexedDB.
-     *
-     * Não apagamos o vídeo.
-     */
-
-    estado.status =
-      'paused';
-
-
-    estado.atualizadoEm =
-      Date.now();
-
-
-    try {
-
-      await salvarEstadoUpload(
-        estado
-      );
-
-    }
-    catch (erroSalvar) {}
-
-
-    uploadEmAndamento =
-      false;
-
-
-    if (botao) {
-
-      botao.disabled =
-        false;
-
-      botao.textContent =
-        '▶️ RETOMAR ENVIO';
-
-    }
-
-
-    await liberarWakeLock();
-
-
-    mostrarMensagem(
-      '⚠️ O envio foi pausado. O vídeo continua salvo no aparelho. Você pode retomar sem gravar novamente.',
-      'warning'
-    );
-
-  }
-
-}
-
-
-async function esperarInternet() {
-
-  if (
-    navigator.onLine !==
-    false
-  ) {
-
-    return;
-
-  }
-
-
-  mostrarMensagem(
-    '📡 Sem conexão. O vídeo continua salvo no aparelho. Aguardando a internet...',
-    'warning'
-  );
-
-
-  await new Promise(
-    function(resolve) {
-
-      const quandoVoltar =
-        function() {
-
-          window.removeEventListener(
-            'online',
-            quandoVoltar
-          );
-
-
-          resolve();
-
-        };
-
-
-      window.addEventListener(
-        'online',
-        quandoVoltar
-      );
-
-    }
-  );
-
-}
-
-
-async function concluirUploadLocalmente(
-  resultado
-) {
-
-  uploadEmAndamento =
-    false;
-
-
-  uploadRetomando =
-    false;
-
-
-  await limparEstadoUpload();
-
-
-  await liberarWakeLock();
-
-
-  const botao =
-    document.getElementById(
-      'btnEnviarVideo'
-    );
-
-
-  if (botao) {
-
-    botao.disabled =
-      false;
-
-    botao.textContent =
-      '✅ VÍDEO ENVIADO';
-
-  }
-
-
-  document
-    .getElementById(
-      'videoResult'
-    )
-    .classList
-    .add(
-      'hidden'
-    );
-
-
-  document
-    .getElementById(
-      'successScreen'
-    )
-    .classList
-    .remove(
-      'hidden'
-    );
-
-
-  document
-    .getElementById(
-      'successInfo'
-    )
-    .innerHTML =
-
-    'Pasta: <strong>' +
-    (
-      resultado.pasta ||
-      ''
-    ) +
-    '</strong><br>' +
-
-    'Arquivo: <strong>' +
-    (
-      resultado.nomeArquivo ||
-      ''
-    ) +
-    '</strong><br>' +
-
-    'Tamanho: <strong>' +
-    (
-      (
-        Number(
-          resultado.tamanhoBytes ||
-          0
-        ) /
-        1024 /
-        1024
-      ).toFixed(
-        2
-      )
-    ) +
-    ' MB</strong>';
-
-
-  limparMensagem();
-
-}
-
-
-
-
-
-/*
- * Gera ID de upload seguro para usar em nome de pasta.
- */
-function criarIdUpload() {
-
-  const agora =
-    Date.now()
-      .toString(36);
-
-
-  const aleatorio =
-    Math.random()
-      .toString(36)
-      .substring(
-        2,
-        10
-      );
-
-
-  return (
-    'UP_' +
-    agora +
-    '_' +
-    aleatorio
-  );
-
-}
-
-
-/*
- * Envia uma parte pelo formulário para o iframe.
- */
 function enviarChunk(
   dados
 ) {
@@ -4058,13 +3890,28 @@ function aguardarStatusChunk(
  * 1. dispara POST VIDEO_FINALIZE;
  * 2. consulta o status final por JSONP.
  */
-async function finalizarUpload() {
+async function finalizarUpload(
+  job
+) {
 
-  dispararPostFinalizacao();
+  const uploadId =
+    job && job.uploadId
+      ? job.uploadId
+      : null;
 
+  if (!uploadId) {
+    throw new Error(
+      'Upload ID não informado para finalização.'
+    );
+  }
+
+  dispararPostFinalizacao(
+    uploadId
+  );
 
   return aguardarStatusFinal(
-    uploadAtualId
+    uploadId,
+    job
   );
 
 }
@@ -4073,7 +3920,9 @@ async function finalizarUpload() {
 /*
  * Dispara a requisição de finalização.
  */
-function dispararPostFinalizacao() {
+function dispararPostFinalizacao(
+  uploadId
+) {
 
   const frame =
     document.createElement(
@@ -4138,7 +3987,7 @@ function dispararPostFinalizacao() {
   adicionarCampo(
     formulario,
     'uploadId',
-    uploadAtualId
+    uploadId
   );
 
 
@@ -4192,7 +4041,8 @@ function dispararPostFinalizacao() {
  * Consulta o status da finalização.
  */
 function aguardarStatusFinal(
-  uploadId
+  uploadId,
+  job
 ) {
 
   return new Promise(
@@ -4392,6 +4242,24 @@ function aguardarStatusFinal(
             encodeURIComponent(
               uploadId
             ) +
+            '&maquina=' +
+            encodeURIComponent(
+              job && job.maquina
+                ? job.maquina
+                : ''
+            ) +
+            '&operador=' +
+            encodeURIComponent(
+              job && job.operador
+                ? job.operador
+                : ''
+            ) +
+            '&produto=' +
+            encodeURIComponent(
+              job && job.produto
+                ? job.produto
+                : ''
+            ) +
             '&callback=' +
             encodeURIComponent(
               callbackName
@@ -4536,7 +4404,84 @@ function fecharInspecao() {
 
 function novoRegistro() {
 
-  window.location.reload();
+  if (
+    ultimaVideoUrl
+  ) {
+
+    try {
+      URL.revokeObjectURL(
+        ultimaVideoUrl
+      );
+    }
+    catch (erro) {}
+
+    ultimaVideoUrl =
+      null;
+
+  }
+
+  videoBlob =
+    null;
+
+  partesVideo =
+    [];
+
+  conformidade =
+    '';
+
+  document
+    .getElementById(
+      'btnSim'
+    )
+    .classList
+    .remove(
+      'selected'
+    );
+
+  document
+    .getElementById(
+      'btnNao'
+    )
+    .classList
+    .remove(
+      'selected'
+    );
+
+  document
+    .getElementById(
+      'videoResult'
+    )
+    .classList
+    .add(
+      'hidden'
+    );
+
+  document
+    .getElementById(
+      'successScreen'
+    )
+    .classList
+    .add(
+      'hidden'
+    );
+
+  document
+    .getElementById(
+      'mainForm'
+    )
+    .classList
+    .remove(
+      'hidden'
+    );
+
+  mostrarMensagem(
+    '',
+    ''
+  );
+
+  verificarFormulario();
+  atualizarFilaUI();
+  processarFilaUploads();
 
 }
 
@@ -4562,14 +4507,8 @@ document.addEventListener(
 
       }
 
-
-      if (
-        !uploadEmAndamento
-      ) {
-
-        await verificarUploadPendente();
-
-      }
+      processarFilaUploads();
+      atualizarFilaUI();
 
     }
 
@@ -4579,35 +4518,45 @@ document.addEventListener(
 
 window.addEventListener(
   'online',
-  async function() {
+  function() {
 
-    if (
-      !uploadEmAndamento
-    ) {
-
-      await verificarUploadPendente();
-
-    }
+    processarFilaUploads();
+    atualizarFilaUI();
 
   }
 );
 
 
-/*
- * Ajuda o usuário antes de fechar a página durante um upload.
- */
+window.addEventListener(
+  'offline',
+  function() {
+
+    atualizarFilaUI();
+
+    mostrarMensagem(
+      '📡 Sem internet. As gravações permanecem na fila e serão enviadas quando a conexão voltar.',
+      'warning'
+    );
+
+  }
+);
+
+
 window.addEventListener(
   'beforeunload',
   function(evento) {
 
     if (
-      uploadEmAndamento
+      mediaRecorder &&
+      mediaRecorder.state !==
+        'inactive'
     ) {
 
       evento.preventDefault();
-
       evento.returnValue =
-        'O vídeo ainda está sendo enviado.';
+        'Uma gravação está em andamento.';
+
+      return;
 
     }
 
@@ -4616,13 +4565,10 @@ window.addEventListener(
 
 
 /* =====================================================
-   INICIALIZAÇÃO
+   INICIALIZAÇÃO DA FILA
    ===================================================== */
 
-carregarDados();
-verificarUploadPendente();
-
-
+inicializarFilaUploads();
 </script>
 
 </body>
