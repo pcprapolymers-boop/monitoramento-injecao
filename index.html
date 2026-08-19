@@ -2178,346 +2178,140 @@ function enviarChunk(
   dados
 ) {
 
-  return new Promise(
-    function(
-      resolve,
-      reject
-    ) {
-
-      /*
-       * Criamos um iframe exclusivo para esta parte.
-       *
-       * Não tentamos ler o conteúdo do iframe, pois ele
-       * pertence ao domínio do Apps Script.
-       *
-       * O evento "load" é suficiente para confirmar que
-       * o navegador recebeu a resposta HTTP.
-       */
-
-      const frame =
-        document.createElement(
-          'iframe'
-        );
-
-
-      const nomeFrame =
-        'uploadFrame_' +
-        Date.now() +
-        '_' +
-        dados.chunkIndex +
-        '_' +
-        Math.random()
-          .toString(36)
-          .substring(
-            2,
-            8
-          );
-
-
-      frame.name =
-        nomeFrame;
-
-
-      frame.id =
-        nomeFrame;
-
-
-      frame.style.display =
-        'none';
-
-
-      frame.style.width =
-        '0';
-
-
-      frame.style.height =
-        '0';
-
-
-      frame.style.border =
-        '0';
-
-
-      document.body.appendChild(
-        frame
-      );
-
-
-      let finalizado =
-        false;
-
-
-      const limpar =
-        function() {
-
-          try {
-
-            frame.onload =
-              null;
-
-          }
-          catch (erro) {}
-
-
-          try {
-
-            document.body
-              .removeChild(
-                frame
-              );
-
-          }
-          catch (erro) {}
-
-        };
-
-
-      const concluir =
-        function(
-          resultado
-        ) {
-
-          if (
-            finalizado
-          ) {
-
-            return;
-
-          }
-
-
-          finalizado =
-            true;
-
-
-          clearTimeout(
-            timeout
-          );
-
-
-          limpar();
-
-
-          resolve(
-            resultado
-          );
-
-        };
-
-
-      const falhar =
-        function(
-          erro
-        ) {
-
-          if (
-            finalizado
-          ) {
-
-            return;
-
-          }
-
-
-          finalizado =
-            true;
-
-
-          clearTimeout(
-            timeout
-          );
-
-
-          limpar();
-
-
-          reject(
-            erro
-          );
-
-        };
-
-
-      const timeout =
-        setTimeout(
-          function() {
-
-            falhar(
-              new Error(
-                'Tempo excedido ao enviar a parte ' +
-                (
-                  dados.chunkIndex +
-                  1
-                ) +
-                '.'
-              )
-            );
-
-          },
-          180000
-        );
-
-
-      /*
-       * O Apps Script devolve uma página HTML.
-       * Quando essa resposta termina de carregar,
-       * consideramos o chunk processado.
-       */
-
-      frame.onload =
-        function() {
-
-          concluir({
-
-            sucesso:
-              true,
-
-            uploadId:
-              dados.uploadId,
-
-            chunkIndex:
-              dados.chunkIndex
-
-          });
-
-        };
-
-
-      const formulario =
-        document.createElement(
-          'form'
-        );
-
-
-      formulario.method =
-        'POST';
-
-
-      formulario.action =
-        URL_APPS_SCRIPT;
-
-
-      formulario.target =
-        nomeFrame;
-
-
-      formulario.style.display =
-        'none';
-
-
-      adicionarCampo(
-        formulario,
-        'tipo',
-        'VIDEO_CHUNK'
-      );
-
-
-      adicionarCampo(
-        formulario,
-        'uploadId',
-        dados.uploadId
-      );
-
-
-      adicionarCampo(
-        formulario,
-        'chunkIndex',
-        String(
-          dados.chunkIndex
-        )
-      );
-
-
-      adicionarCampo(
-        formulario,
-        'totalChunks',
-        String(
-          dados.totalChunks
-        )
-      );
-
-
-      adicionarCampo(
-        formulario,
-        'chunkBase64',
-        dados.chunkBase64
-      );
-
-
-      adicionarCampo(
-        formulario,
-        'mimeType',
-        dados.mimeType
-      );
-
-
-      adicionarCampo(
-        formulario,
-        'maquina',
-        dados.maquina
-      );
-
-
-      adicionarCampo(
-        formulario,
-        'operador',
-        dados.operador
-      );
-
-
-      adicionarCampo(
-        formulario,
-        'produto',
-        dados.produto
-      );
-
-
-      adicionarCampo(
-        formulario,
-        'conforme',
-        dados.conforme
-      );
-
-
-      adicionarCampo(
-        formulario,
-        'ciclo',
-        dados.ciclo
-      );
-
-
-      document.body.appendChild(
-        formulario
-      );
-
-
-      formulario.submit();
-
-
-      /*
-       * O formulário pode ser removido logo após o
-       * submit; o navegador já iniciou a navegação.
-       */
-
-      setTimeout(
-        function() {
-
-          try {
-
-            document.body
-              .removeChild(
-                formulario
-              );
-
-          }
-          catch (erro) {}
-
-        },
-        2000
-      );
-
-    }
+  /*
+   * O POST é feito com fetch + no-cors.
+   *
+   * Não tentamos ler a resposta. O Promise do fetch
+   * só é resolvido quando o navegador recebe a resposta
+   * HTTP; isso nos dá a confirmação de que aquela
+   * requisição terminou sem depender de iframe ou
+   * postMessage cross-origin.
+   */
+
+  const corpo =
+    new URLSearchParams();
+
+
+  corpo.append(
+    'tipo',
+    'VIDEO_CHUNK'
   );
+
+
+  corpo.append(
+    'uploadId',
+    dados.uploadId
+  );
+
+
+  corpo.append(
+    'chunkIndex',
+    String(
+      dados.chunkIndex
+    )
+  );
+
+
+  corpo.append(
+    'totalChunks',
+    String(
+      dados.totalChunks
+    )
+  );
+
+
+  corpo.append(
+    'chunkBase64',
+    dados.chunkBase64
+  );
+
+
+  corpo.append(
+    'mimeType',
+    dados.mimeType
+  );
+
+
+  corpo.append(
+    'maquina',
+    dados.maquina
+  );
+
+
+  corpo.append(
+    'operador',
+    dados.operador
+  );
+
+
+  corpo.append(
+    'produto',
+    dados.produto
+  );
+
+
+  corpo.append(
+    'conforme',
+    dados.conforme
+  );
+
+
+  corpo.append(
+    'ciclo',
+    dados.ciclo
+  );
+
+
+  const resposta =
+    await fetch(
+      URL_APPS_SCRIPT,
+      {
+        method:
+          'POST',
+
+        mode:
+          'no-cors',
+
+        headers: {
+          'Content-Type':
+            'application/x-www-form-urlencoded;charset=UTF-8'
+        },
+
+        body:
+          corpo.toString(),
+
+        cache:
+          'no-store'
+      }
+    );
+
+
+  /*
+   * Em no-cors a resposta é opaque e não pode
+   * ser lida pelo JavaScript.
+   *
+   * O fato de o fetch ter resolvido significa que
+   * a requisição HTTP terminou.
+   */
+
+  return {
+
+    sucesso:
+      true,
+
+    uploadId:
+      dados.uploadId,
+
+    chunkIndex:
+      dados.chunkIndex,
+
+    totalChunks:
+      dados.totalChunks,
+
+    resposta:
+      resposta.type
+
+  };
 
 }
 
@@ -2528,254 +2322,64 @@ function enviarChunk(
  */
 function finalizarUpload() {
 
-  return new Promise(
-    function(
-      resolve,
-      reject
-    ) {
+  const corpo =
+    new URLSearchParams();
 
-      /*
-       * A finalização também usa um iframe exclusivo.
-       *
-       * Não dependemos de postMessage ou de leitura
-       * de conteúdo cross-origin.
-       */
 
-      const frame =
-        document.createElement(
-          'iframe'
-        );
-
-
-      const nomeFrame =
-        'finalizeFrame_' +
-        Date.now() +
-        '_' +
-        Math.random()
-          .toString(36)
-          .substring(
-            2,
-            8
-          );
-
-
-      frame.name =
-        nomeFrame;
-
-
-      frame.id =
-        nomeFrame;
-
-
-      frame.style.display =
-        'none';
-
-
-      frame.style.width =
-        '0';
-
-
-      frame.style.height =
-        '0';
-
-
-      frame.style.border =
-        '0';
-
-
-      document.body.appendChild(
-        frame
-      );
-
-
-      let finalizado =
-        false;
-
-
-      const limpar =
-        function() {
-
-          try {
-
-            frame.onload =
-              null;
-
-          }
-          catch (erro) {}
-
-
-          try {
-
-            document.body
-              .removeChild(
-                frame
-              );
-
-          }
-          catch (erro) {}
-
-        };
-
-
-      const concluir =
-        function() {
-
-          if (
-            finalizado
-          ) {
-
-            return;
-
-          }
-
-
-          finalizado =
-            true;
-
-
-          clearTimeout(
-            timeout
-          );
-
-
-          limpar();
-
-
-          resolve({
-
-            sucesso:
-              true,
-
-            uploadId:
-              uploadAtualId
-
-          });
-
-        };
-
-
-      const falhar =
-        function(
-          erro
-        ) {
-
-          if (
-            finalizado
-          ) {
-
-            return;
-
-          }
-
-
-          finalizado =
-            true;
-
-
-          clearTimeout(
-            timeout
-          );
-
-
-          limpar();
-
-
-          reject(
-            erro
-          );
-
-        };
-
-
-      const timeout =
-        setTimeout(
-          function() {
-
-            falhar(
-              new Error(
-                'Tempo excedido ao finalizar o vídeo.'
-              )
-            );
-
-          },
-          300000
-        );
-
-
-      frame.onload =
-        function() {
-
-          concluir();
-
-        };
-
-
-      const formulario =
-        document.createElement(
-          'form'
-        );
-
-
-      formulario.method =
-        'POST';
-
-
-      formulario.action =
-        URL_APPS_SCRIPT;
-
-
-      formulario.target =
-        nomeFrame;
-
-
-      formulario.style.display =
-        'none';
-
-
-      adicionarCampo(
-        formulario,
-        'tipo',
-        'VIDEO_FINALIZE'
-      );
-
-
-      adicionarCampo(
-        formulario,
-        'uploadId',
-        uploadAtualId
-      );
-
-
-      document.body.appendChild(
-        formulario
-      );
-
-
-      formulario.submit();
-
-
-      setTimeout(
-        function() {
-
-          try {
-
-            document.body
-              .removeChild(
-                formulario
-              );
-
-          }
-          catch (erro) {}
-
-        },
-        2000
-      );
-
-    }
+  corpo.append(
+    'tipo',
+    'VIDEO_FINALIZE'
   );
 
-}
 
+  corpo.append(
+    'uploadId',
+    uploadAtualId
+  );
+
+
+  /*
+   * O servidor monta o arquivo final.
+   */
+
+  const resposta =
+    await fetch(
+      URL_APPS_SCRIPT,
+      {
+        method:
+          'POST',
+
+        mode:
+          'no-cors',
+
+        headers: {
+          'Content-Type':
+            'application/x-www-form-urlencoded;charset=UTF-8'
+        },
+
+        body:
+          corpo.toString(),
+
+        cache:
+          'no-store'
+      }
+    );
+
+
+  return {
+
+    sucesso:
+      true,
+
+    uploadId:
+      uploadAtualId,
+
+    resposta:
+      resposta.type
+
+  };
+
+}
 
 
 
