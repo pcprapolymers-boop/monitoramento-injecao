@@ -2012,6 +2012,45 @@ function blobParaBase64(
 }
 
 
+
+/*
+ * Cria um campo hidden para os POSTs.
+ */
+function adicionarCampo(
+  formulario,
+  nome,
+  valor
+) {
+
+  const campo =
+    document.createElement(
+      'input'
+    );
+
+
+  campo.type =
+    'hidden';
+
+
+  campo.name =
+    nome;
+
+
+  campo.value =
+    valor == null
+      ? ''
+      : String(
+          valor
+        );
+
+
+  formulario.appendChild(
+    campo
+  );
+
+}
+
+
 /* =====================================================
    UPLOAD EM PARTES (CHUNKED)
    ===================================================== */
