@@ -2179,32 +2179,110 @@ function enviarChunk(
 ) {
 
   /*
-   * O POST é feito com fetch + no-cors.
+   * Primeiro disparamos o POST para o Apps Script.
    *
-   * Não tentamos ler a resposta. O Promise do fetch
-   * só é resolvido quando o navegador recebe a resposta
-   * HTTP; isso nos dá a confirmação de que aquela
-   * requisição terminou sem depender de iframe ou
-   * postMessage cross-origin.
+   * Não aguardamos a resposta do POST, porque o
+   * navegador não consegue ler uma resposta cross-origin
+   * com segurança neste cenário.
    */
 
-  const corpo =
-    new URLSearchParams();
+  dispararPostChunk(
+    dados
+  );
 
 
-  corpo.append(
+  /*
+   * Depois confirmamos a chegada consultando um endpoint
+   * JSONP. <script src> pode carregar conteúdo cross-origin
+   * sem depender de CORS.
+   */
+
+  return aguardarStatusChunk(
+    dados.uploadId,
+    dados.chunkIndex
+  );
+
+}
+
+
+/*
+ * Dispara o POST do chunk através de um formulário oculto.
+ */
+function dispararPostChunk(
+  dados
+) {
+
+  const frame =
+    document.createElement(
+      'iframe'
+    );
+
+
+  const frameName =
+    'postChunk_' +
+    Date.now() +
+    '_' +
+    dados.chunkIndex +
+    '_' +
+    Math.random()
+      .toString(36)
+      .substring(
+        2,
+        8
+      );
+
+
+  frame.name =
+    frameName;
+
+
+  frame.style.display =
+    'none';
+
+
+  document.body.appendChild(
+    frame
+  );
+
+
+  const formulario =
+    document.createElement(
+      'form'
+    );
+
+
+  formulario.method =
+    'POST';
+
+
+  formulario.action =
+    URL_APPS_SCRIPT;
+
+
+  formulario.target =
+    frameName;
+
+
+  formulario.style.display =
+    'none';
+
+
+  adicionarCampo(
+    formulario,
     'tipo',
     'VIDEO_CHUNK'
   );
 
 
-  corpo.append(
+  adicionarCampo(
+    formulario,
     'uploadId',
     dados.uploadId
   );
 
 
-  corpo.append(
+  adicionarCampo(
+    formulario,
     'chunkIndex',
     String(
       dados.chunkIndex
@@ -2212,7 +2290,8 @@ function enviarChunk(
   );
 
 
-  corpo.append(
+  adicionarCampo(
+    formulario,
     'totalChunks',
     String(
       dados.totalChunks
@@ -2220,167 +2299,761 @@ function enviarChunk(
   );
 
 
-  corpo.append(
+  adicionarCampo(
+    formulario,
     'chunkBase64',
     dados.chunkBase64
   );
 
 
-  corpo.append(
+  adicionarCampo(
+    formulario,
     'mimeType',
     dados.mimeType
   );
 
 
-  corpo.append(
+  adicionarCampo(
+    formulario,
     'maquina',
     dados.maquina
   );
 
 
-  corpo.append(
+  adicionarCampo(
+    formulario,
     'operador',
     dados.operador
   );
 
 
-  corpo.append(
+  adicionarCampo(
+    formulario,
     'produto',
     dados.produto
   );
 
 
-  corpo.append(
+  adicionarCampo(
+    formulario,
     'conforme',
     dados.conforme
   );
 
 
-  corpo.append(
+  adicionarCampo(
+    formulario,
     'ciclo',
     dados.ciclo
   );
 
 
-  const resposta =
-    await fetch(
-      URL_APPS_SCRIPT,
-      {
-        method:
-          'POST',
+  document.body.appendChild(
+    formulario
+  );
 
-        mode:
-          'no-cors',
 
-        headers: {
-          'Content-Type':
-            'application/x-www-form-urlencoded;charset=UTF-8'
-        },
-
-        body:
-          corpo.toString(),
-
-        cache:
-          'no-store'
-      }
-    );
+  formulario.submit();
 
 
   /*
-   * Em no-cors a resposta é opaque e não pode
-   * ser lida pelo JavaScript.
-   *
-   * O fato de o fetch ter resolvido significa que
-   * a requisição HTTP terminou.
+   * O iframe fica apenas como destino silencioso da requisição.
+   * Não dependemos do evento load.
    */
 
-  return {
+  setTimeout(
+    function() {
 
-    sucesso:
-      true,
+      try {
 
-    uploadId:
-      dados.uploadId,
+        document.body
+          .removeChild(
+            formulario
+          );
 
-    chunkIndex:
-      dados.chunkIndex,
+      }
+      catch (erro) {}
 
-    totalChunks:
-      dados.totalChunks,
+    },
+    2000
+  );
 
-    resposta:
-      resposta.type
 
-  };
+  setTimeout(
+    function() {
+
+      try {
+
+        document.body
+          .removeChild(
+            frame
+          );
+
+      }
+      catch (erro) {}
+
+    },
+    30000
+  );
 
 }
 
 
+/*
+ * Consulta o status do chunk por JSONP.
+ */
+function aguardarStatusChunk(
+  uploadId,
+  chunkIndex
+) {
+
+  return new Promise(
+    function(
+      resolve,
+      reject
+    ) {
+
+      let tentativas =
+        0;
+
+
+      const maxTentativas =
+        60;
+
+
+      const consultar =
+        function() {
+
+          tentativas++;
+
+
+          const callbackName =
+            'jsonpChunk_' +
+            Date.now() +
+            '_' +
+            Math.random()
+              .toString(36)
+              .substring(
+                2,
+                10
+              );
+
+
+          let script = null;
+
+
+          const limpar =
+            function() {
+
+              try {
+
+                if (
+                  script &&
+                  script.parentNode
+                ) {
+
+                  script.parentNode
+                    .removeChild(
+                      script
+                    );
+
+                }
+
+              }
+              catch (erro) {}
+
+
+              try {
+
+                delete window[
+                  callbackName
+                ];
+
+              }
+              catch (erro) {}
+
+            };
+
+
+          const timeout =
+            setTimeout(
+              function() {
+
+                limpar();
+
+
+                if (
+                  tentativas >=
+                  maxTentativas
+                ) {
+
+                  reject(
+                    new Error(
+                      'Tempo excedido ao confirmar a parte ' +
+                      (
+                        Number(
+                          chunkIndex
+                        ) + 1
+                      ) +
+                      '.'
+                    )
+                  );
+
+                  return;
+
+                }
+
+
+                setTimeout(
+                  consultar,
+                  1000
+                );
+
+              },
+              5000
+            );
+
+
+          window[
+            callbackName
+          ] =
+            function(
+              resposta
+            ) {
+
+              clearTimeout(
+                timeout
+              );
+
+
+              limpar();
+
+
+              if (
+                resposta &&
+                resposta.sucesso &&
+                resposta.recebido
+              ) {
+
+                resolve(
+                  resposta
+                );
+
+                return;
+
+              }
+
+
+              if (
+                resposta &&
+                resposta.erro
+              ) {
+
+                reject(
+                  new Error(
+                    resposta.erro
+                  )
+                );
+
+                return;
+
+              }
+
+
+              if (
+                tentativas >=
+                maxTentativas
+              ) {
+
+                reject(
+                  new Error(
+                    'Tempo excedido ao confirmar a parte ' +
+                    (
+                      Number(
+                        chunkIndex
+                      ) + 1
+                    ) +
+                    '.'
+                  )
+                );
+
+                return;
+
+              }
+
+
+              setTimeout(
+                consultar,
+                1000
+              );
+
+            };
+
+
+          script =
+            document.createElement(
+              'script'
+            );
+
+
+          script.src =
+            URL_APPS_SCRIPT +
+            '?status=chunk' +
+            '&uploadId=' +
+            encodeURIComponent(
+              uploadId
+            ) +
+            '&chunkIndex=' +
+            encodeURIComponent(
+              chunkIndex
+            ) +
+            '&callback=' +
+            encodeURIComponent(
+              callbackName
+            ) +
+            '&_=' +
+            Date.now();
+
+
+          script.onerror =
+            function() {
+
+              clearTimeout(
+                timeout
+              );
+
+
+              limpar();
+
+
+              if (
+                tentativas >=
+                maxTentativas
+              ) {
+
+                reject(
+                  new Error(
+                    'Não foi possível consultar o status da parte ' +
+                    (
+                      Number(
+                        chunkIndex
+                      ) + 1
+                    ) +
+                    '.'
+                  )
+                );
+
+                return;
+
+              }
+
+
+              setTimeout(
+                consultar,
+                1000
+              );
+
+            };
+
+
+          document.head.appendChild(
+            script
+          );
+
+        };
+
+
+      consultar();
+
+    }
+  );
+
+}
+
 
 /*
- * Solicita ao Apps Script a montagem do arquivo final.
+ * Finaliza o upload:
+ *
+ * 1. dispara POST VIDEO_FINALIZE;
+ * 2. consulta o status final por JSONP.
  */
-function finalizarUpload() {
+async function finalizarUpload() {
 
-  const corpo =
-    new URLSearchParams();
+  dispararPostFinalizacao();
 
 
-  corpo.append(
+  return aguardarStatusFinal(
+    uploadAtualId
+  );
+
+}
+
+
+/*
+ * Dispara a requisição de finalização.
+ */
+function dispararPostFinalizacao() {
+
+  const frame =
+    document.createElement(
+      'iframe'
+    );
+
+
+  const frameName =
+    'postFinalize_' +
+    Date.now() +
+    '_' +
+    Math.random()
+      .toString(36)
+      .substring(
+        2,
+        8
+      );
+
+
+  frame.name =
+    frameName;
+
+
+  frame.style.display =
+    'none';
+
+
+  document.body.appendChild(
+    frame
+  );
+
+
+  const formulario =
+    document.createElement(
+      'form'
+    );
+
+
+  formulario.method =
+    'POST';
+
+
+  formulario.action =
+    URL_APPS_SCRIPT;
+
+
+  formulario.target =
+    frameName;
+
+
+  formulario.style.display =
+    'none';
+
+
+  adicionarCampo(
+    formulario,
     'tipo',
     'VIDEO_FINALIZE'
   );
 
 
-  corpo.append(
+  adicionarCampo(
+    formulario,
     'uploadId',
     uploadAtualId
   );
 
 
-  /*
-   * O servidor monta o arquivo final.
-   */
+  document.body.appendChild(
+    formulario
+  );
 
-  const resposta =
-    await fetch(
-      URL_APPS_SCRIPT,
-      {
-        method:
-          'POST',
 
-        mode:
-          'no-cors',
+  formulario.submit();
 
-        headers: {
-          'Content-Type':
-            'application/x-www-form-urlencoded;charset=UTF-8'
-        },
 
-        body:
-          corpo.toString(),
+  setTimeout(
+    function() {
 
-        cache:
-          'no-store'
+      try {
+
+        document.body
+          .removeChild(
+            formulario
+          );
+
       }
-    );
+      catch (erro) {}
+
+    },
+    2000
+  );
 
 
-  return {
+  setTimeout(
+    function() {
 
-    sucesso:
-      true,
+      try {
 
-    uploadId:
-      uploadAtualId,
+        document.body
+          .removeChild(
+            frame
+          );
 
-    resposta:
-      resposta.type
+      }
+      catch (erro) {}
 
-  };
+    },
+    300000
+  );
 
 }
 
+
+/*
+ * Consulta o status da finalização.
+ */
+function aguardarStatusFinal(
+  uploadId
+) {
+
+  return new Promise(
+    function(
+      resolve,
+      reject
+    ) {
+
+      let tentativas =
+        0;
+
+
+      const maxTentativas =
+        180;
+
+
+      const consultar =
+        function() {
+
+          tentativas++;
+
+
+          const callbackName =
+            'jsonpFinal_' +
+            Date.now() +
+            '_' +
+            Math.random()
+              .toString(36)
+              .substring(
+                2,
+                10
+              );
+
+
+          let script = null;
+
+
+          const limpar =
+            function() {
+
+              try {
+
+                if (
+                  script &&
+                  script.parentNode
+                ) {
+
+                  script.parentNode
+                    .removeChild(
+                      script
+                    );
+
+                }
+
+              }
+              catch (erro) {}
+
+
+              try {
+
+                delete window[
+                  callbackName
+                ];
+
+              }
+              catch (erro) {}
+
+            };
+
+
+          const timeout =
+            setTimeout(
+              function() {
+
+                limpar();
+
+
+                if (
+                  tentativas >=
+                  maxTentativas
+                ) {
+
+                  reject(
+                    new Error(
+                      'Tempo excedido aguardando a montagem do vídeo.'
+                    )
+                  );
+
+                  return;
+
+                }
+
+
+                setTimeout(
+                  consultar,
+                  1000
+                );
+
+              },
+              5000
+            );
+
+
+          window[
+            callbackName
+          ] =
+            function(
+              resposta
+            ) {
+
+              clearTimeout(
+                timeout
+              );
+
+
+              limpar();
+
+
+              if (
+                resposta &&
+                resposta.sucesso &&
+                resposta.finalizado
+              ) {
+
+                resolve(
+                  resposta
+                );
+
+                return;
+
+              }
+
+
+              if (
+                resposta &&
+                resposta.erro
+              ) {
+
+                reject(
+                  new Error(
+                    resposta.erro
+                  )
+                );
+
+                return;
+
+              }
+
+
+              if (
+                tentativas >=
+                maxTentativas
+              ) {
+
+                reject(
+                  new Error(
+                    'Tempo excedido aguardando a montagem do vídeo.'
+                  )
+                );
+
+                return;
+
+              }
+
+
+              setTimeout(
+                consultar,
+                1000
+              );
+
+            };
+
+
+          script =
+            document.createElement(
+              'script'
+            );
+
+
+          script.src =
+            URL_APPS_SCRIPT +
+            '?status=final' +
+            '&uploadId=' +
+            encodeURIComponent(
+              uploadId
+            ) +
+            '&callback=' +
+            encodeURIComponent(
+              callbackName
+            ) +
+            '&_=' +
+            Date.now();
+
+
+          script.onerror =
+            function() {
+
+              clearTimeout(
+                timeout
+              );
+
+
+              limpar();
+
+
+              if (
+                tentativas >=
+                maxTentativas
+              ) {
+
+                reject(
+                  new Error(
+                    'Não foi possível consultar o status final do vídeo.'
+                  )
+                );
+
+                return;
+
+              }
+
+
+              setTimeout(
+                consultar,
+                1000
+              );
+
+            };
+
+
+          document.head.appendChild(
+            script
+          );
+
+        };
+
+
+      consultar();
+
+    }
+  );
+
+}
 
 
 /*
@@ -2419,6 +3092,8 @@ function adicionarCampo(
   );
 
 }
+
+
 
 
 /*
