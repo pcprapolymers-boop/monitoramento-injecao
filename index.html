@@ -204,6 +204,16 @@
       color: #8A5A08;
     }
 
+    .pending-progress {
+      margin-top: 12px;
+      padding: 10px;
+      border-radius: 10px;
+      background: var(--ra-blue-light);
+      color: var(--ra-blue-dark);
+      text-align: center;
+      font-weight: bold;
+    }
+
     .inspection {
       text-align: center;
     }
@@ -374,6 +384,52 @@
     id="message"
     class="message"
   ></div>
+
+  <!-- UPLOAD PENDENTE -->
+  <div
+    id="pendingUploadCard"
+    class="card hidden"
+  >
+
+    <div
+      class="inspection-title"
+      style="text-align:center;"
+    >
+      ⚠️ ENVIO PENDENTE
+    </div>
+
+    <div
+      id="pendingUploadInfo"
+      class="result-info"
+    ></div>
+
+    <div
+      class="video-actions"
+    >
+
+      <button
+        id="btnRetomarUpload"
+        class="btn-primary"
+        onclick="retomarUploadPendente()"
+      >
+        ▶️ RETOMAR ENVIO
+      </button>
+
+      <button
+        id="btnDescartarUpload"
+        class="btn-secondary"
+        onclick="descartarUploadPendente()"
+      >
+        🗑️ DESCARTAR
+      </button>
+
+    </div>
+
+    <div class="info-line">
+      O vídeo foi salvo no aparelho. Você pode retomar o envio sem gravar novamente.
+    </div>
+
+  </div>
 
 
   <!-- FORMULÁRIO PRINCIPAL -->
@@ -759,6 +815,673 @@ let inicioGravacao = null;
 
 let fimGravacao = null;
 
+
+/* =====================================================
+   PERSISTÊNCIA LOCAL
+   ===================================================== */
+
+const NOME_DB_VIDEO =
+  'RAPolymersMonitoramentoVideo';
+
+const VERSAO_DB_VIDEO =
+  1;
+
+const STORE_UPLOADS =
+  'uploads';
+
+const CHAVE_UPLOAD_ATIVO =
+  'ativo';
+
+let uploadEmAndamento =
+  false;
+
+let uploadRetomando =
+  false;
+
+
+
+
+/* =====================================================
+   BANCO LOCAL - INDEXEDDB
+   ===================================================== */
+
+function abrirBancoVideo() {
+
+  return new Promise(
+    function(
+      resolve,
+      reject
+    ) {
+
+      if (
+        !('indexedDB' in window)
+      ) {
+
+        reject(
+          new Error(
+            'Este navegador não oferece armazenamento local suficiente para retomar o vídeo.'
+          )
+        );
+
+        return;
+
+      }
+
+
+      const requisicao =
+        indexedDB.open(
+          NOME_DB_VIDEO,
+          VERSAO_DB_VIDEO
+        );
+
+
+      requisicao.onupgradeneeded =
+        function(evento) {
+
+          const db =
+            evento.target.result;
+
+
+          if (
+            !db.objectStoreNames
+              .contains(
+                STORE_UPLOADS
+              )
+          ) {
+
+            db.createObjectStore(
+              STORE_UPLOADS
+            );
+
+          }
+
+        };
+
+
+      requisicao.onsuccess =
+        function(evento) {
+
+          resolve(
+            evento.target.result
+          );
+
+        };
+
+
+      requisicao.onerror =
+        function() {
+
+          reject(
+            requisicao.error ||
+            new Error(
+              'Não foi possível abrir o armazenamento local.'
+            )
+          );
+
+        };
+
+    }
+  );
+
+}
+
+
+async function salvarEstadoUpload(
+  estado
+) {
+
+  const db =
+    await abrirBancoVideo();
+
+
+  return new Promise(
+    function(
+      resolve,
+      reject
+    ) {
+
+      const transacao =
+        db.transaction(
+          STORE_UPLOADS,
+          'readwrite'
+        );
+
+
+      transacao.objectStore(
+        STORE_UPLOADS
+      ).put(
+        estado,
+        CHAVE_UPLOAD_ATIVO
+      );
+
+
+      transacao.oncomplete =
+        function() {
+
+          db.close();
+
+          resolve();
+
+        };
+
+
+      transacao.onerror =
+        function() {
+
+          db.close();
+
+          reject(
+            transacao.error ||
+            new Error(
+              'Não foi possível salvar o progresso do upload.'
+            )
+          );
+
+        };
+
+    }
+  );
+
+}
+
+
+async function obterEstadoUpload() {
+
+  const db =
+    await abrirBancoVideo();
+
+
+  return new Promise(
+    function(
+      resolve,
+      reject
+    ) {
+
+      const transacao =
+        db.transaction(
+          STORE_UPLOADS,
+          'readonly'
+        );
+
+
+      const requisicao =
+        transacao.objectStore(
+          STORE_UPLOADS
+        ).get(
+          CHAVE_UPLOAD_ATIVO
+        );
+
+
+      requisicao.onsuccess =
+        function() {
+
+          db.close();
+
+          resolve(
+            requisicao.result ||
+            null
+          );
+
+        };
+
+
+      requisicao.onerror =
+        function() {
+
+          db.close();
+
+          reject(
+            requisicao.error ||
+            new Error(
+              'Não foi possível consultar o upload pendente.'
+            )
+          );
+
+        };
+
+    }
+  );
+
+}
+
+
+async function limparEstadoUpload() {
+
+  const db =
+    await abrirBancoVideo();
+
+
+  return new Promise(
+    function(
+      resolve,
+      reject
+    ) {
+
+      const transacao =
+        db.transaction(
+          STORE_UPLOADS,
+          'readwrite'
+        );
+
+
+      transacao.objectStore(
+        STORE_UPLOADS
+      ).delete(
+        CHAVE_UPLOAD_ATIVO
+      );
+
+
+      transacao.oncomplete =
+        function() {
+
+          db.close();
+
+          resolve();
+
+        };
+
+
+      transacao.onerror =
+        function() {
+
+          db.close();
+
+          reject(
+            transacao.error ||
+            new Error(
+              'Não foi possível limpar o upload pendente.'
+            )
+          );
+
+        };
+
+    }
+  );
+
+}
+
+
+function formatarDataHoraLocal(
+  valor
+) {
+
+  if (!valor) {
+
+    return '';
+
+  }
+
+
+  try {
+
+    return new Date(
+      valor
+    ).toLocaleString(
+      'pt-BR'
+    );
+
+  }
+  catch (erro) {
+
+    return '';
+
+  }
+
+}
+
+
+async function verificarUploadPendente() {
+
+  try {
+
+    const estado =
+      await obterEstadoUpload();
+
+
+    if (
+      !estado ||
+      !estado.blob
+    ) {
+
+      return;
+
+    }
+
+
+    mostrarUploadPendente(
+      estado
+    );
+
+
+    /*
+     * Impede iniciar uma nova inspeção enquanto
+     * existe um vídeo aguardando envio.
+     */
+
+    const btn =
+      document.getElementById(
+        'btnIniciar'
+      );
+
+
+    if (btn) {
+
+      btn.disabled =
+        true;
+
+    }
+
+  }
+  catch (erro) {
+
+    console.warn(
+      'Falha ao verificar upload pendente:',
+      erro
+    );
+
+  }
+
+}
+
+
+function mostrarUploadPendente(
+  estado
+) {
+
+  const card =
+    document.getElementById(
+      'pendingUploadCard'
+    );
+
+
+  if (!card) {
+
+    return;
+
+  }
+
+
+  document
+    .getElementById(
+      'pendingUploadInfo'
+    )
+    .innerHTML =
+
+    '<strong>' +
+    (
+      estado.produto ||
+      'Vídeo'
+    ) +
+    '</strong><br>' +
+
+    'Máquina: ' +
+    (
+      estado.maquina ||
+      ''
+    ) +
+    '<br>' +
+
+    'Operador: ' +
+    (
+      estado.operador ||
+      ''
+    ) +
+    '<br>' +
+
+    'Ciclo: ' +
+    formatarTempo(
+      Number(
+        estado.ciclo ||
+        0
+      )
+    ) +
+    '<br>' +
+
+    'Progresso: ' +
+    Number(
+      estado.nextChunk ||
+      0
+    ) +
+    ' / ' +
+    Number(
+      estado.totalChunks ||
+      0
+    ) +
+    ' partes<br>' +
+
+    'Gravado em: ' +
+    formatarDataHoraLocal(
+      estado.criadoEm
+    );
+
+
+  card
+    .classList
+    .remove(
+      'hidden'
+    );
+
+}
+
+
+function esconderUploadPendente() {
+
+  const card =
+    document.getElementById(
+      'pendingUploadCard'
+    );
+
+
+  if (card) {
+
+    card
+      .classList
+      .add(
+        'hidden'
+      );
+
+  }
+
+}
+
+
+async function retomarUploadPendente() {
+
+  try {
+
+    const estado =
+      await obterEstadoUpload();
+
+
+    if (
+      !estado ||
+      !estado.blob
+    ) {
+
+      esconderUploadPendente();
+
+
+      mostrarMensagem(
+        'Nenhum upload pendente foi encontrado.',
+        'error'
+      );
+
+
+      return;
+
+    }
+
+
+    uploadRetomando =
+      true;
+
+
+    videoBlob =
+      estado.blob;
+
+
+    uploadAtualId =
+      estado.uploadId;
+
+
+    produtoAtual =
+      produtos.find(
+        function(item) {
+
+          return (
+            item.nome ===
+            estado.produto
+          );
+
+        }
+      ) ||
+      {
+        nome:
+          estado.produto,
+
+        ciclo:
+          Number(
+            estado.ciclo
+          )
+
+      };
+
+
+    tempoCiclo =
+      Number(
+        estado.ciclo
+      );
+
+
+    conformidade =
+      estado.conforme ||
+      '';
+
+
+    esconderUploadPendente();
+
+
+    document
+      .getElementById(
+        'mainForm'
+      )
+      .classList
+      .add(
+        'hidden'
+      );
+
+
+    document
+      .getElementById(
+        'videoResult'
+      )
+      .classList
+      .remove(
+        'hidden'
+      );
+
+
+    document
+      .getElementById(
+        'videoResultInfo'
+      )
+      .innerHTML =
+
+      produtoAtual.nome +
+      '<br>' +
+      'Ciclo: <strong>' +
+      formatarTempo(
+        tempoCiclo
+      ) +
+      '</strong><br>' +
+      'Status: <strong>Envio retomado</strong>';
+
+
+    const url =
+      URL.createObjectURL(
+        videoBlob
+      );
+
+
+    document
+      .getElementById(
+        'videoPreview'
+      )
+      .src =
+      url;
+
+
+    await enviarVideo(
+      {
+        retomar:
+          true
+      }
+    );
+
+  }
+  catch (erro) {
+
+    uploadRetomando =
+      false;
+
+
+    mostrarMensagem(
+      '❌ Não foi possível retomar o envio: ' +
+      (
+        erro &&
+        erro.message
+          ? erro.message
+          : 'erro desconhecido.'
+      ),
+      'error'
+    );
+
+  }
+
+}
+
+
+async function descartarUploadPendente() {
+
+  try {
+
+    await limparEstadoUpload();
+
+
+    esconderUploadPendente();
+
+
+    const btn =
+      document.getElementById(
+        'btnIniciar'
+      );
+
+
+    if (
+      btn
+    ) {
+
+      verificarFormulario();
+
+    }
+
+
+    mostrarMensagem(
+      'Upload pendente descartado.',
+      'success'
+    );
+
+  }
+  catch (erro) {
+
+    mostrarMensagem(
+      'Não foi possível descartar o upload pendente.',
+      'error'
+    );
+
+  }
+
+}
 
 
 /* =====================================================
@@ -1654,10 +2377,20 @@ function iniciarGravacao() {
 
 
   mediaRecorder.onstop =
-    function() {
+    async function() {
 
       fimGravacao =
         new Date();
+
+      const botaoEnviar =
+        document.getElementById(
+          'btnEnviarVideo'
+        );
+
+      if (botaoEnviar) {
+        botaoEnviar.disabled = true;
+        botaoEnviar.textContent = '💾 SALVANDO NO APARELHO...';
+      }
 
 
       const tipo =
@@ -1729,6 +2462,136 @@ function iniciarGravacao() {
         'Tamanho: <strong>' +
         tamanhoMB +
         ' MB</strong>';
+
+
+      /*
+       * Persistir imediatamente no aparelho.
+       *
+       * Se o usuário sair da tela durante o upload, o Blob
+       * continua disponível para retomada.
+       */
+      try {
+
+        const totalChunks =
+          Math.ceil(
+            videoBlob.size /
+            TAMANHO_CHUNK
+          );
+
+
+        const uploadId =
+          criarIdUpload();
+
+
+        const estado =
+          {
+
+            uploadId:
+              uploadId,
+
+            maquina:
+              maquina,
+
+            operador:
+              document
+                .getElementById(
+                  'operador'
+                )
+                .value,
+
+            produto:
+              produtoAtual.nome,
+
+            conforme:
+              conformidade,
+
+            ciclo:
+              String(
+                tempoCiclo
+              ),
+
+            mimeType:
+              videoBlob.type ||
+              'video/webm',
+
+            blob:
+              videoBlob,
+
+            totalChunks:
+              totalChunks,
+
+            nextChunk:
+              0,
+
+            status:
+              'ready',
+
+            criadoEm:
+              Date.now(),
+
+            atualizadoEm:
+              Date.now()
+
+          };
+
+
+        await salvarEstadoUpload(
+          estado
+        );
+
+
+        uploadAtualId =
+          uploadId;
+
+
+        uploadEmAndamento =
+          false;
+
+
+        document
+          .getElementById(
+            'videoResultInfo'
+          )
+          .innerHTML +=
+          '<br><strong>✅ Vídeo salvo no aparelho e pronto para envio.</strong>';
+
+
+        if (botaoEnviar) {
+
+          botaoEnviar.disabled =
+            false;
+
+          botaoEnviar.textContent =
+            '☁️ ENVIAR VÍDEO';
+
+        }
+
+      }
+      catch (erro) {
+
+        console.error(
+          'Erro ao salvar vídeo localmente:',
+          erro
+        );
+
+
+        if (botaoEnviar) {
+
+          botaoEnviar.disabled =
+            false;
+
+          botaoEnviar.textContent =
+            '☁️ ENVIAR VÍDEO';
+
+        }
+
+
+        mostrarMensagem(
+          '⚠️ O vídeo foi gravado, mas não foi possível criar a cópia de segurança no aparelho. Não recomendamos fechar a página antes do envio.',
+          'warning'
+        );
+
+      }
 
 
       document
@@ -1870,6 +2733,22 @@ function desligarCamera() {
    ===================================================== */
 
 async function gravarNovamente() {
+
+  try {
+
+    await limparEstadoUpload();
+
+  }
+  catch (erro) {}
+
+
+  uploadAtualId =
+    null;
+
+
+  uploadRetomando =
+    false;
+
 
   document
     .getElementById(
@@ -2069,18 +2948,130 @@ let uploadChunksPendentes = null;
  * Cada parte é enviada por um formulário POST para o
  * Apps Script e a resposta retorna pelo iframe oculto.
  */
-async function enviarVideo() {
+async function enviarVideo(
+  opcoes = {}
+) {
 
-  if (!videoBlob) {
+  let estado =
+    await obterEstadoUpload();
 
-    mostrarMensagem(
-      'Nenhum vídeo disponível.',
-      'error'
+
+  /*
+   * Se estamos começando um envio novo e já existe
+   * estado persistido, usamos esse estado.
+   */
+
+  if (
+    !estado ||
+    !estado.blob
+  ) {
+
+    if (!videoBlob) {
+
+      mostrarMensagem(
+        'Nenhum vídeo disponível.',
+        'error'
+      );
+
+      return;
+
+    }
+
+
+    const totalChunks =
+      Math.ceil(
+        videoBlob.size /
+        TAMANHO_CHUNK
+      );
+
+
+    const novoUploadId =
+      uploadAtualId ||
+      criarIdUpload();
+
+
+    estado =
+      {
+
+        uploadId:
+          novoUploadId,
+
+        maquina:
+          maquina,
+
+        operador:
+          document
+            .getElementById(
+              'operador'
+            )
+            .value,
+
+        produto:
+          produtoAtual.nome,
+
+        conforme:
+          conformidade,
+
+        ciclo:
+          String(
+            tempoCiclo
+          ),
+
+        mimeType:
+          videoBlob.type ||
+          'video/webm',
+
+        blob:
+          videoBlob,
+
+        totalChunks:
+          totalChunks,
+
+        nextChunk:
+          0,
+
+        status:
+          'ready',
+
+        criadoEm:
+          Date.now(),
+
+        atualizadoEm:
+          Date.now()
+
+      };
+
+
+    await salvarEstadoUpload(
+      estado
     );
 
-    return;
-
   }
+
+
+  /*
+   * Restaurar estado global.
+   */
+
+  uploadAtualId =
+    estado.uploadId;
+
+
+  videoBlob =
+    estado.blob;
+
+
+  const totalChunks =
+    Number(
+      estado.totalChunks
+    );
+
+
+  let proximoChunk =
+    Number(
+      estado.nextChunk ||
+      0
+    );
 
 
   const botao =
@@ -2097,16 +3088,23 @@ async function enviarVideo() {
     ).toFixed(2);
 
 
-  botao.disabled =
+  uploadEmAndamento =
     true;
 
 
-  botao.textContent =
-    'ENVIANDO...';
+  if (botao) {
+
+    botao.disabled =
+      true;
+
+    botao.textContent =
+      'ENVIANDO...';
+
+  }
 
 
   mostrarMensagem(
-    '☁️ Preparando envio de ' +
+    '☁️ Preparando envio retomável de ' +
     tamanhoMB +
     ' MB...',
     'warning'
@@ -2114,39 +3112,42 @@ async function enviarVideo() {
 
 
   /*
-   * ID único desta transferência.
+   * Reforçar wake lock durante o upload.
    */
 
-  uploadAtualId =
-    criarIdUpload();
+  await solicitarWakeLock();
 
 
-  const totalChunks =
-    Math.ceil(
-      videoBlob.size /
-      TAMANHO_CHUNK
-    );
+  estado.status =
+    'uploading';
 
 
-  uploadChunksPendentes = {
-    total: totalChunks
-  };
+  estado.atualizadoEm =
+    Date.now();
+
+
+  await salvarEstadoUpload(
+    estado
+  );
 
 
   try {
 
-    /*
-     * Enviar cada parte sequencialmente.
-     *
-     * Não fazemos uploads paralelos para evitar
-     * sobrecarga do Apps Script e do Drive.
-     */
-
     for (
-      let indice = 0;
-      indice < totalChunks;
+      let indice =
+        proximoChunk;
+      indice <
+        totalChunks;
       indice++
     ) {
+
+      /*
+       * Se o aparelho ficou sem conexão, não
+       * desperdiçamos a parte. Esperamos voltar online.
+       */
+
+      await esperarInternet();
+
 
       const inicio =
         indice *
@@ -2178,13 +3179,19 @@ async function enviarVideo() {
 
       mostrarMensagem(
         '☁️ Enviando parte ' +
-        (indice + 1) +
+        (
+          indice +
+          1
+        ) +
         ' de ' +
         totalChunks +
         ' (' +
         Math.round(
           (
-            (indice + 1) /
+            (
+              indice +
+              1
+            ) /
             totalChunks
           ) * 100
         ) +
@@ -2195,6 +3202,7 @@ async function enviarVideo() {
 
       await enviarChunk(
         {
+
           uploadId:
             uploadAtualId,
 
@@ -2208,40 +3216,61 @@ async function enviarVideo() {
             base64,
 
           mimeType:
-            videoBlob.type ||
-            'video/webm',
+            estado.mimeType,
 
           maquina:
-            maquina,
+            estado.maquina,
 
           operador:
-            document
-              .getElementById(
-                'operador'
-              )
-              .value,
+            estado.operador,
 
           produto:
-            produtoAtual.nome,
+            estado.produto,
 
           conforme:
-            conformidade,
+            estado.conforme,
 
           ciclo:
-            String(
-              tempoCiclo
-            )
+            estado.ciclo
+
         }
       );
 
+
+      /*
+       * Só avançamos o estado depois da confirmação.
+       *
+       * Se o aparelho desligar aqui, retomaremos
+       * exatamente a partir da próxima parte.
+       */
+
+      estado.nextChunk =
+        indice +
+        1;
+
+
+      estado.atualizadoEm =
+        Date.now();
+
+
+      estado.status =
+        estado.nextChunk >=
+        totalChunks
+          ? 'finalizing'
+          : 'uploading';
+
+
+      await salvarEstadoUpload(
+        estado
+      );
+
+
+      proximoChunk =
+        indice +
+        1;
+
     }
 
-
-    /*
-     * Todas as partes foram armazenadas.
-     * Agora pedimos ao servidor para montar
-     * o arquivo definitivo.
-     */
 
     mostrarMensagem(
       '🧩 Todas as partes chegaram. Finalizando o vídeo no Google Drive...',
@@ -2249,40 +3278,249 @@ async function enviarVideo() {
     );
 
 
-    await finalizarUpload();
+    estado.status =
+      'finalizing';
 
+
+    estado.atualizadoEm =
+      Date.now();
+
+
+    await salvarEstadoUpload(
+      estado
+    );
+
+
+    const resultadoFinal =
+      await finalizarUpload();
+
+
+    /*
+     * Confirmação real.
+     */
+
+    if (
+      resultadoFinal &&
+      resultadoFinal.idArquivo
+    ) {
+
+      await concluirUploadLocalmente(
+        resultadoFinal
+      );
+
+      return;
+
+    }
+
+
+    throw new Error(
+      'O servidor não confirmou a criação do arquivo final.'
+    );
 
   }
   catch (erro) {
 
     console.error(
-      'Erro no upload em partes:',
+      'Erro no upload retomável:',
       erro
     );
 
 
-    botao.disabled =
+    /*
+     * Mantemos o estado no IndexedDB.
+     *
+     * Não apagamos o vídeo.
+     */
+
+    estado.status =
+      'paused';
+
+
+    estado.atualizadoEm =
+      Date.now();
+
+
+    try {
+
+      await salvarEstadoUpload(
+        estado
+      );
+
+    }
+    catch (erroSalvar) {}
+
+
+    uploadEmAndamento =
       false;
 
 
-    botao.textContent =
-      '☁️ ENVIAR VÍDEO';
+    if (botao) {
+
+      botao.disabled =
+        false;
+
+      botao.textContent =
+        '▶️ RETOMAR ENVIO';
+
+    }
+
+
+    await liberarWakeLock();
 
 
     mostrarMensagem(
-      '❌ Erro no envio: ' +
-      (
-        erro &&
-        erro.message
-          ? erro.message
-          : 'Erro desconhecido.'
-      ),
-      'error'
+      '⚠️ O envio foi pausado. O vídeo continua salvo no aparelho. Você pode retomar sem gravar novamente.',
+      'warning'
     );
 
   }
 
 }
+
+
+async function esperarInternet() {
+
+  if (
+    navigator.onLine !==
+    false
+  ) {
+
+    return;
+
+  }
+
+
+  mostrarMensagem(
+    '📡 Sem conexão. O vídeo continua salvo no aparelho. Aguardando a internet...',
+    'warning'
+  );
+
+
+  await new Promise(
+    function(resolve) {
+
+      const quandoVoltar =
+        function() {
+
+          window.removeEventListener(
+            'online',
+            quandoVoltar
+          );
+
+
+          resolve();
+
+        };
+
+
+      window.addEventListener(
+        'online',
+        quandoVoltar
+      );
+
+    }
+  );
+
+}
+
+
+async function concluirUploadLocalmente(
+  resultado
+) {
+
+  uploadEmAndamento =
+    false;
+
+
+  uploadRetomando =
+    false;
+
+
+  await limparEstadoUpload();
+
+
+  await liberarWakeLock();
+
+
+  const botao =
+    document.getElementById(
+      'btnEnviarVideo'
+    );
+
+
+  if (botao) {
+
+    botao.disabled =
+      false;
+
+    botao.textContent =
+      '✅ VÍDEO ENVIADO';
+
+  }
+
+
+  document
+    .getElementById(
+      'videoResult'
+    )
+    .classList
+    .add(
+      'hidden'
+    );
+
+
+  document
+    .getElementById(
+      'successScreen'
+    )
+    .classList
+    .remove(
+      'hidden'
+    );
+
+
+  document
+    .getElementById(
+      'successInfo'
+    )
+    .innerHTML =
+
+    'Pasta: <strong>' +
+    (
+      resultado.pasta ||
+      ''
+    ) +
+    '</strong><br>' +
+
+    'Arquivo: <strong>' +
+    (
+      resultado.nomeArquivo ||
+      ''
+    ) +
+    '</strong><br>' +
+
+    'Tamanho: <strong>' +
+    (
+      (
+        Number(
+          resultado.tamanhoBytes ||
+          0
+        ) /
+        1024 /
+        1024
+      ).toFixed(
+        2
+      )
+    ) +
+    ' MB</strong>';
+
+
+  limparMensagem();
+
+}
+
+
+
 
 
 /*
@@ -3313,11 +4551,63 @@ document.addEventListener(
 
     if (
       document.visibilityState ===
-      'visible' &&
-      cameraStream
+      'visible'
     ) {
 
-      await solicitarWakeLock();
+      if (
+        cameraStream
+      ) {
+
+        await solicitarWakeLock();
+
+      }
+
+
+      if (
+        !uploadEmAndamento
+      ) {
+
+        await verificarUploadPendente();
+
+      }
+
+    }
+
+  }
+);
+
+
+window.addEventListener(
+  'online',
+  async function() {
+
+    if (
+      !uploadEmAndamento
+    ) {
+
+      await verificarUploadPendente();
+
+    }
+
+  }
+);
+
+
+/*
+ * Ajuda o usuário antes de fechar a página durante um upload.
+ */
+window.addEventListener(
+  'beforeunload',
+  function(evento) {
+
+    if (
+      uploadEmAndamento
+    ) {
+
+      evento.preventDefault();
+
+      evento.returnValue =
+        'O vídeo ainda está sendo enviado.';
 
     }
 
@@ -3330,6 +4620,7 @@ document.addEventListener(
    ===================================================== */
 
 carregarDados();
+verificarUploadPendente();
 
 
 </script>
