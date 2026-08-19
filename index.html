@@ -2101,7 +2101,7 @@ async function enviarVideo() {
      */
 
     mostrarMensagem(
-      '🧩 Todas as partes chegaram. Montando o vídeo no Google Drive...',
+      '🧩 Todas as partes chegaram. Finalizando o vídeo no Google Drive...',
       'warning'
     );
 
@@ -2933,7 +2933,10 @@ function aguardarStatusFinal(
               if (
                 resposta &&
                 resposta.sucesso &&
-                resposta.finalizado
+                (
+                  resposta.finalizado ||
+                  resposta.idArquivo
+                )
               ) {
 
                 resolve(
@@ -3291,7 +3294,6 @@ document.addEventListener(
    ===================================================== */
 
 carregarDados();
-
 
 
 </script>
