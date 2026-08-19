@@ -2184,44 +2184,203 @@ function enviarChunk(
       reject
     ) {
 
+      /*
+       * Criamos um iframe exclusivo para esta parte.
+       *
+       * Não tentamos ler o conteúdo do iframe, pois ele
+       * pertence ao domínio do Apps Script.
+       *
+       * O evento "load" é suficiente para confirmar que
+       * o navegador recebeu a resposta HTTP.
+       */
+
+      const frame =
+        document.createElement(
+          'iframe'
+        );
+
+
+      const nomeFrame =
+        'uploadFrame_' +
+        Date.now() +
+        '_' +
+        dados.chunkIndex +
+        '_' +
+        Math.random()
+          .toString(36)
+          .substring(
+            2,
+            8
+          );
+
+
+      frame.name =
+        nomeFrame;
+
+
+      frame.id =
+        nomeFrame;
+
+
+      frame.style.display =
+        'none';
+
+
+      frame.style.width =
+        '0';
+
+
+      frame.style.height =
+        '0';
+
+
+      frame.style.border =
+        '0';
+
+
+      document.body.appendChild(
+        frame
+      );
+
+
+      let finalizado =
+        false;
+
+
+      const limpar =
+        function() {
+
+          try {
+
+            frame.onload =
+              null;
+
+          }
+          catch (erro) {}
+
+
+          try {
+
+            document.body
+              .removeChild(
+                frame
+              );
+
+          }
+          catch (erro) {}
+
+        };
+
+
+      const concluir =
+        function(
+          resultado
+        ) {
+
+          if (
+            finalizado
+          ) {
+
+            return;
+
+          }
+
+
+          finalizado =
+            true;
+
+
+          clearTimeout(
+            timeout
+          );
+
+
+          limpar();
+
+
+          resolve(
+            resultado
+          );
+
+        };
+
+
+      const falhar =
+        function(
+          erro
+        ) {
+
+          if (
+            finalizado
+          ) {
+
+            return;
+
+          }
+
+
+          finalizado =
+            true;
+
+
+          clearTimeout(
+            timeout
+          );
+
+
+          limpar();
+
+
+          reject(
+            erro
+          );
+
+        };
+
+
       const timeout =
         setTimeout(
           function() {
 
-            reject(
+            falhar(
               new Error(
                 'Tempo excedido ao enviar a parte ' +
-                (dados.chunkIndex + 1) +
+                (
+                  dados.chunkIndex +
+                  1
+                ) +
                 '.'
               )
             );
 
           },
-          120000
+          180000
         );
 
 
-      const aguardando =
-        {
-          uploadId:
-            dados.uploadId,
+      /*
+       * O Apps Script devolve uma página HTML.
+       * Quando essa resposta termina de carregar,
+       * consideramos o chunk processado.
+       */
 
-          chunkIndex:
-            dados.chunkIndex,
+      frame.onload =
+        function() {
 
-          resolve:
-            resolve,
+          concluir({
 
-          reject:
-            reject,
+            sucesso:
+              true,
 
-          timeout:
-            timeout
+            uploadId:
+              dados.uploadId,
+
+            chunkIndex:
+              dados.chunkIndex
+
+          });
+
         };
-
-
-      window._uploadAguardandoChunk =
-        aguardando;
 
 
       const formulario =
@@ -2239,7 +2398,7 @@ function enviarChunk(
 
 
       formulario.target =
-        'uploadResponseFrame';
+        nomeFrame;
 
 
       formulario.style.display =
@@ -2336,7 +2495,8 @@ function enviarChunk(
 
 
       /*
-       * Remover formulário depois do submit.
+       * O formulário pode ser removido logo após o
+       * submit; o navegador já iniciou a navegação.
        */
 
       setTimeout(
@@ -2353,13 +2513,14 @@ function enviarChunk(
           catch (erro) {}
 
         },
-        5000
+        2000
       );
 
     }
   );
 
 }
+
 
 
 /*
@@ -2373,34 +2534,179 @@ function finalizarUpload() {
       reject
     ) {
 
+      /*
+       * A finalização também usa um iframe exclusivo.
+       *
+       * Não dependemos de postMessage ou de leitura
+       * de conteúdo cross-origin.
+       */
+
+      const frame =
+        document.createElement(
+          'iframe'
+        );
+
+
+      const nomeFrame =
+        'finalizeFrame_' +
+        Date.now() +
+        '_' +
+        Math.random()
+          .toString(36)
+          .substring(
+            2,
+            8
+          );
+
+
+      frame.name =
+        nomeFrame;
+
+
+      frame.id =
+        nomeFrame;
+
+
+      frame.style.display =
+        'none';
+
+
+      frame.style.width =
+        '0';
+
+
+      frame.style.height =
+        '0';
+
+
+      frame.style.border =
+        '0';
+
+
+      document.body.appendChild(
+        frame
+      );
+
+
+      let finalizado =
+        false;
+
+
+      const limpar =
+        function() {
+
+          try {
+
+            frame.onload =
+              null;
+
+          }
+          catch (erro) {}
+
+
+          try {
+
+            document.body
+              .removeChild(
+                frame
+              );
+
+          }
+          catch (erro) {}
+
+        };
+
+
+      const concluir =
+        function() {
+
+          if (
+            finalizado
+          ) {
+
+            return;
+
+          }
+
+
+          finalizado =
+            true;
+
+
+          clearTimeout(
+            timeout
+          );
+
+
+          limpar();
+
+
+          resolve({
+
+            sucesso:
+              true,
+
+            uploadId:
+              uploadAtualId
+
+          });
+
+        };
+
+
+      const falhar =
+        function(
+          erro
+        ) {
+
+          if (
+            finalizado
+          ) {
+
+            return;
+
+          }
+
+
+          finalizado =
+            true;
+
+
+          clearTimeout(
+            timeout
+          );
+
+
+          limpar();
+
+
+          reject(
+            erro
+          );
+
+        };
+
+
       const timeout =
         setTimeout(
           function() {
 
-            reject(
+            falhar(
               new Error(
                 'Tempo excedido ao finalizar o vídeo.'
               )
             );
 
           },
-          180000
+          300000
         );
 
 
-      window._uploadFinalizacao =
-        {
-          uploadId:
-            uploadAtualId,
+      frame.onload =
+        function() {
 
-          resolve:
-            resolve,
+          concluir();
 
-          reject:
-            reject,
-
-          timeout:
-            timeout
         };
 
 
@@ -2419,7 +2725,7 @@ function finalizarUpload() {
 
 
       formulario.target =
-        'uploadResponseFrame';
+        nomeFrame;
 
 
       formulario.style.display =
@@ -2462,13 +2768,15 @@ function finalizarUpload() {
           catch (erro) {}
 
         },
-        5000
+        2000
       );
 
     }
   );
 
 }
+
+
 
 
 /*
@@ -2587,247 +2895,6 @@ function blobParaBase64(
   );
 
 }
-
-
-/* =====================================================
-   RESPOSTA DO APPS SCRIPT
-   ===================================================== */
-
-window.addEventListener(
-  'message',
-  function(evento) {
-
-    const dados =
-      evento.data;
-
-
-    if (!dados) {
-      return;
-    }
-
-
-    /*
-     * ACK DE CHUNK
-     */
-
-    if (
-      dados.tipo ===
-      'VIDEO_CHUNK'
-    ) {
-
-      const aguardando =
-        window._uploadAguardandoChunk;
-
-
-      if (
-        !aguardando ||
-        aguardando.uploadId !==
-          dados.uploadId ||
-        Number(
-          aguardando.chunkIndex
-        ) !==
-          Number(
-            dados.chunkIndex
-          )
-      ) {
-
-        return;
-
-      }
-
-
-      clearTimeout(
-        aguardando.timeout
-      );
-
-
-      window._uploadAguardandoChunk =
-        null;
-
-
-      if (
-        dados.sucesso
-      ) {
-
-        aguardando.resolve(
-          dados
-        );
-
-      }
-      else {
-
-        aguardando.reject(
-          new Error(
-            dados.erro ||
-            'O servidor recusou a parte ' +
-            (
-              Number(
-                dados.chunkIndex
-              ) + 1
-            ) +
-            '.'
-          )
-        );
-
-      }
-
-
-      return;
-
-    }
-
-
-    /*
-     * RESULTADO DA FINALIZAÇÃO
-     */
-
-    if (
-      dados.tipo !==
-      'VIDEO'
-    ) {
-
-      return;
-
-    }
-
-
-    const finalizacao =
-      window._uploadFinalizacao;
-
-
-    if (
-      !finalizacao ||
-      finalizacao.uploadId !==
-        dados.uploadId
-    ) {
-
-      return;
-
-    }
-
-
-    clearTimeout(
-      finalizacao.timeout
-    );
-
-
-    window._uploadFinalizacao =
-      null;
-
-
-    const botao =
-      document.getElementById(
-        'btnEnviarVideo'
-      );
-
-
-    if (
-      dados.sucesso
-    ) {
-
-      finalizacao.resolve(
-        dados
-      );
-
-
-      botao.disabled =
-        false;
-
-
-      botao.textContent =
-        '✅ VÍDEO ENVIADO';
-
-
-      document
-        .getElementById(
-          'videoResult'
-        )
-        .classList
-        .add(
-          'hidden'
-        );
-
-
-      document
-        .getElementById(
-          'successScreen'
-        )
-        .classList
-        .remove(
-          'hidden'
-        );
-
-
-      document
-        .getElementById(
-          'successInfo'
-        )
-        .innerHTML =
-
-        'Pasta: <strong>' +
-        (
-          dados.pasta ||
-          ''
-        ) +
-        '</strong><br>' +
-
-        'Arquivo: <strong>' +
-        (
-          dados.nomeArquivo ||
-          ''
-        ) +
-        '</strong><br>' +
-
-        'Tamanho: <strong>' +
-        (
-          (
-            Number(
-              dados.tamanhoBytes ||
-              0
-            ) /
-            1024 /
-            1024
-          ).toFixed(
-            2
-          )
-        ) +
-        ' MB</strong>';
-
-
-      limparMensagem();
-
-    }
-    else {
-
-      const erro =
-        new Error(
-          dados.erro ||
-          'Erro ao finalizar o vídeo.'
-        );
-
-
-      finalizacao.reject(
-        erro
-      );
-
-      botao.disabled =
-        false;
-
-
-      botao.textContent =
-        '☁️ ENVIAR VÍDEO';
-
-
-      mostrarMensagem(
-        '❌ Erro ao salvar o vídeo: ' +
-        erro.message,
-        'error'
-      );
-
-    }
-
-  }
-);
 
 
 /* =====================================================
