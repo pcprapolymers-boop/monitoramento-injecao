@@ -678,13 +678,20 @@
   </div>
 
 
-  <!-- IFRAME DE RETORNO DO UPLOAD -->
+  <!-- IFRAME DE RETORNO DAS PARTES DO UPLOAD -->
   <iframe
     id="uploadResponseFrame"
     name="uploadResponseFrame"
     style="display:none;width:0;height:0;border:0;position:absolute;left:-9999px;top:-9999px;"
     title="Retorno do upload"
   ></iframe>
+
+  <div
+    id="uploadStatus"
+    class="bridge-status"
+  >
+    Upload por partes preparado.
+  </div>
 
 </div>
 
@@ -1902,9 +1909,23 @@ async function gravarNovamente() {
 
 
 /* =====================================================
-   UPLOAD DIRETO VIA POST
+   UPLOAD EM PARTES (CHUNKED)
    ===================================================== */
 
+const TAMANHO_CHUNK =
+  512 * 1024; // 512 KB por parte
+
+
+let uploadAtualId = null;
+let uploadChunksPendentes = null;
+
+
+/*
+ * Envia o vídeo inteiro em partes pequenas.
+ *
+ * Cada parte é enviada por um formulário POST para o
+ * Apps Script e a resposta retorna pelo iframe oculto.
+ */
 async function enviarVideo() {
 
   if (!videoBlob) {
@@ -1918,10 +1939,12 @@ async function enviarVideo() {
 
   }
 
+
   const botao =
     document.getElementById(
       'btnEnviarVideo'
     );
+
 
   const tamanhoMB =
     (
@@ -1930,135 +1953,184 @@ async function enviarVideo() {
       1024
     ).toFixed(2);
 
-  botao.disabled = true;
-  botao.textContent = 'ENVIANDO...';
+
+  botao.disabled =
+    true;
+
+
+  botao.textContent =
+    'ENVIANDO...';
+
 
   mostrarMensagem(
-    '☁️ Preparando vídeo de ' +
+    '☁️ Preparando envio de ' +
     tamanhoMB +
     ' MB...',
     'warning'
   );
 
+
+  /*
+   * ID único desta transferência.
+   */
+
+  uploadAtualId =
+    criarIdUpload();
+
+
+  const totalChunks =
+    Math.ceil(
+      videoBlob.size /
+      TAMANHO_CHUNK
+    );
+
+
+  uploadChunksPendentes = {
+    total: totalChunks
+  };
+
+
   try {
 
-    const base64 =
-      await blobParaBase64(
-        videoBlob
-      );
-
-    const dados =
-      new URLSearchParams();
-
-    dados.append(
-      'tipo',
-      'VIDEO'
-    );
-
-    dados.append(
-      'arquivoBase64',
-      base64
-    );
-
-    dados.append(
-      'mimeType',
-      videoBlob.type ||
-      'video/webm'
-    );
-
-    dados.append(
-      'maquina',
-      maquina
-    );
-
-    dados.append(
-      'operador',
-      document
-        .getElementById(
-          'operador'
-        )
-        .value
-    );
-
-    dados.append(
-      'produto',
-      produtoAtual.nome
-    );
-
-    dados.append(
-      'conforme',
-      conformidade
-    );
-
-    dados.append(
-      'ciclo',
-      String(
-        tempoCiclo
-      )
-    );
-
-    mostrarMensagem(
-      '☁️ Enviando vídeo para o Google Drive...',
-      'warning'
-    );
-
-    await fetch(
-      URL_APPS_SCRIPT,
-      {
-        method: 'POST',
-        mode: 'no-cors',
-        headers: {
-          'Content-Type':
-            'application/x-www-form-urlencoded;charset=UTF-8'
-        },
-        body: dados.toString()
-      }
-    );
-
-    mostrarMensagem(
-      '⏳ Vídeo enviado ao servidor. Processando...',
-      'warning'
-    );
-
     /*
-     * Com no-cors, o navegador não permite
-     * ler a resposta do Apps Script.
-     * O resultado real será confirmado
-     * pelo Apps Script e pelo Google Drive.
+     * Enviar cada parte sequencialmente.
+     *
+     * Não fazemos uploads paralelos para evitar
+     * sobrecarga do Apps Script e do Drive.
      */
 
-    setTimeout(
-      function() {
+    for (
+      let indice = 0;
+      indice < totalChunks;
+      indice++
+    ) {
 
-        botao.disabled = false;
-        botao.textContent =
-          '☁️ ENVIAR VÍDEO';
+      const inicio =
+        indice *
+        TAMANHO_CHUNK;
 
-        mostrarMensagem(
-          '✅ Envio concluído. Confirme o arquivo no Google Drive.',
-          'success'
+
+      const fim =
+        Math.min(
+          inicio +
+          TAMANHO_CHUNK,
+          videoBlob.size
         );
 
-      },
-      8000
+
+      const chunk =
+        videoBlob.slice(
+          inicio,
+          fim,
+          videoBlob.type ||
+          'video/webm'
+        );
+
+
+      const base64 =
+        await blobParaBase64(
+          chunk
+        );
+
+
+      mostrarMensagem(
+        '☁️ Enviando parte ' +
+        (indice + 1) +
+        ' de ' +
+        totalChunks +
+        ' (' +
+        Math.round(
+          (
+            (indice + 1) /
+            totalChunks
+          ) * 100
+        ) +
+        '%)...',
+        'warning'
+      );
+
+
+      await enviarChunk(
+        {
+          uploadId:
+            uploadAtualId,
+
+          chunkIndex:
+            indice,
+
+          totalChunks:
+            totalChunks,
+
+          chunkBase64:
+            base64,
+
+          mimeType:
+            videoBlob.type ||
+            'video/webm',
+
+          maquina:
+            maquina,
+
+          operador:
+            document
+              .getElementById(
+                'operador'
+              )
+              .value,
+
+          produto:
+            produtoAtual.nome,
+
+          conforme:
+            conformidade,
+
+          ciclo:
+            String(
+              tempoCiclo
+            )
+        }
+      );
+
+    }
+
+
+    /*
+     * Todas as partes foram armazenadas.
+     * Agora pedimos ao servidor para montar
+     * o arquivo definitivo.
+     */
+
+    mostrarMensagem(
+      '🧩 Todas as partes chegaram. Montando o vídeo no Google Drive...',
+      'warning'
     );
+
+
+    await finalizarUpload();
+
 
   }
   catch (erro) {
 
     console.error(
-      'Erro no envio:',
+      'Erro no upload em partes:',
       erro
     );
 
-    botao.disabled = false;
+
+    botao.disabled =
+      false;
+
+
     botao.textContent =
       '☁️ ENVIAR VÍDEO';
 
+
     mostrarMensagem(
-      '❌ Erro ao enviar: ' +
+      '❌ Erro no envio: ' +
       (
-        erro && erro.message
+        erro &&
+        erro.message
           ? erro.message
           : 'Erro desconhecido.'
       ),
@@ -2070,19 +2142,389 @@ async function enviarVideo() {
 }
 
 
-/* =====================================================
-   BLOB → BASE64
-   ===================================================== */
+/*
+ * Gera ID de upload seguro para usar em nome de pasta.
+ */
+function criarIdUpload() {
 
+  const agora =
+    Date.now()
+      .toString(36);
+
+
+  const aleatorio =
+    Math.random()
+      .toString(36)
+      .substring(
+        2,
+        10
+      );
+
+
+  return (
+    'UP_' +
+    agora +
+    '_' +
+    aleatorio
+  );
+
+}
+
+
+/*
+ * Envia uma parte pelo formulário para o iframe.
+ */
+function enviarChunk(
+  dados
+) {
+
+  return new Promise(
+    function(
+      resolve,
+      reject
+    ) {
+
+      const timeout =
+        setTimeout(
+          function() {
+
+            reject(
+              new Error(
+                'Tempo excedido ao enviar a parte ' +
+                (dados.chunkIndex + 1) +
+                '.'
+              )
+            );
+
+          },
+          120000
+        );
+
+
+      const aguardando =
+        {
+          uploadId:
+            dados.uploadId,
+
+          chunkIndex:
+            dados.chunkIndex,
+
+          resolve:
+            resolve,
+
+          reject:
+            reject,
+
+          timeout:
+            timeout
+        };
+
+
+      window._uploadAguardandoChunk =
+        aguardando;
+
+
+      const formulario =
+        document.createElement(
+          'form'
+        );
+
+
+      formulario.method =
+        'POST';
+
+
+      formulario.action =
+        URL_APPS_SCRIPT;
+
+
+      formulario.target =
+        'uploadResponseFrame';
+
+
+      formulario.style.display =
+        'none';
+
+
+      adicionarCampo(
+        formulario,
+        'tipo',
+        'VIDEO_CHUNK'
+      );
+
+
+      adicionarCampo(
+        formulario,
+        'uploadId',
+        dados.uploadId
+      );
+
+
+      adicionarCampo(
+        formulario,
+        'chunkIndex',
+        String(
+          dados.chunkIndex
+        )
+      );
+
+
+      adicionarCampo(
+        formulario,
+        'totalChunks',
+        String(
+          dados.totalChunks
+        )
+      );
+
+
+      adicionarCampo(
+        formulario,
+        'chunkBase64',
+        dados.chunkBase64
+      );
+
+
+      adicionarCampo(
+        formulario,
+        'mimeType',
+        dados.mimeType
+      );
+
+
+      adicionarCampo(
+        formulario,
+        'maquina',
+        dados.maquina
+      );
+
+
+      adicionarCampo(
+        formulario,
+        'operador',
+        dados.operador
+      );
+
+
+      adicionarCampo(
+        formulario,
+        'produto',
+        dados.produto
+      );
+
+
+      adicionarCampo(
+        formulario,
+        'conforme',
+        dados.conforme
+      );
+
+
+      adicionarCampo(
+        formulario,
+        'ciclo',
+        dados.ciclo
+      );
+
+
+      document.body.appendChild(
+        formulario
+      );
+
+
+      formulario.submit();
+
+
+      /*
+       * Remover formulário depois do submit.
+       */
+
+      setTimeout(
+        function() {
+
+          try {
+
+            document.body
+              .removeChild(
+                formulario
+              );
+
+          }
+          catch (erro) {}
+
+        },
+        5000
+      );
+
+    }
+  );
+
+}
+
+
+/*
+ * Solicita ao Apps Script a montagem do arquivo final.
+ */
+function finalizarUpload() {
+
+  return new Promise(
+    function(
+      resolve,
+      reject
+    ) {
+
+      const timeout =
+        setTimeout(
+          function() {
+
+            reject(
+              new Error(
+                'Tempo excedido ao finalizar o vídeo.'
+              )
+            );
+
+          },
+          180000
+        );
+
+
+      window._uploadFinalizacao =
+        {
+          uploadId:
+            uploadAtualId,
+
+          resolve:
+            resolve,
+
+          reject:
+            reject,
+
+          timeout:
+            timeout
+        };
+
+
+      const formulario =
+        document.createElement(
+          'form'
+        );
+
+
+      formulario.method =
+        'POST';
+
+
+      formulario.action =
+        URL_APPS_SCRIPT;
+
+
+      formulario.target =
+        'uploadResponseFrame';
+
+
+      formulario.style.display =
+        'none';
+
+
+      adicionarCampo(
+        formulario,
+        'tipo',
+        'VIDEO_FINALIZE'
+      );
+
+
+      adicionarCampo(
+        formulario,
+        'uploadId',
+        uploadAtualId
+      );
+
+
+      document.body.appendChild(
+        formulario
+      );
+
+
+      formulario.submit();
+
+
+      setTimeout(
+        function() {
+
+          try {
+
+            document.body
+              .removeChild(
+                formulario
+              );
+
+          }
+          catch (erro) {}
+
+        },
+        5000
+      );
+
+    }
+  );
+
+}
+
+
+/*
+ * Cria um campo hidden para o POST.
+ */
+function adicionarCampo(
+  formulario,
+  nome,
+  valor
+) {
+
+  const campo =
+    document.createElement(
+      'input'
+    );
+
+
+  campo.type =
+    'hidden';
+
+
+  campo.name =
+    nome;
+
+
+  campo.value =
+    valor == null
+      ? ''
+      : String(
+          valor
+        );
+
+
+  formulario.appendChild(
+    campo
+  );
+
+}
+
+
+/*
+ * Blob → Base64 sem o prefixo data:...
+ */
 function blobParaBase64(
   blob
 ) {
 
   return new Promise(
-    function(resolve, reject) {
+    function(
+      resolve,
+      reject
+    ) {
 
       const leitor =
         new FileReader();
+
 
       leitor.onload =
         function() {
@@ -2090,11 +2532,12 @@ function blobParaBase64(
           const resultado =
             leitor.result;
 
+
           if (!resultado) {
 
             reject(
               new Error(
-                'Não foi possível ler o vídeo.'
+                'Não foi possível ler a parte do vídeo.'
               )
             );
 
@@ -2102,8 +2545,12 @@ function blobParaBase64(
 
           }
 
+
           const separador =
-            resultado.indexOf(',');
+            resultado.indexOf(
+              ','
+            );
+
 
           const base64 =
             separador >= 0
@@ -2112,22 +2559,25 @@ function blobParaBase64(
                 )
               : resultado;
 
+
           resolve(
             base64
           );
 
         };
 
+
       leitor.onerror =
         function() {
 
           reject(
             new Error(
-              'Falha ao converter o vídeo para Base64.'
+              'Falha ao converter a parte do vídeo.'
             )
           );
 
         };
+
 
       leitor.readAsDataURL(
         blob
@@ -2137,6 +2587,247 @@ function blobParaBase64(
   );
 
 }
+
+
+/* =====================================================
+   RESPOSTA DO APPS SCRIPT
+   ===================================================== */
+
+window.addEventListener(
+  'message',
+  function(evento) {
+
+    const dados =
+      evento.data;
+
+
+    if (!dados) {
+      return;
+    }
+
+
+    /*
+     * ACK DE CHUNK
+     */
+
+    if (
+      dados.tipo ===
+      'VIDEO_CHUNK'
+    ) {
+
+      const aguardando =
+        window._uploadAguardandoChunk;
+
+
+      if (
+        !aguardando ||
+        aguardando.uploadId !==
+          dados.uploadId ||
+        Number(
+          aguardando.chunkIndex
+        ) !==
+          Number(
+            dados.chunkIndex
+          )
+      ) {
+
+        return;
+
+      }
+
+
+      clearTimeout(
+        aguardando.timeout
+      );
+
+
+      window._uploadAguardandoChunk =
+        null;
+
+
+      if (
+        dados.sucesso
+      ) {
+
+        aguardando.resolve(
+          dados
+        );
+
+      }
+      else {
+
+        aguardando.reject(
+          new Error(
+            dados.erro ||
+            'O servidor recusou a parte ' +
+            (
+              Number(
+                dados.chunkIndex
+              ) + 1
+            ) +
+            '.'
+          )
+        );
+
+      }
+
+
+      return;
+
+    }
+
+
+    /*
+     * RESULTADO DA FINALIZAÇÃO
+     */
+
+    if (
+      dados.tipo !==
+      'VIDEO'
+    ) {
+
+      return;
+
+    }
+
+
+    const finalizacao =
+      window._uploadFinalizacao;
+
+
+    if (
+      !finalizacao ||
+      finalizacao.uploadId !==
+        dados.uploadId
+    ) {
+
+      return;
+
+    }
+
+
+    clearTimeout(
+      finalizacao.timeout
+    );
+
+
+    window._uploadFinalizacao =
+      null;
+
+
+    const botao =
+      document.getElementById(
+        'btnEnviarVideo'
+      );
+
+
+    if (
+      dados.sucesso
+    ) {
+
+      finalizacao.resolve(
+        dados
+      );
+
+
+      botao.disabled =
+        false;
+
+
+      botao.textContent =
+        '✅ VÍDEO ENVIADO';
+
+
+      document
+        .getElementById(
+          'videoResult'
+        )
+        .classList
+        .add(
+          'hidden'
+        );
+
+
+      document
+        .getElementById(
+          'successScreen'
+        )
+        .classList
+        .remove(
+          'hidden'
+        );
+
+
+      document
+        .getElementById(
+          'successInfo'
+        )
+        .innerHTML =
+
+        'Pasta: <strong>' +
+        (
+          dados.pasta ||
+          ''
+        ) +
+        '</strong><br>' +
+
+        'Arquivo: <strong>' +
+        (
+          dados.nomeArquivo ||
+          ''
+        ) +
+        '</strong><br>' +
+
+        'Tamanho: <strong>' +
+        (
+          (
+            Number(
+              dados.tamanhoBytes ||
+              0
+            ) /
+            1024 /
+            1024
+          ).toFixed(
+            2
+          )
+        ) +
+        ' MB</strong>';
+
+
+      limparMensagem();
+
+    }
+    else {
+
+      const erro =
+        new Error(
+          dados.erro ||
+          'Erro ao finalizar o vídeo.'
+        );
+
+
+      finalizacao.reject(
+        erro
+      );
+
+      botao.disabled =
+        false;
+
+
+      botao.textContent =
+        '☁️ ENVIAR VÍDEO';
+
+
+      mostrarMensagem(
+        '❌ Erro ao salvar o vídeo: ' +
+        erro.message,
+        'error'
+      );
+
+    }
+
+  }
+);
 
 
 /* =====================================================
