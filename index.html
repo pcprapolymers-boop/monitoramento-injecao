@@ -3293,6 +3293,163 @@ document.addEventListener(
 carregarDados();
 
 
+/* =====================================================
+   TESTE DE CHUNK NO NAVEGADOR
+   ===================================================== */
+
+async function testeChunkNoNavegador() {
+
+  const box =
+    document.getElementById(
+      'message'
+    );
+
+
+  if (box) {
+
+    box.textContent =
+      '🧪 Testando comunicação de upload...';
+
+    box.className =
+      'message warning';
+
+  }
+
+
+  try {
+
+    const uploadId =
+      'TESTE_BROWSER_' +
+      Date.now();
+
+
+    const blob =
+      new Blob(
+        [
+          'TESTE DE UPLOAD VIA NAVEGADOR - RA POLYMERS 123456789'
+        ],
+        {
+          type:
+            'video/webm'
+        }
+      );
+
+
+    const base64 =
+      await blobParaBase64(
+        blob
+      );
+
+
+    const resultado =
+      await enviarChunk(
+        {
+
+          uploadId:
+            uploadId,
+
+          chunkIndex:
+            0,
+
+          totalChunks:
+            1,
+
+          chunkBase64:
+            base64,
+
+          mimeType:
+            'video/webm',
+
+          maquina:
+            maquina ||
+            'M1',
+
+          operador:
+            'TESTE',
+
+          produto:
+            'TESTE BROWSER',
+
+          conforme:
+            'SIM',
+
+          ciclo:
+            '1'
+
+        }
+      );
+
+
+    if (box) {
+
+      box.textContent =
+        '✅ TESTE DO NAVEGADOR CONCLUÍDO. O chunk foi confirmado pelo Apps Script.';
+
+      box.className =
+        'message success';
+
+    }
+
+
+    console.log(
+      'TESTE BROWSER RESULTADO:',
+      resultado
+    );
+
+  }
+  catch (erro) {
+
+    if (box) {
+
+      box.textContent =
+        '❌ TESTE DO NAVEGADOR FALHOU: ' +
+        (
+          erro &&
+          erro.message
+            ? erro.message
+            : String(
+                erro
+              )
+        );
+
+      box.className =
+        'message error';
+
+    }
+
+
+    console.error(
+      'TESTE BROWSER ERRO:',
+      erro
+    );
+
+  }
+
+}
+
+
+const parametrosTeste =
+  new URLSearchParams(
+    window.location.search
+  );
+
+
+if (
+  parametrosTeste.get('teste') ===
+  'chunk'
+) {
+
+  setTimeout(
+    function() {
+
+      testeChunkNoNavegador();
+
+    },
+    1500
+  );
+
+}
+
 </script>
 
 </body>
