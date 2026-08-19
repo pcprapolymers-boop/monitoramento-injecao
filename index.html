@@ -2834,8 +2834,16 @@ function aguardarStatusFinal(
           tentativas++;
 
 
+          /*
+           * A cada tentativa consultamos o último
+           * resultado finalizado do servidor.
+           *
+           * O servidor só responde finalizado=true
+           * se o uploadId for exatamente o nosso.
+           */
+
           const callbackName =
-            'jsonpFinal_' +
+            'jsonpFinalLatest_' +
             Date.now() +
             '_' +
             Math.random()
@@ -2896,7 +2904,7 @@ function aguardarStatusFinal(
 
                   reject(
                     new Error(
-                      'Tempo excedido aguardando a montagem do vídeo.'
+                      'O servidor criou o vídeo, mas a confirmação final não retornou ao aparelho.'
                     )
                   );
 
@@ -2936,7 +2944,9 @@ function aguardarStatusFinal(
                 (
                   resposta.finalizado ||
                   resposta.idArquivo
-                )
+                ) &&
+                resposta.uploadId ===
+                  uploadId
               ) {
 
                 resolve(
@@ -2971,7 +2981,7 @@ function aguardarStatusFinal(
 
                 reject(
                   new Error(
-                    'Tempo excedido aguardando a montagem do vídeo.'
+                    'O servidor terminou o processamento, mas não foi possível confirmar o upload no aparelho.'
                   )
                 );
 
@@ -2996,7 +3006,7 @@ function aguardarStatusFinal(
 
           script.src =
             URL_APPS_SCRIPT +
-            '?status=final' +
+            '?status=latest' +
             '&uploadId=' +
             encodeURIComponent(
               uploadId
@@ -3027,7 +3037,7 @@ function aguardarStatusFinal(
 
                 reject(
                   new Error(
-                    'Não foi possível consultar o status final do vídeo.'
+                    'Não foi possível consultar a confirmação final do servidor.'
                   )
                 );
 
@@ -3059,124 +3069,7 @@ function aguardarStatusFinal(
 }
 
 
-/*
- * Cria um campo hidden para o POST.
- */
-function adicionarCampo(
-  formulario,
-  nome,
-  valor
-) {
 
-  const campo =
-    document.createElement(
-      'input'
-    );
-
-
-  campo.type =
-    'hidden';
-
-
-  campo.name =
-    nome;
-
-
-  campo.value =
-    valor == null
-      ? ''
-      : String(
-          valor
-        );
-
-
-  formulario.appendChild(
-    campo
-  );
-
-}
-
-
-
-
-/*
- * Blob → Base64 sem o prefixo data:...
- */
-function blobParaBase64(
-  blob
-) {
-
-  return new Promise(
-    function(
-      resolve,
-      reject
-    ) {
-
-      const leitor =
-        new FileReader();
-
-
-      leitor.onload =
-        function() {
-
-          const resultado =
-            leitor.result;
-
-
-          if (!resultado) {
-
-            reject(
-              new Error(
-                'Não foi possível ler a parte do vídeo.'
-              )
-            );
-
-            return;
-
-          }
-
-
-          const separador =
-            resultado.indexOf(
-              ','
-            );
-
-
-          const base64 =
-            separador >= 0
-              ? resultado.substring(
-                  separador + 1
-                )
-              : resultado;
-
-
-          resolve(
-            base64
-          );
-
-        };
-
-
-      leitor.onerror =
-        function() {
-
-          reject(
-            new Error(
-              'Falha ao converter a parte do vídeo.'
-            )
-          );
-
-        };
-
-
-      leitor.readAsDataURL(
-        blob
-      );
-
-    }
-  );
-
-}
 
 
 /* =====================================================
