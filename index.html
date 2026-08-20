@@ -831,9 +831,6 @@ const maquina =
   .toUpperCase();
 
 
-let maquinaValida = false;
-
-
 /* =====================================================
    ESTADO
    ===================================================== */
@@ -841,7 +838,6 @@ let maquinaValida = false;
 let operadores = [];
 
 let produtos = [];
-
 
 let produtoAtual = null;
 
@@ -888,7 +884,7 @@ let audioConcluido = false;
 let audioPulado = false;
 let audioTimer = null;
 let audioSegundos = 0;
-let TEMPO_MAX_AUDIO = 30;
+const TEMPO_MAX_AUDIO = 60;
 
 
 
@@ -2192,347 +2188,228 @@ function formatarTempo(
 async function carregarDados() {
 
   /*
-   * FASE ATUAL:
-   * A máquina NÃO é validada pela planilha.
-   * A identificação vem do parâmetro ?m= da URL.
-   * Posteriormente isso será substituído/confirmado por NFC.
+   * Primeiro mostra a máquina imediatamente a partir da URL.
    */
-
-  maquinaValida =
-    !!maquina;
-
-
-  if (
-    !maquinaValida
-  ) {
-
-    mostrarMensagem(
-      '❌ Máquina não informada. Use o endereço com ?m=M1.',
-      'error'
+  const machineElement =
+    document.getElementById(
+      'machine'
     );
 
-    return;
 
-  }
+  if (machineElement) {
 
-
-  mostrarMensagem(
-    '🔄 Carregando operadores e produtos...',
-    'warning'
-  );
-
-
-  const callbackName =
-    'initialData_' +
-    Date.now() +
-    '_' +
-    Math.random()
-      .toString(36)
-      .substring(
-        2,
-        9
-      );
-
-
-  let script =
-    null;
-
-
-  let timeout =
-    null;
-
-
-  function limpar() {
-
-    try {
-
-      if (
-        script &&
-        script.parentNode
-      ) {
-
-        script.parentNode.removeChild(
-          script
-        );
-
-      }
-
-    }
-    catch (erro) {}
-
-
-    try {
-
-      delete window[
-        callbackName
-      ];
-
-    }
-    catch (erro) {}
-
-  }
-
-
-  window[
-    callbackName
-  ] =
-  function(
-    dados
-  ) {
-
-    if (timeout) {
-
-      clearTimeout(
-        timeout
-      );
-
-    }
-
-
-    limpar();
-
-
-    /*
-     * A máquina já está identificada localmente.
-     * O backend serve apenas para carregar listas
-     * e a configuração do áudio.
-     */
-    if (
-      dados &&
-      dados.sucesso
-    ) {
-
-      operadores =
-        Array.isArray(
-          dados.operadores
-        )
-          ? dados.operadores
-          : operadores;
-
-
-      produtos =
-        Array.isArray(
-          dados.produtos
-        )
-          ? dados.produtos
-          : produtos;
-
-
-      TEMPO_MAX_AUDIO =
-        Math.max(
-          1,
-          Number(
-            dados.tempoMaxAudio ||
-            30
+    machineElement.textContent =
+      maquina
+        ? (
+            maquina.startsWith('M')
+              ? 'M-' +
+                maquina.substring(1)
+              : maquina
           )
-        );
+        : 'MÁQUINA NÃO INFORMADA';
 
+  }
 
-      try {
 
-        preencherOperadores();
-
-      }
-      catch (erro) {}
-
-
-      try {
-
-        preencherProdutos();
-
-      }
-      catch (erro) {}
-
-    }
-    else {
-
-      console.warn(
-        '[DADOS_INICIAIS]',
-        dados
-      );
-
-    }
-
-
-    mostrarMensagem(
-      '✅ Máquina ' +
-      maquina +
-      ' identificada.',
-      'success'
-    );
-
-
-    /*
-     * Libera o formulário independentemente da
-     * validação da máquina no backend.
-     */
-    try {
-
-      liberarSelecaoInicial();
-
-    }
-    catch (erro) {}
-
-  };
-
-
-  const params =
-    new URLSearchParams();
-
-
-  params.set(
-    'status',
-    'data'
-  );
-
-
-  params.set(
-    'maquina',
-    maquina
-  );
-
-
-  params.set(
-    'callback',
-    callbackName
-  );
-
-
-  params.set(
-    '_',
-    Date.now()
-  );
-
-
-  script =
-    document.createElement(
-      'script'
-    );
-
-
-  script.src =
-    URL_APPS_SCRIPT +
-    '?' +
-    params.toString();
-
-
-  script.onerror =
-    function() {
-
-      if (timeout) {
-
-        clearTimeout(
-          timeout
-        );
-
-      }
-
-
-      limpar();
-
-
-      mostrarMensagem(
-        '✅ Máquina ' +
-        maquina +
-        ' identificada. Não foi possível atualizar operadores/produtos agora.',
-        'warning'
-      );
-
-
-      try {
-
-        liberarSelecaoInicial();
-
-      }
-      catch (erro) {}
-
-    };
-
-
-  timeout =
-    setTimeout(
-      function() {
-
-        limpar();
-
-
-        mostrarMensagem(
-          '✅ Máquina ' +
-          maquina +
-          ' identificada. Servidor não respondeu; a seleção continuará disponível.',
-          'warning'
-        );
-
-
-        try {
-
-          liberarSelecaoInicial();
-
-        }
-        catch (erro) {}
-
-      },
-      10000
-    );
-
-
-  document.head.appendChild(
-    script
-  );
-
-}
-
-
-
-
-function liberarSelecaoInicial() {
-
+  /*
+   * Carrega os cadastros do Google Sheets via JSONP.
+   */
   try {
 
-    const campoOperador =
-      document.getElementById(
-        'operador'
-      );
-
-
-    const campoProduto =
-      document.getElementById(
-        'produto'
-      );
+    const dados =
+      await carregarDadosRemotos();
 
 
     if (
-      campoOperador
+      !dados ||
+      !dados.sucesso
     ) {
 
-      campoOperador.disabled =
-        false;
+      throw new Error(
+        dados &&
+        dados.erro
+          ? dados.erro
+          : 'Não foi possível carregar os cadastros.'
+      );
 
     }
 
+    /*
+     * O backend retorna objetos completos.
+     * O front mantém apenas os nomes para a seleção atual.
+     */
+    operadores =
+      Array.isArray(
+        dados.operadores
+      )
+        ? dados.operadores
+            .map(
+              function(item) {
 
-    if (
-      campoProduto
-    ) {
+                return item.nome ||
+                  item;
 
-      campoProduto.disabled =
-        false;
+              }
+            )
+        : [];
 
-    }
+
+    produtos =
+      Array.isArray(
+        dados.produtos
+      )
+        ? dados.produtos
+            .map(
+              function(item) {
+
+                if (
+                  typeof item ===
+                  'string'
+                ) {
+
+                  return {
+
+                    nome:
+                      item,
+
+                    ciclo:
+                      0
+
+                  };
+
+                }
+
+
+                return {
+
+                  nome:
+                    item.nome ||
+                    '',
+
+                  ciclo:
+                    Number(
+                      item.ciclo ||
+                      0
+                    ),
+
+                  codigoInterno:
+                    item.codigoInterno ||
+                    ''
+
+                };
+
+              }
+            )
+            .filter(
+              function(item) {
+
+                return Boolean(
+                  item.nome
+                );
+
+              }
+            )
+        : [];
+
+
+    TEMPO_MAX_AUDIO =
+      Math.max(
+        1,
+        Number(
+          dados.tempoMaxAudio ||
+          30
+        )
+      );
+
+
+    preencherSelecoes();
+
+
+    verificarFormulario();
+
 
   }
   catch (erro) {
 
-    console.warn(
-      'Falha ao liberar seleção:',
+    console.error(
+      'Erro ao carregar dados remotos:',
       erro
+    );
+
+
+    /*
+     * Em caso de indisponibilidade do Apps Script,
+     * mantemos uma lista mínima de contingência
+     * para não deixar o equipamento inutilizável.
+     */
+
+    operadores = [
+
+      'Guilherme',
+      'Jessica',
+      'Airton',
+      'Marco',
+      'Célio',
+      'Walisson'
+
+    ];
+
+
+    produtos = [
+
+      {
+        nome:
+          'Reservatório 25L',
+
+        ciclo:
+          130
+
+      },
+
+      {
+        nome:
+          'Reservatório 50L',
+
+        ciclo:
+          140
+
+      },
+
+      {
+        nome:
+          'Tampa de 50L cinza',
+
+        ciclo:
+          100
+
+      },
+
+      {
+        nome:
+          'Tampa de 100L Cinza',
+
+        ciclo:
+          155
+
+      }
+
+    ];
+
+
+    preencherSelecoes();
+
+
+    verificarFormulario();
+
+
+    mostrarMensagem(
+      '⚠️ Cadastros temporariamente carregados em modo de contingência.',
+      'warning'
     );
 
   }
 
 }
-
-
 
 
 function preencherSelecoes() {
@@ -4155,12 +4032,8 @@ function configurarPainelAudio() {
   if (info) {
     info.innerHTML =
       conformeAtual === 'NÃO'
-        ? '<strong style="color:#C62828;">NÃO CONFORME: o áudio é obrigatório e será gravado por ' +
-          TEMPO_MAX_AUDIO +
-          ' segundos. Não é possível interromper antes.</strong>'
-        : 'CONFORME: a gravação de áudio é opcional, com até ' +
-          TEMPO_MAX_AUDIO +
-          ' segundos.';
+        ? '<strong style="color:#C62828;">NÃO CONFORME: a gravação de áudio é obrigatória antes de iniciar outra inspeção.</strong>'
+        : 'CONFORME: a gravação de áudio é opcional.';
   }
 
   if (status) {
@@ -4317,15 +4190,6 @@ async function iniciarGravacaoAudio() {
 
     if (btnParar) {
       btnParar.classList.remove('hidden');
-
-      btnParar.textContent =
-        String(
-          conformidade || ''
-        )
-          .trim()
-          .toUpperCase() === 'NÃO'
-            ? '⏱️ AGUARDE ' + TEMPO_MAX_AUDIO + 's'
-            : '⏹️ PARAR ÁUDIO';
     }
 
     if (btnSem) {
@@ -4613,68 +4477,9 @@ async function iniciarGravacaoAudio() {
 
 function pararGravacaoAudio() {
 
-  const conformeAtual =
-    String(
-      conformidade || ''
-    )
-      .trim()
-      .toUpperCase();
-
-
-  if (
-    conformeAtual ===
-      'NÃO' &&
-    audioSegundos <
-      TEMPO_MAX_AUDIO
-  ) {
-
-    const restante =
-      Math.max(
-        0,
-        TEMPO_MAX_AUDIO -
-        audioSegundos
-      );
-
-
-    const status =
-      document.getElementById(
-        'audioStatus'
-      );
-
-
-    if (status) {
-
-      status.textContent =
-        '⏱️ Áudio obrigatório: aguarde ' +
-        restante +
-        ' segundo(s).';
-
-    }
-
-
-    const btnParar =
-      document.getElementById(
-        'btnPararAudio'
-      );
-
-
-    if (btnParar) {
-
-      btnParar.disabled =
-        false;
-
-    }
-
-
-    return;
-
-  }
-
-
   if (
     audioRecorder &&
-    audioRecorder.state !==
-      'inactive'
+    audioRecorder.state !== 'inactive'
   ) {
 
     audioRecorder.stop();
