@@ -2196,37 +2196,81 @@ function formatarTempo(
 
 async function carregarDados() {
 
-  /*
-   * Primeiro mostra a máquina imediatamente a partir da URL.
-   */
-  const machineElement =
-    document.getElementById(
-      'machine'
-    );
+  mostrarMensagem(
+    '🔄 Identificando máquina...',
+    'warning'
+  );
 
 
-  if (machineElement) {
+  const callbackName =
+    'initialData_' +
+    Date.now() +
+    '_' +
+    Math.random()
+      .toString(36)
+      .substring(
+        2,
+        9
+      );
 
-    machineElement.textContent =
-      maquina
-        ? (
-            maquina.startsWith('M')
-              ? 'M-' +
-                maquina.substring(1)
-              : maquina
-          )
-        : 'MÁQUINA NÃO INFORMADA';
+
+  let script =
+    null;
+
+
+  let timeout =
+    null;
+
+
+  function limpar() {
+
+    try {
+
+      if (
+        script &&
+        script.parentNode
+      ) {
+
+        script.parentNode
+          .removeChild(
+            script
+          );
+
+      }
+
+    }
+    catch (erro) {}
+
+
+    try {
+
+      delete window[
+        callbackName
+      ];
+
+    }
+    catch (erro) {}
 
   }
 
 
-  /*
-   * Carrega os cadastros do Google Sheets via JSONP.
-   */
-  try {
+  window[
+    callbackName
+  ] =
+  function(
+    dados
+  ) {
 
-    const dados =
-      await carregarDadosRemotos();
+    if (timeout) {
+
+      clearTimeout(
+        timeout
+      );
+
+    }
+
+
+    limpar();
 
 
     if (
@@ -2234,57 +2278,46 @@ async function carregarDados() {
       !dados.sucesso
     ) {
 
-      throw new Error(
+      mostrarMensagem(
         dados &&
         dados.erro
           ? dados.erro
-          : 'Não foi possível carregar os cadastros.'
+          : 'Não foi possível identificar a máquina.',
+        'error'
       );
 
+
+      return;
+
     }
+
+
+    maquinaValida =
+      !!dados.maquinaValida;
 
 
     if (
-      dados.maquinaValida ===
-      false
+      !maquinaValida
     ) {
 
-      if (machineElement) {
+      mostrarMensagem(
+        '⚠️ Máquina ' +
+        maquina +
+        ' não cadastrada ou inativa.',
+        'error'
+      );
 
-        machineElement.textContent =
-          maquina
-            ? (
-                'M-' +
-                maquina.replace(
-                  /^M/i,
-                  ''
-                )
-              ) +
-              ' — NÃO CADASTRADA'
-            : 'MÁQUINA NÃO INFORMADA';
 
-      }
+      return;
 
     }
 
 
-    /*
-     * O backend retorna objetos completos.
-     * O front mantém apenas os nomes para a seleção atual.
-     */
     operadores =
       Array.isArray(
         dados.operadores
       )
         ? dados.operadores
-            .map(
-              function(item) {
-
-                return item.nome ||
-                  item;
-
-              }
-            )
         : [];
 
 
@@ -2293,147 +2326,126 @@ async function carregarDados() {
         dados.produtos
       )
         ? dados.produtos
-            .map(
-              function(item) {
-
-                if (
-                  typeof item ===
-                  'string'
-                ) {
-
-                  return {
-
-                    nome:
-                      item,
-
-                    ciclo:
-                      0
-
-                  };
-
-                }
-
-
-                return {
-
-                  nome:
-                    item.nome ||
-                    '',
-
-                  ciclo:
-                    Number(
-                      item.ciclo ||
-                      0
-                    ),
-
-                  codigoInterno:
-                    item.codigoInterno ||
-                    ''
-
-                };
-
-              }
-            )
-            .filter(
-              function(item) {
-
-                return Boolean(
-                  item.nome
-                );
-
-              }
-            )
         : [];
 
 
-    preencherSelecoes();
+    TEMPO_MAX_AUDIO =
+      Math.max(
+        1,
+        Number(
+          dados.tempoMaxAudio ||
+          30
+        )
+      );
 
 
-    verificarFormulario();
+    preencherOperadores();
 
 
-  }
-  catch (erro) {
-
-    console.error(
-      'Erro ao carregar dados remotos:',
-      erro
-    );
-
-
-    /*
-     * Em caso de indisponibilidade do Apps Script,
-     * mantemos uma lista mínima de contingência
-     * para não deixar o equipamento inutilizável.
-     */
-
-    operadores = [
-
-      'Guilherme',
-      'Jessica',
-      'Airton',
-      'Marco',
-      'Célio',
-      'Walisson'
-
-    ];
-
-
-    produtos = [
-
-      {
-        nome:
-          'Reservatório 25L',
-
-        ciclo:
-          130
-
-      },
-
-      {
-        nome:
-          'Reservatório 50L',
-
-        ciclo:
-          140
-
-      },
-
-      {
-        nome:
-          'Tampa de 50L cinza',
-
-        ciclo:
-          100
-
-      },
-
-      {
-        nome:
-          'Tampa de 100L Cinza',
-
-        ciclo:
-          155
-
-      }
-
-    ];
-
-
-    preencherSelecoes();
-
-
-    verificarFormulario();
+    preencherProdutos();
 
 
     mostrarMensagem(
-      '⚠️ Cadastros temporariamente carregados em modo de contingência.',
-      'warning'
+      '✅ Máquina ' +
+      maquina +
+      ' identificada.',
+      'success'
     );
 
-  }
+
+    try {
+      document.getElementById('mainForm').classList.remove('hidden');
+    } catch (erro) {}
+
+  };
+
+
+  const params =
+    new URLSearchParams();
+
+
+  params.set(
+    'status',
+    'data'
+  );
+
+
+  params.set(
+    'maquina',
+    maquina
+  );
+
+
+  params.set(
+    'callback',
+    callbackName
+  );
+
+
+  params.set(
+    '_',
+    Date.now()
+  );
+
+
+  script =
+    document.createElement(
+      'script'
+    );
+
+
+  script.src =
+    URL_APPS_SCRIPT +
+    '?' +
+    params.toString();
+
+
+  script.onerror =
+    function() {
+
+      if (timeout) {
+
+        clearTimeout(
+          timeout
+        );
+
+      }
+
+
+      limpar();
+
+
+      mostrarMensagem(
+        '❌ Falha de comunicação com o servidor ao identificar a máquina.',
+        'error'
+      );
+
+    };
+
+
+  timeout =
+    setTimeout(
+      function() {
+
+        limpar();
+
+
+        mostrarMensagem(
+          '❌ Tempo excedido ao identificar a máquina. Verifique a URL do Apps Script/publicação.',
+          'error'
+        );
+
+      },
+      15000
+    );
+
+
+  document.head.appendChild(
+    script
+  );
 
 }
+
 
 
 function preencherSelecoes() {
