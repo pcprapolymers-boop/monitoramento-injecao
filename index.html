@@ -2188,16 +2188,8 @@ function formatarTempo(
 async function carregarDados() {
 
   /*
-   * FASE ATUAL
-   *
-   * Máquina:
-   *   - vem somente da URL (?m=M1);
-   *   - não depende da CAD_MAQUINAS;
-   *   - futuramente será substituída pela leitura NFC.
-   *
-   * Operadores/produtos:
-   *   - carregados imediatamente em contingência local;
-   *   - atualização da planilha ocorre em segundo plano.
+   * MÁQUINA:
+   * vem somente da URL (?m=M1). Não depende da planilha.
    */
 
   const machineElement =
@@ -2228,7 +2220,7 @@ async function carregarDados() {
   if (!maquinaValida) {
 
     mostrarMensagem(
-      '❌ Máquina não informada. Use a URL com ?m=M1.',
+      '❌ Máquina não informada.',
       'error'
     );
 
@@ -2238,10 +2230,11 @@ async function carregarDados() {
 
 
   /*
-   * CONTINGÊNCIA IMEDIATA
-   *
-   * O operador não fica aguardando o Apps Script.
+   * OPERADORES E PRODUTOS:
+   * fonte local para o piloto atual.
+   * Não espera planilha/Apps Script.
    */
+
   operadores = [
     'Guilherme',
     'Jessica',
@@ -2254,20 +2247,31 @@ async function carregarDados() {
 
   produtos = [
     {
-      nome: 'Reservatório 25L',
-      ciclo: 130
+      nome:
+        'Reservatório 25L',
+      ciclo:
+        130
     },
+
     {
-      nome: 'Reservatório 50L',
-      ciclo: 140
+      nome:
+        'Reservatório 50L',
+      ciclo:
+        140
     },
+
     {
-      nome: 'Tampa de 50L cinza',
-      ciclo: 100
+      nome:
+        'Tampa de 50L cinza',
+      ciclo:
+        100
     },
+
     {
-      nome: 'Tampa de 100L Cinza',
-      ciclo: 155
+      nome:
+        'Tampa de 100L Cinza',
+      ciclo:
+        155
     }
   ];
 
@@ -2281,150 +2285,10 @@ async function carregarDados() {
   mostrarMensagem(
     '✅ Máquina ' +
     maquina +
-    ' identificada. Cadastros carregados.',
+    ' identificada.',
     'success'
   );
 
-
-  /*
-   * Atualização em segundo plano.
-   *
-   * Se o Apps Script responder, usamos os cadastros atuais.
-   * Se não responder, o operador continua trabalhando.
-   */
-  try {
-
-    const dados =
-      await carregarDadosRemotos();
-
-
-    if (
-      dados &&
-      dados.sucesso
-    ) {
-
-      if (
-        Array.isArray(
-          dados.operadores
-        ) &&
-        dados.operadores.length
-      ) {
-
-        operadores =
-          dados.operadores
-            .map(
-              function(item) {
-
-                return (
-                  typeof item ===
-                  'string'
-                    ? item
-                    : (
-                        item.nome ||
-                        ''
-                      )
-                );
-
-              }
-            )
-            .filter(
-              function(nome) {
-
-                return Boolean(
-                  nome
-                );
-
-              }
-            );
-
-      }
-
-
-      if (
-        Array.isArray(
-          dados.produtos
-        ) &&
-        dados.produtos.length
-      ) {
-
-        produtos =
-          dados.produtos
-            .map(
-              function(item) {
-
-                if (
-                  typeof item ===
-                  'string'
-                ) {
-
-                  return {
-                    nome:
-                      item,
-
-                    ciclo:
-                      0
-                  };
-
-                }
-
-
-                return {
-                  nome:
-                    item.nome ||
-                    '',
-
-                  ciclo:
-                    Number(
-                      item.ciclo ||
-                      0
-                    ),
-
-                  codigoInterno:
-                    item.codigoInterno ||
-                    ''
-                };
-
-              }
-            )
-            .filter(
-              function(item) {
-
-                return Boolean(
-                  item.nome
-                );
-
-              }
-            );
-
-      }
-
-
-      TEMPO_MAX_AUDIO =
-        Math.max(
-          1,
-          Number(
-            dados.tempoMaxAudio ||
-            30
-          )
-        );
-
-
-      preencherSelecoes();
-
-
-      verificarFormulario();
-
-    }
-
-  }
-  catch (erro) {
-
-    console.warn(
-      '[CADASTROS] atualização remota indisponível:',
-      erro
-    );
-
-  }
 
 }
 
