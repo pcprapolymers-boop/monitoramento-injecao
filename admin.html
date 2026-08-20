@@ -1,0 +1,1137 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+
+<meta charset="UTF-8">
+
+<meta
+  name="viewport"
+  content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"
+>
+
+<title>Área Administrativa - Monitoramento de Qualidade</title>
+
+<style>
+
+:root {
+  --blue: #164E7A;
+  --blue2: #1E5A8A;
+  --light: #EAF2F9;
+  --border: #D4DEE7;
+  --danger: #C62828;
+  --success: #1F8F4D;
+  --text: #17324D;
+  --muted: #687888;
+  --bg: #F4F7FA;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+.container {
+  width: min(1200px, calc(100% - 24px));
+  margin: 18px auto 40px;
+}
+
+.header {
+  background: white;
+  border-radius: 16px;
+  padding: 20px;
+  box-shadow: 0 2px 10px rgba(0,0,0,.08);
+  margin-bottom: 14px;
+}
+
+.header h1 {
+  margin: 0;
+  font-size: 24px;
+}
+
+.header p {
+  margin: 7px 0 0;
+  color: var(--muted);
+}
+
+.card {
+  background: white;
+  border-radius: 16px;
+  padding: 18px;
+  box-shadow: 0 2px 10px rgba(0,0,0,.06);
+}
+
+.hidden {
+  display: none !important;
+}
+
+.login {
+  width: min(430px, 100%);
+  margin: 70px auto;
+}
+
+.login h2 {
+  margin-top: 0;
+}
+
+input, select {
+  width: 100%;
+  min-height: 48px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px;
+  font-size: 16px;
+}
+
+.btn {
+  width: 100%;
+  border: 0;
+  border-radius: 10px;
+  min-height: 48px;
+  margin-top: 12px;
+  font-size: 16px;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.btn-primary {
+  background: var(--blue);
+  color: white;
+}
+
+.btn-secondary {
+  background: #E8EEF3;
+  color: var(--text);
+}
+
+.filters {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 10px;
+}
+
+.actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.actions .btn {
+  flex: 1;
+}
+
+.summary {
+  margin: 14px 0 8px;
+  color: var(--muted);
+}
+
+.table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+table {
+  width: 100%;
+  min-width: 950px;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+th {
+  background: var(--blue);
+  color: white;
+  padding: 10px;
+  text-align: left;
+}
+
+td {
+  padding: 9px;
+  border-top: 1px solid var(--border);
+  vertical-align: top;
+}
+
+tr:nth-child(even) td {
+  background: #F8FAFC;
+}
+
+.sim {
+  color: var(--success);
+  font-weight: bold;
+}
+
+.nao {
+  color: var(--danger);
+  font-weight: bold;
+}
+
+.video {
+  display: inline-block;
+  padding: 7px 10px;
+  background: var(--light);
+  color: var(--blue);
+  border-radius: 8px;
+  text-decoration: none;
+  font-weight: bold;
+}
+
+.message {
+  margin-top: 10px;
+  padding: 10px;
+  border-radius: 10px;
+  text-align: center;
+}
+
+.error {
+  background: #FDECEC;
+  color: var(--danger);
+}
+
+.success {
+  background: #EAF7EF;
+  color: var(--success);
+}
+
+@media (max-width: 760px) {
+  .filters {
+    grid-template-columns: 1fr;
+  }
+
+  .actions {
+    flex-direction: column;
+  }
+}
+
+</style>
+
+</head>
+
+<body>
+
+<div class="container">
+
+  <div class="header">
+
+    <h1>🔐 Área Administrativa</h1>
+
+    <p>
+      Monitoramento de Qualidade — histórico restrito ao administrador.
+    </p>
+
+  </div>
+
+
+  <div
+    id="loginCard"
+    class="card login"
+  >
+
+    <h2>Autenticação</h2>
+
+    <p>
+      Esta área não é liberada aos operadores.
+    </p>
+
+    <input
+      id="senhaAdmin"
+      type="password"
+      placeholder="Senha administrativa"
+      autocomplete="current-password"
+    >
+
+    <button
+      class="btn btn-primary"
+      onclick="entrarAdmin()"
+    >
+      🔓 ENTRAR
+    </button>
+
+    <div
+      id="loginMessage"
+      class="message hidden"
+    ></div>
+
+  </div>
+
+
+  <div
+    id="painelAdmin"
+    class="card hidden"
+  >
+
+    <h2>📊 Histórico de Inspeções</h2>
+
+    <div class="filters">
+
+      <input
+        id="data"
+        type="date"
+        aria-label="Data"
+      >
+
+      <select id="maquina">
+        <option value="">Todas as máquinas</option>
+        <option value="M-1">M-1</option>
+        <option value="M-2">M-2</option>
+        <option value="M-3">M-3</option>
+        <option value="M-4">M-4</option>
+        <option value="M-5">M-5</option>
+        <option value="M-6">M-6</option>
+      </select>
+
+      <select id="operador">
+        <option value="">Todos os operadores</option>
+      </select>
+
+      <select id="produto">
+        <option value="">Todos os produtos</option>
+      </select>
+
+      <select id="conforme">
+        <option value="">Todos os resultados</option>
+        <option value="SIM">Conformes</option>
+        <option value="NÃO">Não conformes</option>
+      </select>
+
+    </div>
+
+
+    <div class="actions">
+
+      <button
+        class="btn btn-primary"
+        onclick="carregarHistorico()"
+      >
+        🔎 FILTRAR
+      </button>
+
+      <button
+        class="btn btn-secondary"
+        onclick="limparFiltros()"
+      >
+        ♻️ LIMPAR
+      </button>
+
+    </div>
+
+
+    <div
+      id="summary"
+      class="summary"
+    >
+      Nenhuma consulta realizada.
+    </div>
+
+
+    <div class="table-wrap">
+
+      <table>
+
+        <thead>
+
+          <tr>
+
+            <th>Data/Hora</th>
+            <th>Máquina</th>
+            <th>Operador</th>
+            <th>Produto</th>
+            <th>Ciclo</th>
+            <th>Duração</th>
+            <th>Resultado</th>
+            <th>Turno</th>
+            <th>Vídeo</th>
+
+          </tr>
+
+        </thead>
+
+        <tbody id="tabela">
+
+          <tr>
+
+            <td
+              colspan="9"
+              style="text-align:center;padding:20px;"
+            >
+              Faça uma consulta.
+
+            </td>
+
+          </tr>
+
+        </tbody>
+
+      </table>
+
+    </div>
+
+  </div>
+
+</div>
+
+
+<script>
+
+const URL_APPS_SCRIPT =
+  'https://script.google.com/macros/s/AKfycbyyczQIADys9S5tG7G9WiR_tFiWubW4mcteLurFO_GOlrlSs9f9CWkcojnjsuG5Jgvt/exec';
+
+
+let adminToken =
+  sessionStorage.getItem(
+    'adminHistoryToken'
+  ) || '';
+
+
+function callJsonp(
+  params,
+  callback,
+  timeoutMs
+) {
+
+  return new Promise(
+    function(resolve, reject) {
+
+      const callbackName =
+        'cb_' +
+        Date.now() +
+        '_' +
+        Math.random()
+          .toString(36)
+          .substring(
+            2,
+            9
+          );
+
+
+      let script =
+        null;
+
+
+      let timeout =
+        null;
+
+
+      function limpar() {
+
+        try {
+
+          if (
+            script &&
+            script.parentNode
+          ) {
+
+            script.parentNode.removeChild(
+              script
+            );
+
+          }
+
+        }
+        catch (erro) {}
+
+
+        try {
+
+          delete window[
+            callbackName
+          ];
+
+        }
+        catch (erro) {}
+
+      }
+
+
+      window[
+        callbackName
+      ] =
+      function(resposta) {
+
+        if (timeout) {
+
+          clearTimeout(
+            timeout
+          );
+
+        }
+
+
+        limpar();
+
+
+        resolve(
+          resposta
+        );
+
+      };
+
+
+      params.callback =
+        callbackName;
+
+
+      params._ =
+        Date.now();
+
+
+      const query =
+        new URLSearchParams(
+          params
+        ).toString();
+
+
+      script =
+        document.createElement(
+          'script'
+        );
+
+
+      script.src =
+        URL_APPS_SCRIPT +
+        '?' +
+        query;
+
+
+      script.onerror =
+        function() {
+
+          if (timeout) {
+
+            clearTimeout(
+              timeout
+            );
+
+          }
+
+          limpar();
+
+          reject(
+            new Error(
+              'Falha de comunicação com o servidor.'
+            )
+          );
+
+        };
+
+
+      timeout =
+        setTimeout(
+          function() {
+
+            limpar();
+
+            reject(
+              new Error(
+                'Tempo excedido na comunicação com o servidor.'
+              )
+            );
+
+          },
+          timeoutMs ||
+          15000
+        );
+
+
+      document.head.appendChild(
+        script
+      );
+
+    }
+  );
+
+}
+
+
+async function entrarAdmin() {
+
+  const senha =
+    document.getElementById(
+      'senhaAdmin'
+    ).value;
+
+
+  const message =
+    document.getElementById(
+      'loginMessage'
+    );
+
+
+  message.className =
+    'message hidden';
+
+
+  if (!senha) {
+
+    message.textContent =
+      'Informe a senha administrativa.';
+
+    message.className =
+      'message error';
+
+    return;
+
+  }
+
+
+  try {
+
+    const resposta =
+      await callJsonp(
+        {
+          status:
+            'adminLogin',
+
+          senha:
+            senha
+
+        },
+        null,
+        15000
+      );
+
+
+    if (
+      !resposta ||
+      !resposta.sucesso
+    ) {
+
+      throw new Error(
+        resposta &&
+        resposta.erro
+          ? resposta.erro
+          : 'Não foi possível autenticar.'
+      );
+
+    }
+
+
+    adminToken =
+      resposta.token;
+
+
+    sessionStorage.setItem(
+      'adminHistoryToken',
+      adminToken
+    );
+
+
+    document.getElementById(
+      'loginCard'
+    ).classList.add(
+      'hidden'
+    );
+
+
+    document.getElementById(
+      'painelAdmin'
+    ).classList.remove(
+      'hidden'
+    );
+
+
+    carregarFiltros();
+
+    carregarHistorico();
+
+  }
+  catch (erro) {
+
+    message.textContent =
+      erro.message ||
+      String(
+        erro
+      );
+
+    message.className =
+      'message error';
+
+  }
+
+}
+
+
+async function carregarFiltros() {
+
+  /*
+   * Mantemos listas simples no painel administrativo.
+   * Elas são opcionais; o backend não depende delas.
+   */
+  const operador =
+    document.getElementById(
+      'operador'
+    );
+
+
+  const produto =
+    document.getElementById(
+      'produto'
+    );
+
+
+  const operadoresConhecidos = [
+    'Guilherme',
+    'Jessica',
+    'Alisson',
+    'Marco',
+    'Airton',
+    'Célio'
+  ];
+
+
+  const produtosConhecidos = [
+    'Reservatório 25L',
+    'Reservatório 50L',
+    'Tampa de 50L cinza',
+    'Tampa de 100L Cinza'
+  ];
+
+
+  operador.innerHTML =
+    '<option value="">Todos os operadores</option>';
+
+
+  operadoresConhecidos.forEach(
+    function(nome) {
+
+      operador.insertAdjacentHTML(
+        'beforeend',
+        '<option value="' +
+        escapeHtml(
+          nome
+        ) +
+        '">' +
+        escapeHtml(
+          nome
+        ) +
+        '</option>'
+      );
+
+    }
+  );
+
+
+  produto.innerHTML =
+    '<option value="">Todos os produtos</option>';
+
+
+  produtosConhecidos.forEach(
+    function(nome) {
+
+      produto.insertAdjacentHTML(
+        'beforeend',
+        '<option value="' +
+        escapeHtml(
+          nome
+        ) +
+        '">' +
+        escapeHtml(
+          nome
+        ) +
+        '</option>'
+      );
+
+    }
+  );
+
+}
+
+
+function limparFiltros() {
+
+  document.getElementById(
+    'data'
+  ).value =
+    '';
+
+
+  document.getElementById(
+    'maquina'
+  ).value =
+    '';
+
+
+  document.getElementById(
+    'operador'
+  ).value =
+    '';
+
+
+  document.getElementById(
+    'produto'
+  ).value =
+    '';
+
+
+  document.getElementById(
+    'conforme'
+  ).value =
+    '';
+
+
+  carregarHistorico();
+
+}
+
+
+async function carregarHistorico() {
+
+  if (!adminToken) {
+
+    throw new Error(
+      'Sessão administrativa não autenticada.'
+    );
+
+  }
+
+
+  const resumo =
+    document.getElementById(
+      'summary'
+    );
+
+
+  resumo.textContent =
+    '🔄 Consultando registros...';
+
+
+  try {
+
+    const data =
+      document.getElementById(
+        'data'
+      ).value;
+
+
+    const dataBR =
+      data
+        ? (
+            data.split('-')[2] +
+            '/' +
+            data.split('-')[1] +
+            '/' +
+            data.split('-')[0]
+          )
+        : '';
+
+
+    const resposta =
+      await callJsonp(
+        {
+
+          status:
+            'historico',
+
+          token:
+            adminToken,
+
+          data:
+            dataBR,
+
+          maquina:
+            document.getElementById(
+              'maquina'
+            ).value,
+
+          operador:
+            document.getElementById(
+              'operador'
+            ).value,
+
+          produto:
+            document.getElementById(
+              'produto'
+            ).value,
+
+          conforme:
+            document.getElementById(
+              'conforme'
+            ).value,
+
+          limite:
+            '100'
+
+        },
+        null,
+        15000
+      );
+
+
+    if (
+      !resposta ||
+      !resposta.sucesso
+    ) {
+
+      if (
+        resposta &&
+        resposta.erro &&
+        resposta.erro.includes(
+          'não autorizado'
+        )
+      ) {
+
+        sessionStorage.removeItem(
+          'adminHistoryToken'
+        );
+
+        adminToken =
+          '';
+
+
+        document.getElementById(
+          'painelAdmin'
+        ).classList.add(
+          'hidden'
+        );
+
+
+        document.getElementById(
+          'loginCard'
+        ).classList.remove(
+          'hidden'
+        );
+
+      }
+
+
+      throw new Error(
+        resposta &&
+        resposta.erro
+          ? resposta.erro
+          : 'Falha ao consultar histórico.'
+      );
+
+    }
+
+
+    const registros =
+      Array.isArray(
+        resposta.registros
+      )
+        ? resposta.registros
+        : [];
+
+
+    resumo.textContent =
+      registros.length +
+      ' registro(s) exibido(s) de ' +
+      Number(
+        resposta.total ||
+        registros.length
+      ) +
+      ' encontrado(s).';
+
+
+    const tabela =
+      document.getElementById(
+        'tabela'
+      );
+
+
+    if (!registros.length) {
+
+      tabela.innerHTML =
+        '<tr><td colspan="9" style="text-align:center;padding:20px;">Nenhuma inspeção encontrada.</td></tr>';
+
+      return;
+
+    }
+
+
+    tabela.innerHTML =
+      registros
+        .map(
+          function(registro) {
+
+            const sim =
+              registro.conforme ===
+              'SIM';
+
+
+            return (
+              '<tr>' +
+
+              '<td>' +
+              escapeHtml(
+                registro.dataHora
+              ) +
+              '</td>' +
+
+              '<td>' +
+              escapeHtml(
+                registro.maquina
+              ) +
+              '</td>' +
+
+              '<td>' +
+              escapeHtml(
+                registro.operador
+              ) +
+              '</td>' +
+
+              '<td>' +
+              escapeHtml(
+                registro.produto
+              ) +
+              '</td>' +
+
+              '<td>' +
+              formatarTempo(
+                registro.ciclo
+              ) +
+              '</td>' +
+
+              '<td>' +
+              formatarTempo(
+                registro.duracao
+              ) +
+              '</td>' +
+
+              '<td class="' +
+              (
+                sim
+                  ? 'sim'
+                  : 'nao'
+              ) +
+              '">' +
+              (
+                sim
+                  ? '✅ CONFORME'
+                  : '❌ NÃO CONFORME'
+              ) +
+              '</td>' +
+
+              '<td>' +
+              escapeHtml(
+                registro.turno
+              ) +
+              '</td>' +
+
+              '<td>' +
+              (
+                registro.videoUrl
+                  ? (
+                      '<a class="video" href="' +
+                      escapeHtml(
+                        registro.videoUrl
+                      ) +
+                      '" target="_blank" rel="noopener">▶️ ABRIR</a>'
+                    )
+                  : '-'
+              ) +
+              '</td>' +
+
+              '</tr>'
+            );
+
+          }
+        )
+        .join('');
+
+  }
+  catch (erro) {
+
+    resumo.textContent =
+      '⚠️ ' +
+      (
+        erro.message ||
+        String(
+          erro
+        )
+      );
+
+  }
+
+}
+
+
+function formatarTempo(
+  segundos
+) {
+
+  const n =
+    Number(
+      segundos ||
+      0
+    );
+
+
+  if (
+    n <= 0
+  ) {
+
+    return '-';
+
+  }
+
+
+  const minutos =
+    Math.floor(
+      n / 60
+    );
+
+
+  const segundosRestantes =
+    n % 60;
+
+
+  return (
+    String(
+      minutos
+    ).padStart(
+      2,
+      '0'
+    ) +
+    ':' +
+    String(
+      segundosRestantes
+    ).padStart(
+      2,
+      '0'
+    )
+  );
+
+}
+
+
+function escapeHtml(
+  valor
+) {
+
+  return String(
+    valor ||
+    ''
+  )
+    .replace(
+      /&/g,
+      '&amp;'
+    )
+    .replace(
+      /</g,
+      '&lt;'
+    )
+    .replace(
+      />/g,
+      '&gt;'
+    )
+    .replace(
+      /"/g,
+      '&quot;'
+    )
+    .replace(
+      /'/g,
+      '&#039;'
+    );
+
+}
+
+</script>
+
+</body>
+
+</html>
