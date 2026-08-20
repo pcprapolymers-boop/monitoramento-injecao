@@ -658,6 +658,75 @@
     ></video>
 
 
+
+    <!-- ÁUDIO DA INSPEÇÃO -->
+
+    <div
+      id="audioPanel"
+      class="card"
+      style="margin-top:14px;border:2px solid #D4DEE7;"
+    >
+
+      <div
+        id="audioPanelTitle"
+        class="inspection-title"
+        style="font-size:18px;"
+      >
+        🎙️ REGISTRO DE ÁUDIO
+      </div>
+
+      <div
+        id="audioPanelInfo"
+        class="result-info"
+      ></div>
+
+      <div
+        id="audioTimer"
+        class="timer hidden"
+        style="font-size:32px;"
+      >
+        00:00
+      </div>
+
+      <div
+        id="audioStatus"
+        class="result-info"
+      ></div>
+
+      <div class="video-actions">
+
+        <button
+          id="btnGravarAudio"
+          class="btn-primary"
+          type="button"
+          onclick="iniciarGravacaoAudio()"
+        >
+          🎙️ GRAVAR ÁUDIO
+        </button>
+
+        <button
+          id="btnPararAudio"
+          class="btn-secondary hidden"
+          type="button"
+          onclick="pararGravacaoAudio()"
+        >
+          ⏹️ PARAR ÁUDIO
+        </button>
+
+        <button
+          id="btnSemAudio"
+          class="btn-secondary hidden"
+          type="button"
+          onclick="continuarSemAudio()"
+        >
+          ➡️ CONTINUAR SEM ÁUDIO
+        </button>
+
+      </div>
+
+    </div>
+
+
     <div class="video-actions">
 
       <button
@@ -795,6 +864,28 @@ let wakeLock = null;
 let inicioGravacao = null;
 
 let fimGravacao = null;
+
+/*
+ * ÁUDIO DA INSPEÇÃO
+ * Vídeo: câmera + microfone.
+ * Áudio de observação:
+ *   - NÃO CONFORME: obrigatório
+ *   - CONFORME: opcional
+ */
+let audioStream = null;
+let audioRecorder = null;
+let partesAudio = [];
+let audioChunkPromises = [];
+let audioChunkIndex = 0;
+let audioUploadId = null;
+let audioBlob = null;
+let audioGravando = false;
+let audioConcluido = false;
+let audioPulado = false;
+let audioTimer = null;
+let audioSegundos = 0;
+const TEMPO_MAX_AUDIO = 60;
+
 
 
 /* =====================================================
@@ -1534,9 +1625,6 @@ async function salvarEstadoInicialGravacao() {
       mediaRecorder.mimeType ||
       'video/webm',
 
-    possuiAudio:
-      true,
-
     totalChunks:
       0,
 
@@ -1746,7 +1834,11 @@ async function processarJobUpload(
         );
 
       mostrarMensagem(
-        '☁️ Enviando ' +
+        (
+          job.mediaType === 'AUDIO'
+            ? '🎙️ Enviando áudio '
+            : '☁️ Enviando vídeo '
+        ) +
         job.produto +
         ' — parte ' +
         (indice + 1) +
@@ -1758,6 +1850,10 @@ async function processarJobUpload(
 
       await enviarChunk(
         {
+
+          mediaType:
+            job.mediaType ||
+            'VIDEO',
 
           uploadId:
             job.uploadId,
@@ -1831,7 +1927,9 @@ async function processarJobUpload(
     await atualizarFilaUI();
 
     mostrarMensagem(
-      '🧩 Montando o vídeo no Google Drive — aguarde...',
+      job.mediaType === 'AUDIO'
+        ? '🧩 Montando o áudio no Google Drive — aguarde...'
+        : '🧩 Montando o vídeo no Google Drive — aguarde...',
       'warning'
     );
 
@@ -1861,6 +1959,17 @@ async function processarJobUpload(
     );
 
 
+    if (
+      job.mediaType === 'AUDIO'
+    ) {
+
+      mostrarMensagem(
+        '✅ Áudio da inspeção enviado para o Google Drive.',
+        'success'
+      );
+
+    }
+    else
     if (
       idRegistro
     ) {
@@ -3238,6 +3347,18 @@ async function iniciarCamera() {
     await camera.play();
 
 
+    if (
+      cameraStream.getAudioTracks().length ===
+      0
+    ) {
+
+      throw new Error(
+        'O aparelho não disponibilizou o microfone.'
+      );
+
+    }
+
+
     document
       .getElementById(
         'preparationBlock'
@@ -3267,7 +3388,7 @@ async function iniciarCamera() {
 
 
     mostrarMensagem(
-      'Não foi possível acessar a câmera.',
+      'Não foi possível acessar a câmera e o microfone.',
       'error'
     );
 
@@ -3446,7 +3567,10 @@ function iniciarGravacao() {
   const opcoes = {
 
     videoBitsPerSecond:
-      900000
+      900000,
+
+    audioBitsPerSecond:
+      64000
 
   };
 
@@ -3463,7 +3587,7 @@ function iniciarGravacao() {
     ) {
 
       throw new Error(
-        'Trilha de áudio não disponível.'
+        'O vídeo não poderá ser gravado sem áudio.'
       );
 
     }
@@ -3661,8 +3785,8 @@ function iniciarGravacao() {
           mimeType:
             tipo,
 
-          possuiAudio:
-            true,
+          mediaType:
+            'VIDEO',
 
           totalChunks:
             totalChunks,
@@ -3746,6 +3870,10 @@ function iniciarGravacao() {
         .remove(
           'hidden'
         );
+
+
+      configurarPainelAudio();
+
 
       liberarWakeLock();
 
@@ -3869,11 +3997,585 @@ function desligarCamera() {
 }
 
 
+
+/* =====================================================
+   ÁUDIO DA INSPEÇÃO
+   ===================================================== */
+
+function configurarPainelAudio() {
+
+  const conformeAtual =
+    String(
+      conformidade || ''
+    )
+      .trim()
+      .toUpperCase();
+
+  audioConcluido = false;
+  audioPulado = false;
+  audioBlob = null;
+  audioUploadId = null;
+
+  const titulo =
+    document.getElementById('audioPanelTitle');
+
+  const info =
+    document.getElementById('audioPanelInfo');
+
+  const status =
+    document.getElementById('audioStatus');
+
+  const btnGravar =
+    document.getElementById('btnGravarAudio');
+
+  const btnParar =
+    document.getElementById('btnPararAudio');
+
+  const btnSem =
+    document.getElementById('btnSemAudio');
+
+  const btnNova =
+    document.getElementById('btnNovaInspecaoVideo');
+
+  if (titulo) {
+    titulo.textContent =
+      conformeAtual === 'NÃO'
+        ? '🎙️ ÁUDIO OBRIGATÓRIO'
+        : '🎙️ ÁUDIO DA INSPEÇÃO';
+  }
+
+  if (info) {
+    info.innerHTML =
+      conformeAtual === 'NÃO'
+        ? '<strong style="color:#C62828;">NÃO CONFORME: a gravação de áudio é obrigatória antes de iniciar outra inspeção.</strong>'
+        : 'CONFORME: a gravação de áudio é opcional.';
+  }
+
+  if (status) {
+    status.textContent =
+      conformeAtual === 'NÃO'
+        ? 'Grave a justificativa/observação da não conformidade.'
+        : 'Você pode gravar uma observação ou continuar sem áudio.';
+  }
+
+  if (btnGravar) {
+    btnGravar.classList.remove('hidden');
+    btnGravar.disabled = false;
+    btnGravar.textContent = '🎙️ GRAVAR ÁUDIO';
+  }
+
+  if (btnParar) {
+    btnParar.classList.add('hidden');
+  }
+
+  if (btnSem) {
+    btnSem.classList.toggle(
+      'hidden',
+      conformeAtual !== 'SIM'
+    );
+  }
+
+  if (btnNova) {
+    btnNova.disabled =
+      conformeAtual === 'NÃO';
+  }
+
+  atualizarAudioTimer(0);
+}
+
+
+function atualizarAudioTimer(
+  segundos
+) {
+
+  const timer =
+    document.getElementById(
+      'audioTimer'
+    );
+
+  if (timer) {
+    timer.textContent =
+      formatarTempo(
+        Number(
+          segundos || 0
+        )
+      );
+  }
+
+}
+
+
+function escolherMimeAudio() {
+
+  const tipos = [
+    'audio/webm;codecs=opus',
+    'audio/webm',
+    'audio/ogg;codecs=opus',
+    'audio/ogg'
+  ];
+
+  for (const tipo of tipos) {
+
+    if (
+      typeof MediaRecorder.isTypeSupported === 'function' &&
+      MediaRecorder.isTypeSupported(tipo)
+    ) {
+      return tipo;
+    }
+
+  }
+
+  return '';
+}
+
+
+async function iniciarGravacaoAudio() {
+
+  if (audioGravando) {
+    return;
+  }
+
+  try {
+
+    audioStream =
+      await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true
+        }
+      });
+
+    if (
+      !audioStream ||
+      audioStream.getAudioTracks().length === 0
+    ) {
+      throw new Error(
+        'Microfone não disponível.'
+      );
+    }
+
+    const mimeType =
+      escolherMimeAudio();
+
+    const opcoes = {};
+
+    if (mimeType) {
+      opcoes.mimeType =
+        mimeType;
+    }
+
+    audioRecorder =
+      new MediaRecorder(
+        audioStream,
+        opcoes
+      );
+
+    partesAudio = [];
+    audioChunkPromises = [];
+    audioChunkIndex = 0;
+    audioUploadId =
+      criarIdUpload() +
+      '_AUDIO';
+
+    audioGravando = true;
+    audioConcluido = false;
+
+    const btnGravar =
+      document.getElementById('btnGravarAudio');
+
+    const btnParar =
+      document.getElementById('btnPararAudio');
+
+    const btnSem =
+      document.getElementById('btnSemAudio');
+
+    const btnNova =
+      document.getElementById('btnNovaInspecaoVideo');
+
+    const status =
+      document.getElementById('audioStatus');
+
+    const timer =
+      document.getElementById('audioTimer');
+
+    if (btnGravar) {
+      btnGravar.classList.add('hidden');
+    }
+
+    if (btnParar) {
+      btnParar.classList.remove('hidden');
+    }
+
+    if (btnSem) {
+      btnSem.classList.add('hidden');
+    }
+
+    if (btnNova) {
+      btnNova.disabled = true;
+    }
+
+    if (timer) {
+      timer.classList.remove('hidden');
+    }
+
+    if (status) {
+      status.textContent =
+        '🔴 Gravando áudio... fale a justificativa da inspeção.';
+    }
+
+    audioRecorder.ondataavailable =
+      function(evento) {
+
+        if (
+          !evento.data ||
+          evento.data.size <= 0
+        ) {
+          return;
+        }
+
+        const indice =
+          audioChunkIndex++;
+
+        partesAudio.push(
+          evento.data
+        );
+
+        audioChunkPromises.push(
+          salvarChunkLocal(
+            audioUploadId,
+            indice,
+            evento.data
+          )
+        );
+
+      };
+
+    audioRecorder.onstop =
+      async function() {
+
+        audioGravando = false;
+
+        if (audioTimer) {
+          clearInterval(audioTimer);
+          audioTimer = null;
+        }
+
+        try {
+          await Promise.all(
+            audioChunkPromises
+          );
+        }
+        catch (erro) {
+
+          mostrarMensagem(
+            '❌ Não foi possível proteger o áudio no aparelho.',
+            'error'
+          );
+
+          audioConcluido = false;
+          return;
+
+        }
+
+        try {
+          if (audioStream) {
+            audioStream
+              .getTracks()
+              .forEach(
+                function(track) {
+                  track.stop();
+                }
+              );
+          }
+        }
+        catch (erro) {}
+
+        audioStream = null;
+
+        const tipo =
+          audioRecorder.mimeType ||
+          'audio/webm';
+
+        audioBlob =
+          new Blob(
+            partesAudio,
+            {
+              type:
+                tipo
+            }
+          );
+
+        const totalChunks =
+          audioChunkIndex;
+
+        if (
+          totalChunks <= 0 ||
+          !audioBlob.size
+        ) {
+
+          mostrarMensagem(
+            '❌ A gravação de áudio ficou vazia.',
+            'error'
+          );
+
+          audioConcluido = false;
+          return;
+
+        }
+
+        const job = {
+
+          uploadId:
+            audioUploadId,
+
+          mediaType:
+            'AUDIO',
+
+          parentUploadId:
+            gravacaoUploadId,
+
+          maquina:
+            maquina,
+
+          operador:
+            document
+              .getElementById('operador')
+              .value,
+
+          produto:
+            produtoAtual &&
+            produtoAtual.nome
+              ? produtoAtual.nome
+              : '',
+
+          conforme:
+            String(
+              conformidade ||
+              ''
+            )
+              .trim()
+              .toUpperCase(),
+
+          ciclo:
+            String(
+              tempoCiclo
+            ),
+
+          mimeType:
+            tipo,
+
+          totalChunks:
+            totalChunks,
+
+          nextChunk:
+            0,
+
+          status:
+            'queued',
+
+          createdAt:
+            Date.now(),
+
+          updatedAt:
+            Date.now(),
+
+          tamanhoBytes:
+            audioBlob.size,
+
+          retryCount:
+            0,
+
+          nextAttemptAt:
+            0
+
+        };
+
+        await salvarJobLocal(
+          job
+        );
+
+        audioConcluido = true;
+
+        const btnGravar =
+          document.getElementById('btnGravarAudio');
+
+        const btnParar =
+          document.getElementById('btnPararAudio');
+
+        const btnNova =
+          document.getElementById('btnNovaInspecaoVideo');
+
+        const status =
+          document.getElementById('audioStatus');
+
+        if (btnParar) {
+          btnParar.classList.add('hidden');
+        }
+
+        if (btnGravar) {
+          btnGravar.classList.remove('hidden');
+          btnGravar.textContent =
+            '🔄 GRAVAR ÁUDIO NOVAMENTE';
+        }
+
+        if (btnNova) {
+          btnNova.disabled = false;
+        }
+
+        if (status) {
+          status.textContent =
+            '✅ Áudio protegido no aparelho e colocado na fila de envio.';
+        }
+
+        await atualizarFilaUI();
+        processarFilaUploads();
+
+      };
+
+    audioRecorder.start(
+      1000
+    );
+
+    audioSegundos = 0;
+    atualizarAudioTimer(0);
+
+    audioTimer =
+      setInterval(
+        function() {
+
+          audioSegundos++;
+          atualizarAudioTimer(
+            audioSegundos
+          );
+
+          if (
+            audioSegundos >=
+            TEMPO_MAX_AUDIO
+          ) {
+            pararGravacaoAudio();
+          }
+
+        },
+        1000
+      );
+
+  }
+  catch (erro) {
+
+    audioGravando = false;
+
+    if (audioStream) {
+      try {
+        audioStream
+          .getTracks()
+          .forEach(
+            function(track) {
+              track.stop();
+            }
+          );
+      }
+      catch (erroStop) {}
+    }
+
+    audioStream = null;
+
+    mostrarMensagem(
+      '❌ Não foi possível iniciar o áudio. Verifique a permissão do microfone.',
+      'error'
+    );
+
+  }
+
+}
+
+
+function pararGravacaoAudio() {
+
+  if (
+    audioRecorder &&
+    audioRecorder.state !== 'inactive'
+  ) {
+
+    audioRecorder.stop();
+
+  }
+
+}
+
+
+function continuarSemAudio() {
+
+  if (
+    String(
+      conformidade || ''
+    )
+      .trim()
+      .toUpperCase() !== 'SIM'
+  ) {
+
+    mostrarMensagem(
+      'O áudio é obrigatório para uma inspeção NÃO CONFORME.',
+      'error'
+    );
+
+    return;
+
+  }
+
+  audioPulado = true;
+  audioConcluido = true;
+
+  const status =
+    document.getElementById(
+      'audioStatus'
+    );
+
+  if (status) {
+    status.textContent =
+      'ℹ️ Inspeção CONFORME: operador optou por não gravar áudio.';
+  }
+
+  const btnNova =
+    document.getElementById(
+      'btnNovaInspecaoVideo'
+    );
+
+  if (btnNova) {
+    btnNova.disabled = false;
+  }
+
+}
+
+
 /* =====================================================
    GRAVAR NOVAMENTE
    ===================================================== */
 
 async function gravarNovamente() {
+
+  if (audioGravando) {
+    try { pararGravacaoAudio(); } catch (erro) {}
+  }
+
+  if (audioStream) {
+    try {
+      audioStream
+        .getTracks()
+        .forEach(
+          function(track) {
+            track.stop();
+          }
+        );
+    }
+    catch (erro) {}
+  }
+
+  audioStream = null;
+  audioRecorder = null;
+  audioConcluido = false;
+  audioPulado = false;
+  audioBlob = null;
 
   if (
     ultimaVideoUrl
@@ -4188,7 +4890,10 @@ function dispararPostChunk(
   adicionarCampo(
     formulario,
     'tipo',
-    'VIDEO_CHUNK'
+    dados &&
+    dados.mediaType === 'AUDIO'
+      ? 'AUDIO_CHUNK'
+      : 'VIDEO_CHUNK'
   );
 
 
@@ -4730,7 +5435,10 @@ function dispararPostFinalizacao(
   adicionarCampo(
     formulario,
     'tipo',
-    'VIDEO_FINALIZE'
+    job &&
+    job.mediaType === 'AUDIO'
+      ? 'AUDIO_FINALIZE'
+      : 'VIDEO_FINALIZE'
   );
 
 
@@ -5199,7 +5907,27 @@ function fecharInspecao() {
 
 function novoRegistro() {
 
+  
   if (
+    String(
+      conformidade || ''
+    )
+      .trim()
+      .toUpperCase() === 'NÃO' &&
+    !audioConcluido
+  ) {
+
+    mostrarMensagem(
+      '⚠️ Grave o áudio obrigatório da não conformidade antes de iniciar uma nova inspeção.',
+      'error'
+    );
+
+    return;
+
+  }
+
+
+if (
     ultimaVideoUrl
   ) {
 
