@@ -1891,6 +1891,10 @@ async function processarJobUpload(
       erro
     );
 
+    const falhouNaFinalizacao =
+      job.status === 'finalizing' ||
+      Number(job.nextChunk || 0) >= Number(job.totalChunks || 0);
+
     job.status =
       'paused';
 
@@ -1935,7 +1939,7 @@ async function processarJobUpload(
       );
 
     }
-    else if (job.status === 'finalizing' || Number(job.nextChunk || 0) >= Number(job.totalChunks || 0)) {
+    else if (falhouNaFinalizacao) {
 
       mostrarMensagem(
         '⚠️ A montagem/confirmação do vídeo foi interrompida. O vídeo permanece salvo no aparelho e a montagem será tentada novamente automaticamente.',
@@ -4668,6 +4672,21 @@ function dispararPostFinalizacao(
     uploadId
   );
 
+  adicionarCampo(
+    formulario,
+    'totalChunks',
+    job && job.totalChunks != null
+      ? job.totalChunks
+      : 0
+  );
+
+  adicionarCampo(
+    formulario,
+    'mimeType',
+    job && job.mimeType
+      ? job.mimeType
+      : 'video/webm'
+  );
 
   adicionarCampo(
     formulario,
