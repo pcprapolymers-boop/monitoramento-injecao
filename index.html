@@ -1519,6 +1519,9 @@ async function salvarEstadoInicialGravacao() {
     ciclo:
       String(tempoCiclo),
 
+    duracaoReal:
+      0,
+
     mimeType:
       mediaRecorder.mimeType ||
       'video/webm',
@@ -1821,11 +1824,35 @@ async function processarJobUpload(
       );
     }
 
+    const idRegistro =
+      resultado &&
+      resultado.idRegistro
+        ? resultado.idRegistro
+        : '';
+
+
     await apagarJobLocal(
       job.uploadId
     );
 
-    limparMensagem();
+
+    if (
+      idRegistro
+    ) {
+
+      mostrarMensagem(
+        '✅ Vídeo enviado e registro ' +
+        idRegistro +
+        ' criado.',
+        'success'
+      );
+
+    }
+    else {
+
+      limparMensagem();
+
+    }
 
     await atualizarFilaUI();
 
@@ -3547,6 +3574,9 @@ function iniciarGravacao() {
               tempoCiclo
             ),
 
+          duracaoReal:
+            duracaoReal,
+
           mimeType:
             tipo,
 
@@ -4579,6 +4609,18 @@ function dispararPostFinalizacao(
     formulario,
     'uploadId',
     uploadId
+  );
+
+
+  adicionarCampo(
+    formulario,
+    'duracaoReal',
+    String(
+      job &&
+      job.duracaoReal
+        ? job.duracaoReal
+        : 0
+    )
   );
 
 
