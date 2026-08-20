@@ -1534,6 +1534,9 @@ async function salvarEstadoInicialGravacao() {
       mediaRecorder.mimeType ||
       'video/webm',
 
+    possuiAudio:
+      true,
+
     totalChunks:
       0,
 
@@ -3213,7 +3216,11 @@ async function iniciarCamera() {
 
           },
 
-          audio: false
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true
+          }
 
         });
 
@@ -3337,6 +3344,8 @@ function escolherMimeType() {
 
   const tipos = [
 
+    'video/webm;codecs=vp8,opus',
+
     'video/webm;codecs=vp8',
 
     'video/webm',
@@ -3447,6 +3456,18 @@ function iniciarGravacao() {
   }
 
   try {
+
+    if (
+      cameraStream.getAudioTracks().length ===
+      0
+    ) {
+
+      throw new Error(
+        'Trilha de áudio não disponível.'
+      );
+
+    }
+
 
     mediaRecorder =
       new MediaRecorder(
@@ -3639,6 +3660,9 @@ function iniciarGravacao() {
 
           mimeType:
             tipo,
+
+          possuiAudio:
+            true,
 
           totalChunks:
             totalChunks,
