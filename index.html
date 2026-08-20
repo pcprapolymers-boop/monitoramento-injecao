@@ -831,22 +831,17 @@ const maquina =
   .toUpperCase();
 
 
+let maquinaValida = false;
+
+
 /* =====================================================
    ESTADO
    ===================================================== */
 
 let operadores = [];
 
-      TEMPO_MAX_AUDIO =
-        Math.max(
-          1,
-          Number(
-            dados.tempoMaxAudio ||
-            30
-          )
-        );
-
 let produtos = [];
+
 
 let produtoAtual = null;
 
@@ -2277,6 +2272,11 @@ async function carregarDados() {
       !dados ||
       !dados.sucesso
     ) {
+
+      console.error(
+        '[IDENTIFICACAO_MAQUINA]',
+        dados
+      );
 
       mostrarMensagem(
         dados &&
