@@ -2188,8 +2188,18 @@ function formatarTempo(
 async function carregarDados() {
 
   /*
-   * Primeiro mostra a máquina imediatamente a partir da URL.
+   * FASE ATUAL
+   *
+   * Máquina:
+   *   - vem somente da URL (?m=M1);
+   *   - não depende da CAD_MAQUINAS;
+   *   - futuramente será substituída pela leitura NFC.
+   *
+   * Operadores/produtos:
+   *   - carregados imediatamente em contingência local;
+   *   - atualização da planilha ocorre em segundo plano.
    */
+
   const machineElement =
     document.getElementById(
       'machine'
@@ -2211,8 +2221,76 @@ async function carregarDados() {
   }
 
 
+  maquinaValida =
+    !!maquina;
+
+
+  if (!maquinaValida) {
+
+    mostrarMensagem(
+      '❌ Máquina não informada. Use a URL com ?m=M1.',
+      'error'
+    );
+
+    return;
+
+  }
+
+
   /*
-   * Carrega os cadastros do Google Sheets via JSONP.
+   * CONTINGÊNCIA IMEDIATA
+   *
+   * O operador não fica aguardando o Apps Script.
+   */
+  operadores = [
+    'Guilherme',
+    'Jessica',
+    'Airton',
+    'Marco',
+    'Célio',
+    'Walisson'
+  ];
+
+
+  produtos = [
+    {
+      nome: 'Reservatório 25L',
+      ciclo: 130
+    },
+    {
+      nome: 'Reservatório 50L',
+      ciclo: 140
+    },
+    {
+      nome: 'Tampa de 50L cinza',
+      ciclo: 100
+    },
+    {
+      nome: 'Tampa de 100L Cinza',
+      ciclo: 155
+    }
+  ];
+
+
+  preencherSelecoes();
+
+
+  verificarFormulario();
+
+
+  mostrarMensagem(
+    '✅ Máquina ' +
+    maquina +
+    ' identificada. Cadastros carregados.',
+    'success'
+  );
+
+
+  /*
+   * Atualização em segundo plano.
+   *
+   * Se o Apps Script responder, usamos os cadastros atuais.
+   * Se não responder, o operador continua trabalhando.
    */
   try {
 
@@ -2221,44 +2299,56 @@ async function carregarDados() {
 
 
     if (
-      !dados ||
-      !dados.sucesso
+      dados &&
+      dados.sucesso
     ) {
 
-      throw new Error(
-        dados &&
-        dados.erro
-          ? dados.erro
-          : 'Não foi possível carregar os cadastros.'
-      );
+      if (
+        Array.isArray(
+          dados.operadores
+        ) &&
+        dados.operadores.length
+      ) {
 
-    }
-
-    /*
-     * O backend retorna objetos completos.
-     * O front mantém apenas os nomes para a seleção atual.
-     */
-    operadores =
-      Array.isArray(
-        dados.operadores
-      )
-        ? dados.operadores
+        operadores =
+          dados.operadores
             .map(
               function(item) {
 
-                return item.nome ||
-                  item;
+                return (
+                  typeof item ===
+                  'string'
+                    ? item
+                    : (
+                        item.nome ||
+                        ''
+                      )
+                );
 
               }
             )
-        : [];
+            .filter(
+              function(nome) {
+
+                return Boolean(
+                  nome
+                );
+
+              }
+            );
+
+      }
 
 
-    produtos =
-      Array.isArray(
-        dados.produtos
-      )
-        ? dados.produtos
+      if (
+        Array.isArray(
+          dados.produtos
+        ) &&
+        dados.produtos.length
+      ) {
+
+        produtos =
+          dados.produtos
             .map(
               function(item) {
 
@@ -2268,20 +2358,17 @@ async function carregarDados() {
                 ) {
 
                   return {
-
                     nome:
                       item,
 
                     ciclo:
                       0
-
                   };
 
                 }
 
 
                 return {
-
                   nome:
                     item.nome ||
                     '',
@@ -2295,7 +2382,6 @@ async function carregarDados() {
                   codigoInterno:
                     item.codigoInterno ||
                     ''
-
                 };
 
               }
@@ -2308,218 +2394,37 @@ async function carregarDados() {
                 );
 
               }
-            )
-        : [];
+            );
+
+      }
 
 
-    TEMPO_MAX_AUDIO =
-      Math.max(
-        1,
-        Number(
-          dados.tempoMaxAudio ||
-          30
-        )
-      );
+      TEMPO_MAX_AUDIO =
+        Math.max(
+          1,
+          Number(
+            dados.tempoMaxAudio ||
+            30
+          )
+        );
 
 
-    preencherSelecoes();
+      preencherSelecoes();
 
 
-    verificarFormulario();
+      verificarFormulario();
 
+    }
 
   }
   catch (erro) {
 
-    console.error(
-      'Erro ao carregar dados remotos:',
+    console.warn(
+      '[CADASTROS] atualização remota indisponível:',
       erro
     );
 
-
-    /*
-     * Em caso de indisponibilidade do Apps Script,
-     * mantemos uma lista mínima de contingência
-     * para não deixar o equipamento inutilizável.
-     */
-
-    operadores = [
-
-      'Guilherme',
-      'Jessica',
-      'Airton',
-      'Marco',
-      'Célio',
-      'Walisson'
-
-    ];
-
-
-    produtos = [
-
-      {
-        nome:
-          'Reservatório 25L',
-
-        ciclo:
-          130
-
-      },
-
-      {
-        nome:
-          'Reservatório 50L',
-
-        ciclo:
-          140
-
-      },
-
-      {
-        nome:
-          'Tampa de 50L cinza',
-
-        ciclo:
-          100
-
-      },
-
-      {
-        nome:
-          'Tampa de 100L Cinza',
-
-        ciclo:
-          155
-
-      }
-
-    ];
-
-
-    preencherSelecoes();
-
-
-    verificarFormulario();
-
-
-    mostrarMensagem(
-      '⚠️ Cadastros temporariamente carregados em modo de contingência.',
-      'warning'
-    );
-
   }
-
-}
-
-
-function preencherSelecoes() {
-
-  const selectOperador =
-    document.getElementById(
-      'operador'
-    );
-
-
-  const selectProduto =
-    document.getElementById(
-      'produto'
-    );
-
-
-  if (
-    !selectOperador ||
-    !selectProduto
-  ) {
-
-    return;
-
-  }
-
-
-  selectOperador.innerHTML =
-    '<option value="">Selecione o operador</option>';
-
-
-  operadores.forEach(
-    function(nome) {
-
-      const option =
-        document.createElement(
-          'option'
-        );
-
-
-      option.value =
-        nome;
-
-
-      option.textContent =
-        nome;
-
-
-      selectOperador
-        .appendChild(
-          option
-        );
-
-    }
-  );
-
-
-  selectProduto.innerHTML =
-    '<option value="">Selecione o produto</option>';
-
-
-  produtos.forEach(
-    function(produto) {
-
-      const ehTexto =
-        typeof produto ===
-        'string';
-
-
-      const nome =
-        ehTexto
-          ? produto
-          : produto.nome;
-
-
-      const ciclo =
-        ehTexto
-          ? 0
-          : Number(
-              produto.ciclo ||
-              0
-            );
-
-
-      const option =
-        document.createElement(
-          'option'
-        );
-
-
-      option.value =
-        nome;
-
-
-      option.textContent =
-        nome;
-
-
-      option.dataset.ciclo =
-        String(
-          ciclo
-        );
-
-
-      selectProduto
-        .appendChild(
-          option
-        );
-
-    }
-  );
 
 }
 
