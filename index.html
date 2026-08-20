@@ -1522,6 +1522,14 @@ async function salvarEstadoInicialGravacao() {
     duracaoReal:
       0,
 
+    inicioVideo:
+      inicioGravacao
+        ? inicioGravacao.toISOString()
+        : '',
+
+    fimVideo:
+      '',
+
     mimeType:
       mediaRecorder.mimeType ||
       'video/webm',
@@ -1776,7 +1784,16 @@ async function processarJobUpload(
             job.conforme,
 
           ciclo:
-            job.ciclo
+            job.ciclo,
+
+          duracaoReal:
+            job.duracaoReal,
+
+          inicioVideo:
+            job.inicioVideo,
+
+          fimVideo:
+            job.fimVideo
 
         }
       );
@@ -3577,6 +3594,12 @@ function iniciarGravacao() {
           duracaoReal:
             duracaoReal,
 
+          inicioVideo:
+            inicioGravacao.toISOString(),
+
+          fimVideo:
+            fimGravacao.toISOString(),
+
           mimeType:
             tipo,
 
@@ -4182,6 +4205,27 @@ function dispararPostChunk(
   );
 
 
+  adicionarCampo(
+    formulario,
+    'duracaoReal',
+    dados.duracaoReal
+  );
+
+
+  adicionarCampo(
+    formulario,
+    'inicioVideo',
+    dados.inicioVideo
+  );
+
+
+  adicionarCampo(
+    formulario,
+    'fimVideo',
+    dados.fimVideo
+  );
+
+
   document.body.appendChild(
     formulario
   );
@@ -4617,10 +4661,28 @@ function dispararPostFinalizacao(
     'duracaoReal',
     String(
       job &&
-      job.duracaoReal
+      job.duracaoReal != null
         ? job.duracaoReal
         : 0
     )
+  );
+
+
+  adicionarCampo(
+    formulario,
+    'inicioVideo',
+    job && job.inicioVideo
+      ? job.inicioVideo
+      : ''
+  );
+
+
+  adicionarCampo(
+    formulario,
+    'fimVideo',
+    job && job.fimVideo
+      ? job.fimVideo
+      : ''
   );
 
 
