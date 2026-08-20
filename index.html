@@ -2191,8 +2191,33 @@ function formatarTempo(
 
 async function carregarDados() {
 
+  /*
+   * FASE ATUAL:
+   * A máquina NÃO é validada pela planilha.
+   * A identificação vem do parâmetro ?m= da URL.
+   * Posteriormente isso será substituído/confirmado por NFC.
+   */
+
+  maquinaValida =
+    !!maquina;
+
+
+  if (
+    !maquinaValida
+  ) {
+
+    mostrarMensagem(
+      '❌ Máquina não informada. Use o endereço com ?m=M1.',
+      'error'
+    );
+
+    return;
+
+  }
+
+
   mostrarMensagem(
-    '🔄 Identificando máquina...',
+    '🔄 Carregando operadores e produtos...',
     'warning'
   );
 
@@ -2226,10 +2251,9 @@ async function carregarDados() {
         script.parentNode
       ) {
 
-        script.parentNode
-          .removeChild(
-            script
-          );
+        script.parentNode.removeChild(
+          script
+        );
 
       }
 
@@ -2268,81 +2292,66 @@ async function carregarDados() {
     limpar();
 
 
+    /*
+     * A máquina já está identificada localmente.
+     * O backend serve apenas para carregar listas
+     * e a configuração do áudio.
+     */
     if (
-      !dados ||
-      !dados.sucesso
+      dados &&
+      dados.sucesso
     ) {
 
-      console.error(
-        '[IDENTIFICACAO_MAQUINA]',
+      operadores =
+        Array.isArray(
+          dados.operadores
+        )
+          ? dados.operadores
+          : operadores;
+
+
+      produtos =
+        Array.isArray(
+          dados.produtos
+        )
+          ? dados.produtos
+          : produtos;
+
+
+      TEMPO_MAX_AUDIO =
+        Math.max(
+          1,
+          Number(
+            dados.tempoMaxAudio ||
+            30
+          )
+        );
+
+
+      try {
+
+        preencherOperadores();
+
+      }
+      catch (erro) {}
+
+
+      try {
+
+        preencherProdutos();
+
+      }
+      catch (erro) {}
+
+    }
+    else {
+
+      console.warn(
+        '[DADOS_INICIAIS]',
         dados
       );
 
-      mostrarMensagem(
-        dados &&
-        dados.erro
-          ? dados.erro
-          : 'Não foi possível identificar a máquina.',
-        'error'
-      );
-
-
-      return;
-
     }
-
-
-    maquinaValida =
-      !!dados.maquinaValida;
-
-
-    if (
-      !maquinaValida
-    ) {
-
-      mostrarMensagem(
-        '⚠️ Máquina ' +
-        maquina +
-        ' não cadastrada ou inativa.',
-        'error'
-      );
-
-
-      return;
-
-    }
-
-
-    operadores =
-      Array.isArray(
-        dados.operadores
-      )
-        ? dados.operadores
-        : [];
-
-
-    produtos =
-      Array.isArray(
-        dados.produtos
-      )
-        ? dados.produtos
-        : [];
-
-
-    TEMPO_MAX_AUDIO =
-      Math.max(
-        1,
-        Number(
-          dados.tempoMaxAudio ||
-          30
-        )
-      );
-
-
-    preencherOperadores();
-
-
-    preencherProdutos();
 
 
     mostrarMensagem(
@@ -2353,9 +2362,16 @@ async function carregarDados() {
     );
 
 
+    /*
+     * Libera o formulário independentemente da
+     * validação da máquina no backend.
+     */
     try {
-      document.getElementById('mainForm').classList.remove('hidden');
-    } catch (erro) {}
+
+      liberarSelecaoInicial();
+
+    }
+    catch (erro) {}
 
   };
 
@@ -2416,9 +2432,19 @@ async function carregarDados() {
 
 
       mostrarMensagem(
-        '❌ Falha de comunicação com o servidor ao identificar a máquina.',
-        'error'
+        '✅ Máquina ' +
+        maquina +
+        ' identificada. Não foi possível atualizar operadores/produtos agora.',
+        'warning'
       );
+
+
+      try {
+
+        liberarSelecaoInicial();
+
+      }
+      catch (erro) {}
 
     };
 
@@ -2431,12 +2457,22 @@ async function carregarDados() {
 
 
         mostrarMensagem(
-          '❌ Tempo excedido ao identificar a máquina. Verifique a URL do Apps Script/publicação.',
-          'error'
+          '✅ Máquina ' +
+          maquina +
+          ' identificada. Servidor não respondeu; a seleção continuará disponível.',
+          'warning'
         );
 
+
+        try {
+
+          liberarSelecaoInicial();
+
+        }
+        catch (erro) {}
+
       },
-      15000
+      10000
     );
 
 
@@ -2445,6 +2481,57 @@ async function carregarDados() {
   );
 
 }
+
+
+
+
+function liberarSelecaoInicial() {
+
+  try {
+
+    const campoOperador =
+      document.getElementById(
+        'operador'
+      );
+
+
+    const campoProduto =
+      document.getElementById(
+        'produto'
+      );
+
+
+    if (
+      campoOperador
+    ) {
+
+      campoOperador.disabled =
+        false;
+
+    }
+
+
+    if (
+      campoProduto
+    ) {
+
+      campoProduto.disabled =
+        false;
+
+    }
+
+  }
+  catch (erro) {
+
+    console.warn(
+      'Falha ao liberar seleção:',
+      erro
+    );
+
+  }
+
+}
+
 
 
 
