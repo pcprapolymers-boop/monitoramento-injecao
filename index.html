@@ -1895,6 +1895,26 @@ async function processarJobUpload(
       job.status === 'finalizing' ||
       Number(job.nextChunk || 0) >= Number(job.totalChunks || 0);
 
+    if (
+      falhouNaFinalizacao
+    ) {
+
+      mostrarMensagem(
+        '⚠️ Falha na montagem/finalização: ' +
+        (
+          erro &&
+          erro.message
+            ? erro.message
+            : String(
+                erro
+              )
+        ) +
+        '. O vídeo continua protegido no aparelho.',
+        'warning'
+      );
+
+    }
+
     job.status =
       'paused';
 
@@ -4248,6 +4268,28 @@ function dispararPostChunk(
   );
 
 
+  console.log(
+    '[UPLOAD_FINALIZE] POST enviado',
+    {
+      uploadId:
+        uploadId,
+
+      totalChunks:
+        job &&
+        job.totalChunks
+          ? job.totalChunks
+          : 0,
+
+      mimeType:
+        job &&
+        job.mimeType
+          ? job.mimeType
+          : 'video/webm'
+
+    }
+  );
+
+
   formulario.submit();
 
 
@@ -4588,7 +4630,8 @@ async function finalizarUpload(
   }
 
   dispararPostFinalizacao(
-    uploadId
+    uploadId,
+    job
   );
 
   return aguardarStatusFinal(
@@ -4603,7 +4646,8 @@ async function finalizarUpload(
  * Dispara a requisição de finalização.
  */
 function dispararPostFinalizacao(
-  uploadId
+  uploadId,
+  job
 ) {
 
   const frame =
