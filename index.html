@@ -1827,6 +1827,11 @@ async function processarJobUpload(
 
     await atualizarFilaUI();
 
+    mostrarMensagem(
+      '🧩 Montando o vídeo no Google Drive — aguarde...',
+      'warning'
+    );
+
     const resultado =
       await finalizarUpload(
         job
@@ -1926,6 +1931,14 @@ async function processarJobUpload(
 
       mostrarMensagem(
         '📡 Sem conexão. O vídeo ficou salvo e será retomado quando a internet voltar.',
+        'warning'
+      );
+
+    }
+    else if (job.status === 'finalizing' || Number(job.nextChunk || 0) >= Number(job.totalChunks || 0)) {
+
+      mostrarMensagem(
+        '⚠️ A montagem/confirmação do vídeo foi interrompida. O vídeo permanece salvo no aparelho e a montagem será tentada novamente automaticamente.',
         'warning'
       );
 
@@ -4932,7 +4945,7 @@ function aguardarStatusFinal(
 
           script.src =
             URL_APPS_SCRIPT +
-            '?status=latest' +
+            '?status=final' +
             '&uploadId=' +
             encodeURIComponent(
               uploadId
