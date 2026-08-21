@@ -1,3 +1,5 @@
+ativarDebugLocalSeSolicitado();
+
 <!DOCTYPE html>
 <html lang="pt-BR">
 
@@ -419,6 +421,42 @@
     >
       🔄 PROCESSAR FILA AGORA
     </button>
+
+  </div>
+
+
+
+  <div
+    id="debugLocalContainer"
+    class="card hidden"
+    style="margin-bottom:12px;"
+  >
+
+    <div
+      style="font-weight:bold;margin-bottom:8px;"
+    >
+      🧪 Diagnóstico local da fila
+    </div>
+
+    <button
+      class="btn-secondary"
+      type="button"
+      onclick="abrirDebugLocal()"
+      style="width:100%;margin-bottom:8px;"
+    >
+      🔎 ATUALIZAR DIAGNÓSTICO
+    </button>
+
+    <pre
+      id="debugLocalPanel"
+      style="
+        white-space:pre-wrap;
+        font-size:11px;
+        max-height:260px;
+        overflow:auto;
+        margin:0;
+      "
+    ></pre>
 
   </div>
 
@@ -1709,147 +1747,115 @@ function debugUploadCliente(
 ) {
 
   /*
-   * Debug não pode quebrar o fluxo de upload.
+   * DEBUG LOCAL — NÃO FAZ NENHUMA CHAMADA DE REDE.
+   *
+   * O diagnóstico fica no próprio aparelho.
+   * Isso evita os pop-ups de "Permitir acesso de rede?".
    */
 
   try {
 
-    const dados =
-      detalhes || {};
+    const chave =
+      'DEBUG_UPLOAD_LOCAL';
 
 
-    const uploadId =
-      job &&
-      job.uploadId
-        ? job.uploadId
-        : (
-            dados.uploadId ||
-            ''
-          );
+    let historico = [];
 
 
-    const callbackName =
-      'clientDebug_' +
-      Date.now() +
-      '_' +
-      Math.random()
-        .toString(36)
-        .substring(
-          2,
-          8
+    try {
+
+      historico =
+        JSON.parse(
+          localStorage.getItem(
+            chave
+          ) ||
+          '[]'
         );
 
+    }
+    catch (erro) {
 
-    const script =
-      document.createElement(
-        'script'
-      );
+      historico = [];
 
-
-    const params =
-      new URLSearchParams();
+    }
 
 
-    params.set(
-      'status',
-      'clientDebug'
-    );
+    historico.push({
 
-    params.set(
-      'uploadId',
-      uploadId
-    );
+      dataHora:
+        new Date()
+          .toLocaleString(
+            'pt-BR'
+          ),
 
-    params.set(
-      'etapa',
-      etapa
-    );
+      etapa:
+        String(
+          etapa ||
+          ''
+        ),
 
-    params.set(
-      'detalhes',
+      uploadId:
+        job &&
+        job.uploadId
+          ? job.uploadId
+          : '',
+
+      mediaType:
+        job &&
+        job.mediaType
+          ? job.mediaType
+          : '',
+
+      status:
+        job &&
+        job.status
+          ? job.status
+          : '',
+
+      nextChunk:
+        job &&
+        job.nextChunk != null
+          ? job.nextChunk
+          : '',
+
+      totalChunks:
+        job &&
+        job.totalChunks != null
+          ? job.totalChunks
+          : '',
+
+      detalhes:
+        detalhes ||
+        {}
+
+    });
+
+
+    if (
+      historico.length >
+      150
+    ) {
+
+      historico =
+        historico.slice(
+          historico.length - 150
+        );
+
+    }
+
+
+    localStorage.setItem(
+      chave,
       JSON.stringify(
-        dados
+        historico
       )
-    );
-
-    params.set(
-      'callback',
-      callbackName
-    );
-
-    params.set(
-      '_',
-      Date.now()
-    );
-
-
-    window[
-      callbackName
-    ] =
-    function() {
-
-      try {
-
-        delete window[
-          callbackName
-        ];
-
-      }
-      catch (erro) {}
-
-      try {
-
-        if (
-          script.parentNode
-        ) {
-
-          script.parentNode
-            .removeChild(
-              script
-            );
-
-        }
-
-      }
-      catch (erro) {}
-
-    };
-
-
-    script.src =
-      URL_APPS_SCRIPT +
-      '?' +
-      params.toString();
-
-
-    script.async =
-      true;
-
-
-    script.onerror =
-      function() {
-
-        try {
-
-          delete window[
-            callbackName
-          ];
-
-        }
-        catch (erro) {}
-
-      };
-
-
-    document.head.appendChild(
-      script
     );
 
   }
   catch (erro) {
 
     console.warn(
-      'Falha no debug cliente:',
+      'Falha no debug local:',
       erro
     );
 
@@ -1857,6 +1863,119 @@ function debugUploadCliente(
 
 }
 
+
+function abrirDebugLocal() {
+
+  const painel =
+    document.getElementById(
+      'debugLocalPanel'
+    );
+
+
+  if (
+    !painel
+  ) {
+
+    return;
+
+  }
+
+
+  let historico = [];
+
+
+  try {
+
+    historico =
+      JSON.parse(
+        localStorage.getItem(
+          'DEBUG_UPLOAD_LOCAL'
+        ) ||
+        '[]'
+      );
+
+  }
+  catch (erro) {
+
+    historico = [];
+
+  }
+
+
+  painel.textContent =
+    historico.length
+      ? historico
+          .map(
+            function(item) {
+
+              return (
+                '[' +
+                item.dataHora +
+                '] ' +
+                item.etapa +
+                ' | upload=' +
+                (
+                  item.uploadId ||
+                  '-'
+                ) +
+                ' | status=' +
+                (
+                  item.status ||
+                  '-'
+                ) +
+                ' | ' +
+                JSON.stringify(
+                  item.detalhes
+                )
+              );
+
+            }
+          )
+          .join(
+            '\n'
+          )
+      : 'Nenhum diagnóstico registrado.';
+
+}
+
+
+function ativarDebugLocalSeSolicitado() {
+
+  const ativo =
+    new URLSearchParams(
+      window.location.search
+    ).get(
+      'debug'
+    ) ===
+    '1';
+
+
+  if (
+    !ativo
+  ) {
+
+    return;
+
+  }
+
+
+  const container =
+    document.getElementById(
+      'debugLocalContainer'
+    );
+
+
+  if (
+    container
+  ) {
+
+    container.classList.remove(
+      'hidden'
+    );
+
+  }
+
+}
 
 
 async function processarFilaUploads() {
@@ -1870,92 +1989,51 @@ async function processarFilaUploads() {
     );
 
     return;
-
   }
 
+  if (navigator.onLine === false) {
 
-  if (
-    navigator.onLine ===
-    false
-  ) {
-
-    debugUploadCliente(
-      'FILA_SEM_INTERNET',
-      uploadJobAtual,
-      {}
-    );
-
-
-    await atualizarFilaUI();
-
+    atualizarFilaUI();
     return;
 
   }
 
-
   filaProcessando =
     true;
-
-
-  debugUploadCliente(
-    'FILA_INICIO',
-    uploadJobAtual,
-    {
-      online:
-        navigator.onLine
-    }
-  );
-
 
   try {
 
     await solicitarArmazenamentoPersistente();
 
-
-    while (
-      true
-    ) {
+    while (true) {
 
       const jobs =
         await listarJobsLocais();
-
 
       const job =
         jobs.find(
           function(item) {
 
             if (
-              item.status ===
-              'recording'
+              item.status === 'recording'
             ) {
-
               return false;
-
             }
-
 
             if (
               item.nextAttemptAt &&
               Date.now() <
-                Number(
-                  item.nextAttemptAt
-                )
+                Number(item.nextAttemptAt)
             ) {
-
               return false;
-
             }
-
 
             return true;
 
           }
         );
 
-
-      if (
-        !job
-      ) {
+      if (!job) {
 
         debugUploadCliente(
           'FILA_SEM_JOB_ELEGIVEL',
@@ -1971,9 +2049,6 @@ async function processarFilaUploads() {
                   return {
                     uploadId:
                       item.uploadId,
-
-                    mediaType:
-                      item.mediaType,
 
                     status:
                       item.status,
@@ -1993,40 +2068,22 @@ async function processarFilaUploads() {
           }
         );
 
-
         break;
-
       }
-
 
       uploadJobAtual =
         job;
 
-
       debugUploadCliente(
         'FILA_JOB_SELECIONADO',
         job,
-        {
-          status:
-            job.status,
-
-          nextChunk:
-            job.nextChunk,
-
-          totalChunks:
-            job.totalChunks
-        }
+        {}
       );
-
 
       await atualizarFilaUI();
 
-
       const ok =
-        await processarJobUpload(
-          job
-        );
-
+        await processarJobUpload(job);
 
       debugUploadCliente(
         ok
@@ -2039,33 +2096,18 @@ async function processarFilaUploads() {
         }
       );
 
+      if (!ok) {
+        /*
+         * Um upload pausado não bloqueia os demais.
+         * A próxima tentativa será controlada por nextAttemptAt.
+         */
+        continue;
+      }
+
     }
 
   }
-  catch (
-    erro
-  ) {
-
-    debugUploadCliente(
-      'FILA_ERRO_GLOBAL',
-      uploadJobAtual,
-      {
-        erro:
-          erro &&
-          erro.message
-            ? erro.message
-            : String(
-                erro
-              ),
-
-        stack:
-          erro &&
-          erro.stack
-            ? erro.stack
-            : ''
-      }
-    );
-
+  catch (erro) {
 
     console.warn(
       'Fila de uploads pausada:',
@@ -2078,26 +2120,14 @@ async function processarFilaUploads() {
     uploadJobAtual =
       null;
 
-
     filaProcessando =
       false;
 
-
     await atualizarFilaUI();
-
-
-    debugUploadCliente(
-      'FILA_FIM',
-      null,
-      {}
-    );
 
   }
 
 }
-
-
-
 
 
 async function liberarWakeLockSeSeguro() {
@@ -2124,22 +2154,8 @@ async function processarJobUpload(
   debugUploadCliente(
     'JOB_INICIO',
     job,
-    {
-      mediaType:
-        job.mediaType ||
-        'VIDEO',
-
-      status:
-        job.status,
-
-      nextChunk:
-        job.nextChunk,
-
-      totalChunks:
-        job.totalChunks
-    }
+    {}
   );
-
 
   try {
 
@@ -2179,7 +2195,6 @@ async function processarJobUpload(
             indice
         }
       );
-
 
       const registroChunk =
         await obterChunkLocal(
@@ -2223,7 +2238,6 @@ async function processarJobUpload(
             indice
         }
       );
-
 
       await enviarChunk(
         {
@@ -2283,7 +2297,6 @@ async function processarJobUpload(
         }
       );
 
-
       job.nextChunk =
         indice +
         1;
@@ -2332,20 +2345,15 @@ async function processarJobUpload(
       }
     );
 
-
     const resultado =
       await finalizarUpload(
         job
       );
 
-
     debugUploadCliente(
       'FINALIZAR_UPLOAD_RETORNOU',
       job,
       {
-        sucesso:
-          !!resultado,
-
         idArquivo:
           resultado &&
           resultado.idArquivo
@@ -2429,19 +2437,9 @@ async function processarJobUpload(
           erro &&
           erro.stack
             ? erro.stack
-            : '',
-
-        status:
-          job.status,
-
-        nextChunk:
-          job.nextChunk,
-
-        totalChunks:
-          job.totalChunks
+            : ''
       }
     );
-
 
     console.warn(
       'Job pausado:',
@@ -2528,7 +2526,7 @@ async function processarJobUpload(
     else {
 
       mostrarMensagem(
-        '⚠️ O envio foi pausado. O vídeo permanece salvo no aparelho e será retomado automaticamente.',
+        '⚠️ O envio foi pausado. O arquivo permanece salvo no aparelho. Para diagnóstico, abra esta página com ?debug=1.',
         'warning'
       );
 
@@ -5503,52 +5501,8 @@ function dispararPostChunk(
   document.body.appendChild(
     formulario
   );
-  debugUploadCliente(
-    'POST_CHUNK_PREPARADO',
-    {
-      uploadId:
-        dados.uploadId,
-
-      mediaType:
-        dados.mediaType ||
-        'VIDEO',
-
-      chunkIndex:
-        dados.chunkIndex,
-
-      totalChunks:
-        dados.totalChunks,
-
-      bytesBase64:
-        dados.chunkBase64
-          ? dados.chunkBase64.length
-          : 0
-    },
-    dados
-  );
-
-
   formulario.submit();
 
-
-  debugUploadCliente(
-    'POST_CHUNK_SUBMETIDO',
-    {
-      uploadId:
-        dados.uploadId,
-
-      mediaType:
-        dados.mediaType ||
-        'VIDEO',
-
-      chunkIndex:
-        dados.chunkIndex,
-
-      totalChunks:
-        dados.totalChunks
-    },
-    dados
-  );
 
 
   /*
@@ -6025,28 +5979,6 @@ function dispararPostFinalizacao(
 
   document.body.appendChild(
     formulario
-  );
-
-
-  debugUploadCliente(
-    'POST_FINALIZACAO_SUBMETIDO',
-    job,
-    {
-      tipo:
-        job &&
-        job.mediaType === 'AUDIO'
-          ? 'AUDIO_FINALIZE'
-          : 'VIDEO_FINALIZE',
-
-      uploadId:
-        uploadId,
-
-      totalChunks:
-        job &&
-        job.totalChunks
-          ? job.totalChunks
-          : 0
-    }
   );
 
 
