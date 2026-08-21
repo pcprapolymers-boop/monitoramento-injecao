@@ -5352,28 +5352,14 @@ function adicionarCampo(
 }
 
 
-function enviarChunk(
+async function enviarChunk(
   dados
 ) {
 
-  /*
-   * Primeiro disparamos o POST para o Apps Script.
-   *
-   * Não aguardamos a resposta do POST, porque o
-   * navegador não consegue ler uma resposta cross-origin
-   * com segurança neste cenário.
-   */
-
-  dispararPostChunk(
+  await dispararPostChunk(
     dados
   );
 
-
-  /*
-   * Depois confirmamos a chegada consultando um endpoint
-   * JSONP. <script src> pode carregar conteúdo cross-origin
-   * sem depender de CORS.
-   */
 
   return aguardarStatusChunk(
     dados.uploadId,
@@ -5383,70 +5369,38 @@ function enviarChunk(
 }
 
 
+
+
+
 /*
  * Dispara o POST do chunk através de um formulário oculto.
  */
-function dispararPostChunk(
+
+function verificarFetchUpload() {
+
+  if (
+    typeof fetch !==
+    'function'
+  ) {
+
+    throw new Error(
+      'FETCH_API_INDISPONIVEL'
+    );
+
+  }
+
+}
+
+
+async function dispararPostChunk(
   dados
 ) {
 
-  const frame =
-    document.createElement(
-      'iframe'
-    );
+  const parametros =
+    new URLSearchParams();
 
 
-  const frameName =
-    'postChunk_' +
-    Date.now() +
-    '_' +
-    dados.chunkIndex +
-    '_' +
-    Math.random()
-      .toString(36)
-      .substring(
-        2,
-        8
-      );
-
-
-  frame.name =
-    frameName;
-
-
-  frame.style.display =
-    'none';
-
-
-  document.body.appendChild(
-    frame
-  );
-
-
-  const formulario =
-    document.createElement(
-      'form'
-    );
-
-
-  formulario.method =
-    'POST';
-
-
-  formulario.action =
-    URL_APPS_SCRIPT;
-
-
-  formulario.target =
-    frameName;
-
-
-  formulario.style.display =
-    'none';
-
-
-  adicionarCampo(
-    formulario,
+  parametros.set(
     'tipo',
     dados &&
     dados.mediaType === 'AUDIO'
@@ -5455,15 +5409,13 @@ function dispararPostChunk(
   );
 
 
-  adicionarCampo(
-    formulario,
+  parametros.set(
     'uploadId',
     dados.uploadId
   );
 
 
-  adicionarCampo(
-    formulario,
+  parametros.set(
     'chunkIndex',
     String(
       dados.chunkIndex
@@ -5471,8 +5423,7 @@ function dispararPostChunk(
   );
 
 
-  adicionarCampo(
-    formulario,
+  parametros.set(
     'totalChunks',
     String(
       dados.totalChunks
@@ -5480,124 +5431,215 @@ function dispararPostChunk(
   );
 
 
-  adicionarCampo(
-    formulario,
+  parametros.set(
     'chunkBase64',
     dados.chunkBase64
   );
 
 
-  adicionarCampo(
-    formulario,
+  parametros.set(
     'mimeType',
-    dados.mimeType
+    dados.mimeType ||
+    'video/webm'
   );
 
 
-  adicionarCampo(
-    formulario,
+  parametros.set(
     'maquina',
-    dados.maquina
+    dados.maquina ||
+    ''
   );
 
 
-  adicionarCampo(
-    formulario,
+  parametros.set(
     'operador',
-    dados.operador
+    dados.operador ||
+    ''
   );
 
 
-  adicionarCampo(
-    formulario,
+  parametros.set(
     'produto',
-    dados.produto
+    dados.produto ||
+    ''
   );
 
 
-  adicionarCampo(
-    formulario,
+  parametros.set(
     'conforme',
-    dados.conforme
+    dados.conforme ||
+    ''
   );
 
 
-  adicionarCampo(
-    formulario,
+  parametros.set(
     'ciclo',
-    dados.ciclo
+    dados.ciclo ||
+    ''
   );
 
 
-  adicionarCampo(
-    formulario,
+  parametros.set(
     'duracaoReal',
-    dados.duracaoReal
+    dados.duracaoReal ||
+    ''
   );
 
 
-  adicionarCampo(
-    formulario,
+  parametros.set(
     'inicioVideo',
-    dados.inicioVideo
+    dados.inicioVideo ||
+    ''
   );
 
 
-  adicionarCampo(
-    formulario,
+  parametros.set(
     'fimVideo',
-    dados.fimVideo
+    dados.fimVideo ||
+    ''
   );
 
 
-  document.body.appendChild(
-    formulario
-  );
-  formulario.submit();
+  debugUploadCliente(
+    'FETCH_CHUNK_INICIO',
+    {
+      uploadId:
+        dados.uploadId,
 
+      mediaType:
+        dados.mediaType ||
+        'VIDEO',
+
+      nextChunk:
+        dados.chunkIndex,
+
+      totalChunks:
+        dados.totalChunks
+    },
+    {
+      bytesBase64:
+        dados.chunkBase64
+          ? dados.chunkBase64.length
+          : 0
+    }
+  );
+
+
+  let respostaFetch;
+
+
+  try {
+
+    respostaFetch =
+      await fetch(
+        URL_APPS_SCRIPT,
+        {
+          method:
+            'POST',
+
+          mode:
+            'no-cors',
+
+          cache:
+            'no-store',
+
+          credentials:
+            'omit',
+
+          headers: {
+
+            'Content-Type':
+              'application/x-www-form-urlencoded;charset=UTF-8'
+
+          },
+
+          body:
+            parametros.toString()
+        }
+      );
+
+
+  }
+  catch (erro) {
+
+    debugUploadCliente(
+      'FETCH_CHUNK_ERRO',
+      {
+        uploadId:
+          dados.uploadId,
+
+        mediaType:
+          dados.mediaType ||
+          'VIDEO',
+
+        nextChunk:
+          dados.chunkIndex,
+
+        totalChunks:
+          dados.totalChunks
+      },
+      {
+        erro:
+          erro &&
+          erro.message
+            ? erro.message
+            : String(
+                erro
+              ),
+
+        stack:
+          erro &&
+          erro.stack
+            ? erro.stack
+            : ''
+      }
+    );
+
+
+    throw erro;
+
+  }
 
 
   /*
-   * O iframe fica apenas como destino silencioso da requisição.
-   * Não dependemos do evento load.
+   * Em no-cors a resposta é opaca.
+   * O que importa é a confirmação posterior
+   * via JSONP/status=chunk.
    */
 
-  setTimeout(
-    function() {
+  debugUploadCliente(
+    'FETCH_CHUNK_ENVIADO',
+    {
+      uploadId:
+        dados.uploadId,
 
-      try {
+      mediaType:
+        dados.mediaType ||
+        'VIDEO',
 
-        document.body
-          .removeChild(
-            formulario
-          );
+      nextChunk:
+        dados.chunkIndex,
 
-      }
-      catch (erro) {}
-
+      totalChunks:
+        dados.totalChunks
     },
-    2000
-  );
+    {
+      type:
+        respostaFetch
+          ? respostaFetch.type
+          : '',
 
-
-  setTimeout(
-    function() {
-
-      try {
-
-        document.body
-          .removeChild(
-            frame
-          );
-
-      }
-      catch (erro) {}
-
-    },
-    30000
+      status:
+        respostaFetch
+          ? respostaFetch.status
+          : ''
+    }
   );
 
 }
+
+
+
 
 
 /*
@@ -5963,20 +6005,28 @@ async function finalizarUpload(
 ) {
 
   const uploadId =
-    job && job.uploadId
+    job &&
+    job.uploadId
       ? job.uploadId
       : null;
 
-  if (!uploadId) {
+
+  if (
+    !uploadId
+  ) {
+
     throw new Error(
       'Upload ID não informado para finalização.'
     );
+
   }
 
-  dispararPostFinalizacao(
+
+  await dispararPostFinalizacao(
     uploadId,
     job
   );
+
 
   return aguardarStatusFinal(
     uploadId,
@@ -5986,69 +6036,22 @@ async function finalizarUpload(
 }
 
 
+
+
+
 /*
  * Dispara a requisição de finalização.
  */
-function dispararPostFinalizacao(
+async function dispararPostFinalizacao(
   uploadId,
   job
 ) {
 
-  const frame =
-    document.createElement(
-      'iframe'
-    );
+  const parametros =
+    new URLSearchParams();
 
 
-  const frameName =
-    'postFinalize_' +
-    Date.now() +
-    '_' +
-    Math.random()
-      .toString(36)
-      .substring(
-        2,
-        8
-      );
-
-
-  frame.name =
-    frameName;
-
-
-  frame.style.display =
-    'none';
-
-
-  document.body.appendChild(
-    frame
-  );
-
-
-  const formulario =
-    document.createElement(
-      'form'
-    );
-
-
-  formulario.method =
-    'POST';
-
-
-  formulario.action =
-    URL_APPS_SCRIPT;
-
-
-  formulario.target =
-    frameName;
-
-
-  formulario.style.display =
-    'none';
-
-
-  adicionarCampo(
-    formulario,
+  parametros.set(
     'tipo',
     job &&
     job.mediaType === 'AUDIO'
@@ -6057,102 +6060,204 @@ function dispararPostFinalizacao(
   );
 
 
-  adicionarCampo(
-    formulario,
+  parametros.set(
     'uploadId',
     uploadId
   );
 
-  adicionarCampo(
-    formulario,
+
+  parametros.set(
     'totalChunks',
-    job && job.totalChunks != null
-      ? job.totalChunks
-      : 0
+    job &&
+    job.totalChunks != null
+      ? String(
+          job.totalChunks
+        )
+      : '0'
   );
 
-  adicionarCampo(
-    formulario,
+
+  parametros.set(
     'mimeType',
-    job && job.mimeType
+    job &&
+    job.mimeType
       ? job.mimeType
       : 'video/webm'
   );
 
-  adicionarCampo(
-    formulario,
+
+  parametros.set(
     'duracaoReal',
-    String(
-      job &&
-      job.duracaoReal != null
-        ? job.duracaoReal
-        : 0
-    )
+    job &&
+    job.duracaoReal != null
+      ? String(
+          job.duracaoReal
+        )
+      : '0'
   );
 
 
-  adicionarCampo(
-    formulario,
+  parametros.set(
     'inicioVideo',
-    job && job.inicioVideo
+    job &&
+    job.inicioVideo
       ? job.inicioVideo
       : ''
   );
 
 
-  adicionarCampo(
-    formulario,
+  parametros.set(
     'fimVideo',
-    job && job.fimVideo
+    job &&
+    job.fimVideo
       ? job.fimVideo
       : ''
   );
 
 
-  document.body.appendChild(
-    formulario
+  parametros.set(
+    'maquina',
+    job &&
+    job.maquina
+      ? job.maquina
+      : ''
   );
 
 
-  formulario.submit();
-
-
-  setTimeout(
-    function() {
-
-      try {
-
-        document.body
-          .removeChild(
-            formulario
-          );
-
-      }
-      catch (erro) {}
-
-    },
-    2000
+  parametros.set(
+    'operador',
+    job &&
+    job.operador
+      ? job.operador
+      : ''
   );
 
 
-  setTimeout(
-    function() {
+  parametros.set(
+    'produto',
+    job &&
+    job.produto
+      ? job.produto
+      : ''
+  );
 
-      try {
 
-        document.body
-          .removeChild(
-            frame
-          );
+  parametros.set(
+    'conforme',
+    job &&
+    job.conforme
+      ? job.conforme
+      : ''
+  );
 
+
+  parametros.set(
+    'ciclo',
+    job &&
+    job.ciclo
+      ? job.ciclo
+      : ''
+  );
+
+
+  parametros.set(
+    'parentUploadId',
+    job &&
+    job.parentUploadId
+      ? job.parentUploadId
+      : ''
+  );
+
+
+  debugUploadCliente(
+    'FETCH_FINALIZACAO_INICIO',
+    job,
+    {}
+  );
+
+
+  let respostaFetch;
+
+
+  try {
+
+    respostaFetch =
+      await fetch(
+        URL_APPS_SCRIPT,
+        {
+          method:
+            'POST',
+
+          mode:
+            'no-cors',
+
+          cache:
+            'no-store',
+
+          credentials:
+            'omit',
+
+          headers: {
+
+            'Content-Type':
+              'application/x-www-form-urlencoded;charset=UTF-8'
+
+          },
+
+          body:
+            parametros.toString()
+        }
+      );
+
+  }
+  catch (erro) {
+
+    debugUploadCliente(
+      'FETCH_FINALIZACAO_ERRO',
+      job,
+      {
+        erro:
+          erro &&
+          erro.message
+            ? erro.message
+            : String(
+                erro
+              ),
+
+        stack:
+          erro &&
+          erro.stack
+            ? erro.stack
+            : ''
       }
-      catch (erro) {}
+    );
 
-    },
-    300000
+
+    throw erro;
+
+  }
+
+
+  debugUploadCliente(
+    'FETCH_FINALIZACAO_ENVIADO',
+    job,
+    {
+      type:
+        respostaFetch
+          ? respostaFetch.type
+          : '',
+
+      status:
+        respostaFetch
+          ? respostaFetch.status
+          : ''
+    }
   );
 
 }
+
+
+
 
 
 /*
