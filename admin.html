@@ -328,6 +328,17 @@ tr:nth-child(even) td {
       Nenhuma consulta realizada.
     </div>
 
+    <div
+      style="
+        margin:8px 0 12px;
+        color:var(--muted);
+        font-size:13px;
+      "
+    >
+      🎙️ Quando houver áudio associado à inspeção, o botão
+      <strong>OUVIR</strong> abre a gravação armazenada no Google Drive.
+    </div>
+
 
     <div class="table-wrap">
 
@@ -346,6 +357,7 @@ tr:nth-child(even) td {
             <th>Resultado</th>
             <th>Turno</th>
             <th>Vídeo</th>
+            <th>Áudio</th>
 
           </tr>
 
@@ -356,7 +368,7 @@ tr:nth-child(even) td {
           <tr>
 
             <td
-              colspan="9"
+              colspan="10"
               style="text-align:center;padding:20px;"
             >
               Faça uma consulta.
@@ -1025,6 +1037,21 @@ async function carregarHistorico() {
                   : '-'
               ) +
               '</td>' +
+
+              '<td>' +
+              (
+                registro.audioUrl
+                  ? (
+                      '<a class="video" href="' +
+                      escapeHtml(
+                        registro.audioUrl
+                      ) +
+                      '" target="_blank" rel="noopener">🎙️ OUVIR</a>'
+                    )
+                  : '-'
+              ) +
+              '</td>' +
+
 
               '</tr>'
             );
