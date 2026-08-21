@@ -10,7 +10,6694 @@
     content="width=device-width, initial-scale=1"
   >
 
+  <titla<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+
+  <meta charset="UTF-8">
+
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1"
+  >
+
   <title>RA Polymers - Monitoramento</title>
+
+  <style>
+
+    :root {
+      --ra-blue: #174A78;
+      --ra-blue-dark: #113653;
+      --ra-blue-light: #EAF1F7;
+      --ra-gray: #F3F5F7;
+      --ra-border: #D8E0E7;
+      --success: #21864D;
+      --danger: #C83D3D;
+      --warning: #D88916;
+      --text: #1D2935;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      padding: 0;
+      background: var(--ra-gray);
+      color: var(--text);
+      font-family: Arial, Helvetica, sans-serif;
+    }
+
+    .app {
+      width: 100%;
+      max-width: 650px;
+      margin: 0 auto;
+      padding: 8px;
+    }
+
+    .header {
+      background: white;
+      border-radius: 18px;
+      padding: 18px;
+      margin-bottom: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,.08);
+      text-align: center;
+    }
+
+    .logo {
+      width: 180px;
+      max-width: 72%;
+      margin: 0 auto 10px;
+      display: block;
+    }
+
+    .title {
+      color: var(--ra-blue-dark);
+      font-size: 20px;
+      font-weight: bold;
+    }
+
+    .machine {
+      margin-top: 10px;
+      padding: 10px;
+      border-radius: 12px;
+      background: var(--ra-blue);
+      color: white;
+      font-size: 26px;
+      font-weight: bold;
+    }
+
+    .card {
+      background: white;
+      border-radius: 18px;
+      padding: 18px;
+      margin-bottom: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,.07);
+    }
+
+    label {
+      display: block;
+      margin-bottom: 8px;
+      font-size: 17px;
+      font-weight: bold;
+    }
+
+    select {
+      width: 100%;
+      min-height: 58px;
+      padding: 12px;
+      border: 2px solid var(--ra-border);
+      border-radius: 13px;
+      background: white;
+      font-size: 18px;
+    }
+
+    .cycle {
+      margin-top: 15px;
+      padding: 16px;
+      border-radius: 14px;
+      background: var(--ra-blue-light);
+      border: 1px solid #C8D8E6;
+      text-align: center;
+    }
+
+    .cycle-title {
+      font-size: 15px;
+      color: #486173;
+    }
+
+    .cycle-time {
+      margin-top: 4px;
+      font-size: 36px;
+      font-weight: bold;
+      color: var(--ra-blue-dark);
+    }
+
+    button {
+      width: 100%;
+      min-height: 62px;
+      border: 0;
+      border-radius: 15px;
+      font-size: 20px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    button:disabled {
+      background: #AEB8C1 !important;
+      color: white !important;
+      cursor: not-allowed;
+      transform: none !important;
+      outline: none !important;
+    }
+
+    .btn-primary {
+      background: var(--ra-blue);
+      color: white;
+    }
+
+    .btn-sim {
+      background: var(--success);
+      color: white;
+    }
+
+    .btn-nao {
+      background: var(--danger);
+      color: white;
+    }
+
+    .btn-secondary {
+      background: #DDE4EA;
+      color: var(--text);
+    }
+
+    .btn-enviar {
+      background: var(--success);
+      color: white;
+    }
+
+    .conformidade {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .selected {
+      outline: 5px solid rgba(23,74,120,.22);
+      transform: scale(1.015);
+    }
+
+    .message {
+      display: none;
+      padding: 15px;
+      margin-bottom: 12px;
+      border-radius: 13px;
+      text-align: center;
+      font-weight: bold;
+    }
+
+    .message.error {
+      display: block;
+      background: #FDECEC;
+      color: #9F2D2D;
+    }
+
+    .message.success {
+      display: block;
+      background: #EAF7EF;
+      color: #17643A;
+    }
+
+    .message.warning {
+      display: block;
+      background: #FFF4DE;
+      color: #8A5A08;
+    }
+
+    .pending-progress {
+      margin-top: 12px;
+      padding: 10px;
+      border-radius: 10px;
+      background: var(--ra-blue-light);
+      color: var(--ra-blue-dark);
+      text-align: center;
+      font-weight: bold;
+    }
+
+    .inspection {
+      text-align: center;
+    }
+
+    .inspection-icon {
+      font-size: 52px;
+    }
+
+    .inspection-title {
+      font-size: 25px;
+      font-weight: bold;
+      color: var(--ra-blue-dark);
+    }
+
+    .inspection-cycle {
+      font-size: 19px;
+      margin: 8px 0;
+      color: #536779;
+    }
+
+    .inspection-status {
+      margin-top: 12px;
+      font-size: 18px;
+      font-weight: bold;
+    }
+
+    .countdown {
+      font-size: 58px;
+      font-weight: bold;
+      color: var(--ra-blue);
+      margin: 20px 0;
+    }
+
+    .timer {
+      font-size: 58px;
+      font-weight: bold;
+      color: var(--danger);
+      margin: 20px 0;
+    }
+
+    .recording-indicator {
+      display: inline-block;
+      padding: 8px 14px;
+      border-radius: 999px;
+      background: #FBE0E0;
+      color: #A11E1E;
+      font-size: 16px;
+      font-weight: bold;
+    }
+
+    .camera-box {
+      margin-top: 18px;
+      background: #111;
+      border-radius: 16px;
+      overflow: hidden;
+    }
+
+    #cameraPreview {
+      width: 100%;
+      display: block;
+      aspect-ratio: 4 / 3;
+      object-fit: cover;
+      background: #000;
+    }
+
+    #videoPreview {
+      width: 100%;
+      display: block;
+      border-radius: 14px;
+      background: #000;
+    }
+
+    .video-actions {
+      display: grid;
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    .result-info {
+      padding: 12px;
+      margin: 12px 0;
+      border-radius: 12px;
+      background: var(--ra-blue-light);
+      text-align: center;
+      color: #486173;
+      font-size: 15px;
+    }
+
+    .success {
+      text-align: center;
+      padding: 30px 10px;
+    }
+
+    .success-icon {
+      font-size: 65px;
+    }
+
+    .success-title {
+      color: var(--success);
+      font-size: 28px;
+      font-weight: bold;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    .info-line {
+      margin-top: 8px;
+      color: #647586;
+      font-size: 14px;
+    }
+
+    .bridge-status {
+      margin-top: 8px;
+      font-size: 13px;
+      color: #647586;
+      text-align: center;
+    }
+
+    @media (max-width: 480px) {
+
+      .conformidade {
+        grid-template-columns: 1fr;
+      }
+
+      .logo {
+        width: 165px;
+      }
+
+    }
+
+  </style>
+
+</head>
+
+<body>
+
+<div class="app">
+
+  <!-- CABEÇALHO -->
+
+  <div class="header">
+
+    <img
+      src="assets/ra-polymers-logo.jpg"
+      class="logo"
+      alt="RA Polymers"
+    >
+
+    <div class="title">
+      MONITORAMENTO DE QUALIDADE
+    </div>
+
+    <div
+      class="machine"
+      id="machine"
+    >
+      IDENTIFICANDO MÁQUINA...
+    </div>
+
+  </div>
+
+
+  <!-- MENSAGEM -->
+
+  <div
+    id="message"
+    class="message"
+  ></div>
+
+  <!-- FILA DE UPLOADS -->
+  <div
+    id="uploadQueueCard"
+    class="card queue-card hidden"
+  >
+
+    <div
+      id="uploadQueueTitle"
+      class="queue-title"
+    >
+      ☁️ Envio em segundo plano
+    </div>
+
+    <div
+      id="uploadQueueText"
+      class="queue-text"
+    >
+      Nenhum vídeo aguardando envio.
+    </div>
+
+    <div
+      id="uploadQueueProgress"
+      class="pending-progress hidden"
+    ></div>
+
+    <button
+      id="btnRetentarFila"
+      class="btn-secondary"
+      type="button"
+      style="margin-top:8px;width:100%;"
+      onclick="processarFilaUploads()"
+    >
+      🔄 PROCESSAR FILA AGORA
+    </button>
+
+  </div>
+
+
+  <!-- FORMULÁRIO PRINCIPAL -->
+
+  <div id="mainForm">
+
+    <!-- OPERADOR -->
+
+    <div class="card">
+
+      <label>
+        👤 Operador
+      </label>
+
+      <select
+        id="operador"
+        onchange="verificarFormulario()"
+      >
+
+        <option value="">
+          Selecione o operador
+        </option>
+
+      </select>
+
+      <div class="info-line">
+        Identificação biométrica será integrada
+        posteriormente nos Samsung A17.
+      </div>
+
+    </div>
+
+
+    <!-- PRODUTO -->
+
+    <div class="card">
+
+      <label>
+        📦 Produto
+      </label>
+
+      <select
+        id="produto"
+        onchange="produtoSelecionado()"
+      >
+
+        <option value="">
+          Selecione o produto
+        </option>
+
+      </select>
+
+
+      <div
+        id="cycleBox"
+        class="cycle hidden"
+      >
+
+        <div class="cycle-title">
+          CICLO PROGRAMADO
+        </div>
+
+        <div
+          id="cycleTime"
+          class="cycle-time"
+        >
+          00:00
+        </div>
+
+      </div>
+
+    </div>
+
+
+    <!-- CONFORMIDADE -->
+
+    <div
+      id="conformidadeCard"
+      class="card hidden"
+    >
+
+      <label>
+        🔎 O processo/peça está conforme?
+      </label>
+
+
+      <div class="conformidade">
+
+        <button
+          id="btnSim"
+          class="btn-sim"
+          onclick="selecionarConformidade('SIM')"
+        >
+          ✅ SIM
+        </button>
+
+        <button
+          id="btnNao"
+          class="btn-nao"
+          onclick="selecionarConformidade('NÃO')"
+        >
+          ❌ NÃO
+        </button>
+
+      </div>
+
+    </div>
+
+
+    <!-- INICIAR INSPEÇÃO -->
+
+    <div
+      id="startCard"
+      class="card hidden"
+    >
+
+      <button
+        id="btnIniciar"
+        class="btn-primary"
+        onclick="prepararInspecao()"
+        disabled
+      >
+        🎥 INICIAR INSPEÇÃO
+      </button>
+
+      <div class="info-line">
+        Posicione o telefone para mostrar o ciclo.
+        A gravação será encerrada automaticamente.
+      </div>
+
+    </div>
+
+  </div>
+
+
+  <!-- TELA DE INSPEÇÃO -->
+
+  <div
+    id="inspectionScreen"
+    class="card inspection hidden"
+  >
+
+    <div class="inspection-icon">
+      🎥
+    </div>
+
+    <div class="inspection-title">
+      CICLO DE PRODUÇÃO
+    </div>
+
+    <div
+      id="inspectionProduct"
+      class="inspection-cycle"
+    ></div>
+
+
+    <div id="preparationBlock">
+
+      <div class="inspection-status">
+        Posicione a câmera e prepare a máquina.
+      </div>
+
+      <div
+        id="countdown"
+        class="countdown"
+      >
+        3
+      </div>
+
+      <div class="info-line">
+        A gravação começará automaticamente.
+      </div>
+
+    </div>
+
+
+    <div
+      id="cameraBlock"
+      class="camera-box hidden"
+    >
+
+      <video
+        id="cameraPreview"
+        autoplay
+        muted
+        playsinline
+      ></video>
+
+    </div>
+
+
+    <div
+      id="recordingBlock"
+      class="hidden"
+    >
+
+      <div class="recording-indicator">
+        🔴 GRAVANDO CICLO
+      </div>
+
+      <div
+        id="inspectionTimer"
+        class="timer"
+      >
+        00:00
+      </div>
+
+      <div
+        id="inspectionStatus"
+        class="inspection-status"
+      >
+        Gravando...
+      </div>
+
+    </div>
+
+  </div>
+
+
+  <!-- RESULTADO DO VÍDEO -->
+
+  <div
+    id="videoResult"
+    class="card hidden"
+  >
+
+    <div
+      class="inspection-title"
+      style="text-align:center;"
+    >
+      ✅ CICLO GRAVADO
+    </div>
+
+
+    <div
+      id="videoResultInfo"
+      class="result-info"
+    ></div>
+
+
+    <video
+      id="videoPreview"
+      controls
+      playsinline
+    ></video>
+
+
+
+    <!-- ÁUDIO DA INSPEÇÃO -->
+
+    <div
+      id="audioPanel"
+      class="card"
+      style="margin-top:14px;border:2px solid #D4DEE7;"
+    >
+
+      <div
+        id="audioPanelTitle"
+        class="inspection-title"
+        style="font-size:18px;"
+      >
+        🎙️ REGISTRO DE ÁUDIO
+      </div>
+
+      <div
+        id="audioPanelInfo"
+        class="result-info"
+      ></div>
+
+      <div
+        id="audioTimer"
+        class="timer hidden"
+        style="font-size:32px;"
+      >
+        00:00
+      </div>
+
+      <div
+        id="audioStatus"
+        class="result-info"
+      ></div>
+
+      <div class="video-actions">
+
+        <button
+          id="btnGravarAudio"
+          class="btn-primary"
+          type="button"
+          onclick="iniciarGravacaoAudio()"
+        >
+          🎙️ GRAVAR ÁUDIO
+        </button>
+
+        <button
+          id="btnPararAudio"
+          class="btn-secondary hidden"
+          type="button"
+          onclick="pararGravacaoAudio()"
+        >
+          ⏹️ PARAR ÁUDIO
+        </button>
+
+        <button
+          id="btnSemAudio"
+          class="btn-secondary hidden"
+          type="button"
+          onclick="continuarSemAudio()"
+        >
+          ➡️ CONTINUAR SEM ÁUDIO
+        </button>
+
+      </div>
+
+    </div>
+
+
+    <div class="video-actions">
+
+      <button
+        id="btnRegravar"
+        class="btn-secondary"
+        onclick="gravarNovamente()"
+      >
+        🔄 GRAVAR NOVAMENTE
+      </button>
+
+      <button
+        id="btnNovaInspecaoVideo"
+        class="btn-primary"
+        onclick="novoRegistro()"
+      >
+        ➕ NOVA INSPEÇÃO
+      </button>
+
+    </div>
+
+  </div>
+
+
+  <!-- FINALIZAÇÃO -->
+
+  <div
+    id="successScreen"
+    class="card success hidden"
+  >
+
+    <div class="success-icon">
+      ✅
+    </div>
+
+    <div class="success-title">
+      VÍDEO ENVIADO
+    </div>
+
+    <p>
+      O vídeo foi salvo no Google Drive.
+    </p>
+
+    <p
+      id="successInfo"
+      class="info-line"
+    ></p>
+
+    <button
+      class="btn-primary"
+      onclick="novoRegistro()"
+    >
+      NOVA INSPEÇÃO
+    </button>
+
+  </div>
+
+
+  <!-- IFRAME DE RETORNO DAS PARTES DO UPLOAD -->
+  <iframe
+    id="uploadResponseFrame"
+    name="uploadResponseFrame"
+    style="display:none;width:0;height:0;border:0;position:absolute;left:-9999px;top:-9999px;"
+    title="Retorno do upload"
+  ></iframe>
+
+  <div
+    id="uploadStatus"
+    class="bridge-status"
+  >
+    Upload por partes preparado.
+  </div>
+
+</div>
+
+
+<script>
+
+/* =====================================================
+   URL DO APPS SCRIPT
+   ===================================================== */
+
+const URL_APPS_SCRIPT =
+  'https://script.google.com/macros/s/AKfycbyyczQIADys9S5tG7G9WiR_tFiWubW4mcteLurFO_GOlrlSs9f9CWkcojnjsuG5Jgvt/exec';
+
+
+/* =====================================================
+   PARÂMETROS
+   ===================================================== */
+
+const parametros =
+  new URLSearchParams(
+    window.location.search
+  );
+
+
+const maquina =
+  (
+    parametros.get('m') ||
+    ''
+  )
+  .trim()
+  .toUpperCase();
+
+
+/* =====================================================
+   ESTADO
+   ===================================================== */
+
+let operadores = [];
+
+let produtos = [];
+
+let produtoAtual = null;
+
+let conformidade = '';
+
+let tempoCiclo = 0;
+
+let cameraStream = null;
+
+let mediaRecorder = null;
+
+let partesVideo = [];
+
+let videoBlob = null;
+
+let countdownInterval = null;
+
+let cicloInterval = null;
+
+let segundosRestantes = 0;
+
+let wakeLock = null;
+
+let inicioGravacao = null;
+
+let fimGravacao = null;
+
+/*
+ * ÁUDIO DA INSPEÇÃO
+ * Vídeo: câmera + microfone.
+ * Áudio de observação:
+ *   - NÃO CONFORME: obrigatório
+ *   - CONFORME: opcional
+ */
+let audioStream = null;
+let audioRecorder = null;
+let partesAudio = [];
+let audioChunkPromises = [];
+let audioChunkIndex = 0;
+let audioUploadId = null;
+let audioBlob = null;
+let audioGravando = false;
+let audioConcluido = false;
+let audioPulado = false;
+let audioTimer = null;
+let audioSegundos = 0;
+let TEMPO_MAX_AUDIO = 60;
+
+
+
+/* =====================================================
+   FILA LOCAL DE UPLOADS - INDEXEDDB
+   ===================================================== */
+
+const NOME_DB_VIDEO =
+  'RAPolymersMonitoramentoVideo';
+
+const VERSAO_DB_VIDEO =
+  2;
+
+const STORE_JOBS =
+  'jobs';
+
+const STORE_CHUNKS =
+  'chunks';
+
+const TAMANHO_CHUNK =
+  512 * 1024;
+
+const TIMESLICE_GRAVACAO =
+  5000;
+
+let filaProcessando =
+  false;
+
+let uploadJobAtual =
+  null;
+
+let gravacaoUploadId =
+  null;
+
+let gravacaoChunkPromises =
+  [];
+
+let gravacaoChunkIndex =
+  0;
+
+let gravacaoPersistenciaFalhou =
+  false;
+
+let ultimaVideoUrl =
+  null;
+
+
+function abrirBancoVideo() {
+
+  return new Promise(
+    function(resolve, reject) {
+
+      const requisicao =
+        indexedDB.open(
+          NOME_DB_VIDEO,
+          VERSAO_DB_VIDEO
+        );
+
+      requisicao.onupgradeneeded =
+        function(evento) {
+
+          const db =
+            evento.target.result;
+
+          if (!db.objectStoreNames.contains(STORE_JOBS)) {
+
+            const jobs =
+              db.createObjectStore(
+                STORE_JOBS,
+                {
+                  keyPath: 'uploadId'
+                }
+              );
+
+            jobs.createIndex(
+              'createdAt',
+              'createdAt',
+              {
+                unique: false
+              }
+            );
+
+            jobs.createIndex(
+              'status',
+              'status',
+              {
+                unique: false
+              }
+            );
+
+          }
+
+          if (!db.objectStoreNames.contains(STORE_CHUNKS)) {
+
+            const chunks =
+              db.createObjectStore(
+                STORE_CHUNKS,
+                {
+                  keyPath: 'key'
+                }
+              );
+
+            chunks.createIndex(
+              'uploadId',
+              'uploadId',
+              {
+                unique: false
+              }
+            );
+
+          }
+
+        };
+
+      requisicao.onsuccess =
+        function(evento) {
+          resolve(evento.target.result);
+        };
+
+      requisicao.onerror =
+        function() {
+          reject(
+            requisicao.error ||
+            new Error(
+              'Não foi possível abrir o armazenamento local.'
+            )
+          );
+        };
+
+    }
+  );
+
+}
+
+
+async function solicitarArmazenamentoPersistente() {
+
+  try {
+
+    if (
+      navigator.storage &&
+      typeof navigator.storage.persist === 'function'
+    ) {
+
+      await navigator.storage.persist();
+
+    }
+
+  }
+  catch (erro) {
+
+    console.warn(
+      'Armazenamento persistente não disponível:',
+      erro
+    );
+
+  }
+
+}
+
+
+async function estimarArmazenamentoLocal() {
+
+  if (
+    !navigator.storage ||
+    typeof navigator.storage.estimate !== 'function'
+  ) {
+
+    return null;
+
+  }
+
+  try {
+
+    return await navigator.storage.estimate();
+
+  }
+  catch (erro) {
+
+    return null;
+
+  }
+
+}
+
+
+function chaveChunk(
+  uploadId,
+  chunkIndex
+) {
+
+  return (
+    uploadId +
+    '|' +
+    String(chunkIndex)
+  );
+
+}
+
+
+async function salvarJobLocal(
+  job
+) {
+
+  const db =
+    await abrirBancoVideo();
+
+  return new Promise(
+    function(resolve, reject) {
+
+      const tx =
+        db.transaction(
+          STORE_JOBS,
+          'readwrite'
+        );
+
+      tx.objectStore(
+        STORE_JOBS
+      ).put(job);
+
+      tx.oncomplete =
+        function() {
+          db.close();
+          resolve();
+        };
+
+      tx.onerror =
+        function() {
+          db.close();
+          reject(
+            tx.error ||
+            new Error(
+              'Não foi possível salvar o estado da fila.'
+            )
+          );
+        };
+
+    }
+  );
+
+}
+
+
+async function obterJobLocal(
+  uploadId
+) {
+
+  const db =
+    await abrirBancoVideo();
+
+  return new Promise(
+    function(resolve, reject) {
+
+      const tx =
+        db.transaction(
+          STORE_JOBS,
+          'readonly'
+        );
+
+      const req =
+        tx.objectStore(
+          STORE_JOBS
+        ).get(uploadId);
+
+      req.onsuccess =
+        function() {
+          db.close();
+          resolve(req.result || null);
+        };
+
+      req.onerror =
+        function() {
+          db.close();
+          reject(
+            req.error ||
+            new Error(
+              'Não foi possível consultar o estado da fila.'
+            )
+          );
+        };
+
+    }
+  );
+
+}
+
+
+async function listarJobsLocais() {
+
+  const db =
+    await abrirBancoVideo();
+
+  return new Promise(
+    function(resolve, reject) {
+
+      const tx =
+        db.transaction(
+          STORE_JOBS,
+          'readonly'
+        );
+
+      const req =
+        tx.objectStore(
+          STORE_JOBS
+        ).getAll();
+
+      req.onsuccess =
+        function() {
+
+          db.close();
+
+          const jobs =
+            (req.result || [])
+              .filter(
+                function(job) {
+                  return job && job.status !== 'completed';
+                }
+              )
+              .sort(
+                function(a, b) {
+                  return Number(a.createdAt || 0) - Number(b.createdAt || 0);
+                }
+              );
+
+          resolve(jobs);
+
+        };
+
+      req.onerror =
+        function() {
+          db.close();
+          reject(
+            req.error ||
+            new Error(
+              'Não foi possível listar a fila local.'
+            )
+          );
+        };
+
+    }
+  );
+
+}
+
+
+async function salvarChunkLocal(
+  uploadId,
+  chunkIndex,
+  blob
+) {
+
+  const db =
+    await abrirBancoVideo();
+
+  return new Promise(
+    function(resolve, reject) {
+
+      const tx =
+        db.transaction(
+          STORE_CHUNKS,
+          'readwrite'
+        );
+
+      tx.objectStore(
+        STORE_CHUNKS
+      ).put(
+        {
+          key:
+            chaveChunk(
+              uploadId,
+              chunkIndex
+            ),
+
+          uploadId:
+            uploadId,
+
+          chunkIndex:
+            chunkIndex,
+
+          blob:
+            blob
+        }
+      );
+
+      tx.oncomplete =
+        function() {
+          db.close();
+          resolve();
+        };
+
+      tx.onerror =
+        function() {
+          db.close();
+          reject(
+            tx.error ||
+            new Error(
+              'Não foi possível salvar uma parte do vídeo.'
+            )
+          );
+        };
+
+    }
+  );
+
+}
+
+
+async function obterChunkLocal(
+  uploadId,
+  chunkIndex
+) {
+
+  const db =
+    await abrirBancoVideo();
+
+  return new Promise(
+    function(resolve, reject) {
+
+      const tx =
+        db.transaction(
+          STORE_CHUNKS,
+          'readonly'
+        );
+
+      const req =
+        tx.objectStore(
+          STORE_CHUNKS
+        ).get(
+          chaveChunk(
+            uploadId,
+            chunkIndex
+          )
+        );
+
+      req.onsuccess =
+        function() {
+          db.close();
+          resolve(req.result || null);
+        };
+
+      req.onerror =
+        function() {
+          db.close();
+          reject(
+            req.error ||
+            new Error(
+              'Não foi possível ler uma parte do vídeo.'
+            )
+          );
+        };
+
+    }
+  );
+
+}
+
+
+async function apagarJobLocal(
+  uploadId
+) {
+
+  const db =
+    await abrirBancoVideo();
+
+  return new Promise(
+    function(resolve, reject) {
+
+      const tx =
+        db.transaction(
+          [
+            STORE_JOBS,
+            STORE_CHUNKS
+          ],
+          'readwrite'
+        );
+
+      tx.objectStore(
+        STORE_JOBS
+      ).delete(uploadId);
+
+      const chunksStore =
+        tx.objectStore(
+          STORE_CHUNKS
+        );
+
+      const index =
+        chunksStore.index(
+          'uploadId'
+        );
+
+      const req =
+        index.openCursor(
+          IDBKeyRange.only(
+            uploadId
+          )
+        );
+
+      req.onsuccess =
+        function(evento) {
+
+          const cursor =
+            evento.target.result;
+
+          if (!cursor) {
+            return;
+          }
+
+          cursor.delete();
+          cursor.continue();
+
+        };
+
+      tx.oncomplete =
+        function() {
+          db.close();
+          resolve();
+        };
+
+      tx.onerror =
+        function() {
+          db.close();
+          reject(
+            tx.error ||
+            new Error(
+              'Não foi possível limpar o vídeo do aparelho.'
+            )
+          );
+        };
+
+    }
+  );
+
+}
+
+
+async function excluirJobsAntigosIncompletos() {
+
+  const jobs =
+    await listarJobsLocais();
+
+  const limite =
+    Date.now() -
+    24 *
+    60 *
+    60 *
+    1000;
+
+  for (const job of jobs) {
+
+    if (
+      job.status === 'recording' &&
+      Number(job.updatedAt || 0) < limite
+    ) {
+
+      await apagarJobLocal(
+        job.uploadId
+      );
+
+    }
+
+  }
+
+}
+
+
+async function atualizarFilaUI() {
+
+  try {
+
+    const jobs =
+      await listarJobsLocais();
+
+    const card =
+      document.getElementById(
+        'uploadQueueCard'
+      );
+
+    const text =
+      document.getElementById(
+        'uploadQueueText'
+      );
+
+    const progress =
+      document.getElementById(
+        'uploadQueueProgress'
+      );
+
+    if (!card || !text || !progress) {
+      return;
+    }
+
+    if (jobs.length === 0) {
+
+      card.classList.add('hidden');
+      return;
+
+    }
+
+    card.classList.remove('hidden');
+
+    const enviando =
+      jobs.filter(
+        function(job) {
+          return job.status === 'uploading' || job.status === 'finalizing';
+        }
+      ).length;
+
+    const aguardando =
+      Math.max(
+        0,
+        jobs.length - enviando
+      );
+
+    const totalMB =
+      jobs.reduce(
+        function(soma, job) {
+          return soma + Number(job.tamanhoBytes || 0);
+        },
+        0
+      ) /
+      1024 /
+      1024;
+
+    text.textContent =
+      '📦 ' +
+      jobs.length +
+      ' arquivo(s) na fila • ' +
+      enviando +
+      ' enviando • ' +
+      aguardando +
+      ' aguardando • ' +
+      totalMB.toFixed(1) +
+      ' MB no aparelho';
+
+    const job =
+      uploadJobAtual ||
+      jobs.find(
+        function(item) {
+          return item.status === 'uploading' || item.status === 'finalizing';
+        }
+      ) ||
+      jobs[0];
+
+    if (job) {
+
+      const percentual =
+        job.totalChunks > 0
+          ? Math.min(
+              100,
+              Math.round(
+                (Number(job.nextChunk || 0) /
+                  Number(job.totalChunks)) *
+                  100
+              )
+            )
+          : 0;
+
+      progress.classList.remove('hidden');
+      progress.textContent =
+        job.status === 'finalizing'
+          ? '🧩 Finalizando ' + job.produto + '...'
+          : '☁️ ' +
+            job.produto +
+            ' — ' +
+            percentual +
+            '% (' +
+            Number(job.nextChunk || 0) +
+            '/' +
+            Number(job.totalChunks || 0) +
+            ')';
+
+    }
+    else {
+      progress.classList.add('hidden');
+    }
+
+  }
+  catch (erro) {
+
+    console.warn(
+      'Falha ao atualizar fila:',
+      erro
+    );
+
+  }
+
+}
+
+
+async function atualizarFilaPeriodicamente() {
+
+  try {
+
+    await atualizarFilaUI();
+
+    /*
+     * O watchdog também dispara a fila.
+     * Isso elimina a dependência de um único
+     * evento no momento em que o vídeo/áudio é salvo.
+     */
+    await processarFilaUploads();
+
+  }
+  catch (erro) {
+
+    console.warn(
+      'Watchdog da fila:',
+      erro
+    );
+
+  }
+  finally {
+
+    setTimeout(
+      atualizarFilaPeriodicamente,
+      3000
+    );
+
+  }
+
+}
+
+
+async function salvarEstadoInicialGravacao() {
+
+  const job = {
+
+    uploadId:
+      gravacaoUploadId,
+
+    maquina:
+      maquina,
+
+    operador:
+      document
+        .getElementById('operador')
+        .value,
+
+    produto:
+      produtoAtual.nome,
+
+    conforme:
+      conformidade,
+
+    ciclo:
+      String(tempoCiclo),
+
+    duracaoReal:
+      0,
+
+    inicioVideo:
+      inicioGravacao
+        ? inicioGravacao.toISOString()
+        : '',
+
+    fimVideo:
+      '',
+
+    mimeType:
+      mediaRecorder.mimeType ||
+      'video/webm',
+
+    totalChunks:
+      0,
+
+    nextChunk:
+      0,
+
+    status:
+      'recording',
+
+    createdAt:
+      Date.now(),
+
+    updatedAt:
+      Date.now(),
+
+    tamanhoBytes:
+      0
+
+  };
+
+  await salvarJobLocal(job);
+
+  return job;
+
+}
+
+
+async function obterJobECriarSeNecessario() {
+
+  let job =
+    await obterJobLocal(
+      gravacaoUploadId
+    );
+
+  if (!job) {
+    job =
+      await salvarEstadoInicialGravacao();
+  }
+
+  return job;
+
+}
+
+
+
+function debugUploadCliente(
+  etapa,
+  job,
+  detalhes
+) {
+
+  /*
+   * Debug não pode quebrar o fluxo de upload.
+   */
+
+  try {
+
+    const dados =
+      detalhes || {};
+
+
+    const uploadId =
+      job &&
+      job.uploadId
+        ? job.uploadId
+        : (
+            dados.uploadId ||
+            ''
+          );
+
+
+    const callbackName =
+      'clientDebug_' +
+      Date.now() +
+      '_' +
+      Math.random()
+        .toString(36)
+        .substring(
+          2,
+          8
+        );
+
+
+    const script =
+      document.createElement(
+        'script'
+      );
+
+
+    const params =
+      new URLSearchParams();
+
+
+    params.set(
+      'status',
+      'clientDebug'
+    );
+
+    params.set(
+      'uploadId',
+      uploadId
+    );
+
+    params.set(
+      'etapa',
+      etapa
+    );
+
+    params.set(
+      'detalhes',
+      JSON.stringify(
+        dados
+      )
+    );
+
+    params.set(
+      'callback',
+      callbackName
+    );
+
+    params.set(
+      '_',
+      Date.now()
+    );
+
+
+    window[
+      callbackName
+    ] =
+    function() {
+
+      try {
+
+        delete window[
+          callbackName
+        ];
+
+      }
+      catch (erro) {}
+
+      try {
+
+        if (
+          script.parentNode
+        ) {
+
+          script.parentNode
+            .removeChild(
+              script
+            );
+
+        }
+
+      }
+      catch (erro) {}
+
+    };
+
+
+    script.src =
+      URL_APPS_SCRIPT +
+      '?' +
+      params.toString();
+
+
+    script.async =
+      true;
+
+
+    script.onerror =
+      function() {
+
+        try {
+
+          delete window[
+            callbackName
+          ];
+
+        }
+        catch (erro) {}
+
+      };
+
+
+    document.head.appendChild(
+      script
+    );
+
+  }
+  catch (erro) {
+
+    console.warn(
+      'Falha no debug cliente:',
+      erro
+    );
+
+  }
+
+}
+
+
+
+async function processarFilaUploads() {
+
+  if (filaProcessando) {
+
+    debugUploadCliente(
+      'FILA_JA_PROCESSANDO',
+      uploadJobAtual,
+      {}
+    );
+
+    return;
+
+  }
+
+
+  if (
+    navigator.onLine ===
+    false
+  ) {
+
+    debugUploadCliente(
+      'FILA_SEM_INTERNET',
+      uploadJobAtual,
+      {}
+    );
+
+
+    await atualizarFilaUI();
+
+    return;
+
+  }
+
+
+  filaProcessando =
+    true;
+
+
+  debugUploadCliente(
+    'FILA_INICIO',
+    uploadJobAtual,
+    {
+      online:
+        navigator.onLine
+    }
+  );
+
+
+  try {
+
+    await solicitarArmazenamentoPersistente();
+
+
+    while (
+      true
+    ) {
+
+      const jobs =
+        await listarJobsLocais();
+
+
+      const job =
+        jobs.find(
+          function(item) {
+
+            if (
+              item.status ===
+              'recording'
+            ) {
+
+              return false;
+
+            }
+
+
+            if (
+              item.nextAttemptAt &&
+              Date.now() <
+                Number(
+                  item.nextAttemptAt
+                )
+            ) {
+
+              return false;
+
+            }
+
+
+            return true;
+
+          }
+        );
+
+
+      if (
+        !job
+      ) {
+
+        debugUploadCliente(
+          'FILA_SEM_JOB_ELEGIVEL',
+          uploadJobAtual,
+          {
+            quantidadeJobs:
+              jobs.length,
+
+            estados:
+              jobs.map(
+                function(item) {
+
+                  return {
+                    uploadId:
+                      item.uploadId,
+
+                    mediaType:
+                      item.mediaType,
+
+                    status:
+                      item.status,
+
+                    nextChunk:
+                      item.nextChunk,
+
+                    totalChunks:
+                      item.totalChunks,
+
+                    nextAttemptAt:
+                      item.nextAttemptAt || 0
+                  };
+
+                }
+              )
+          }
+        );
+
+
+        break;
+
+      }
+
+
+      uploadJobAtual =
+        job;
+
+
+      debugUploadCliente(
+        'FILA_JOB_SELECIONADO',
+        job,
+        {
+          status:
+            job.status,
+
+          nextChunk:
+            job.nextChunk,
+
+          totalChunks:
+            job.totalChunks
+        }
+      );
+
+
+      await atualizarFilaUI();
+
+
+      const ok =
+        await processarJobUpload(
+          job
+        );
+
+
+      debugUploadCliente(
+        ok
+          ? 'FILA_JOB_CONCLUIDO'
+          : 'FILA_JOB_PAUSADO',
+        job,
+        {
+          resultado:
+            ok
+        }
+      );
+
+    }
+
+  }
+  catch (
+    erro
+  ) {
+
+    debugUploadCliente(
+      'FILA_ERRO_GLOBAL',
+      uploadJobAtual,
+      {
+        erro:
+          erro &&
+          erro.message
+            ? erro.message
+            : String(
+                erro
+              ),
+
+        stack:
+          erro &&
+          erro.stack
+            ? erro.stack
+            : ''
+      }
+    );
+
+
+    console.warn(
+      'Fila de uploads pausada:',
+      erro
+    );
+
+  }
+  finally {
+
+    uploadJobAtual =
+      null;
+
+
+    filaProcessando =
+      false;
+
+
+    await atualizarFilaUI();
+
+
+    debugUploadCliente(
+      'FILA_FIM',
+      null,
+      {}
+    );
+
+  }
+
+}
+
+
+
+
+
+async function liberarWakeLockSeSeguro() {
+
+  if (
+    mediaRecorder &&
+    mediaRecorder.state !==
+      'inactive'
+  ) {
+
+    return;
+
+  }
+
+  await liberarWakeLock();
+
+}
+
+
+async function processarJobUpload(
+  job
+) {
+
+  debugUploadCliente(
+    'JOB_INICIO',
+    job,
+    {
+      mediaType:
+        job.mediaType ||
+        'VIDEO',
+
+      status:
+        job.status,
+
+      nextChunk:
+        job.nextChunk,
+
+      totalChunks:
+        job.totalChunks
+    }
+  );
+
+
+  try {
+
+    job.status =
+      'uploading';
+
+    job.updatedAt =
+      Date.now();
+
+    job.retryCount =
+      Number(job.retryCount || 0);
+
+    job.nextAttemptAt =
+      0;
+
+    await salvarJobLocal(job);
+
+    await solicitarWakeLock();
+
+    for (
+      let indice =
+        Number(job.nextChunk || 0);
+      indice <
+        Number(job.totalChunks || 0);
+      indice++
+    ) {
+
+      if (navigator.onLine === false) {
+        throw new Error('SEM_INTERNET');
+      }
+
+      debugUploadCliente(
+        'CHUNK_LOCAL_BUSCA',
+        job,
+        {
+          indice:
+            indice
+        }
+      );
+
+
+      const registroChunk =
+        await obterChunkLocal(
+          job.uploadId,
+          indice
+        );
+
+      if (!registroChunk || !registroChunk.blob) {
+        throw new Error(
+          'Parte local ' +
+          (indice + 1) +
+          ' não encontrada.'
+        );
+      }
+
+      const base64 =
+        await blobParaBase64(
+          registroChunk.blob
+        );
+
+      mostrarMensagem(
+        (
+          job.mediaType === 'AUDIO'
+            ? '🎙️ Enviando áudio '
+            : '☁️ Enviando vídeo '
+        ) +
+        job.produto +
+        ' — parte ' +
+        (indice + 1) +
+        ' de ' +
+        job.totalChunks +
+        '...',
+        'warning'
+      );
+
+      debugUploadCliente(
+        'ANTES_ENVIAR_CHUNK',
+        job,
+        {
+          indice:
+            indice
+        }
+      );
+
+
+      await enviarChunk(
+        {
+
+          mediaType:
+            job.mediaType ||
+            'VIDEO',
+
+          uploadId:
+            job.uploadId,
+
+          chunkIndex:
+            indice,
+
+          totalChunks:
+            job.totalChunks,
+
+          chunkBase64:
+            base64,
+
+          mimeType:
+            job.mimeType,
+
+          maquina:
+            job.maquina,
+
+          operador:
+            job.operador,
+
+          produto:
+            job.produto,
+
+          conforme:
+            job.conforme,
+
+          ciclo:
+            job.ciclo,
+
+          duracaoReal:
+            job.duracaoReal,
+
+          inicioVideo:
+            job.inicioVideo,
+
+          fimVideo:
+            job.fimVideo
+
+        }
+      );
+
+      debugUploadCliente(
+        'CHUNK_CONFIRMADO',
+        job,
+        {
+          indice:
+            indice
+        }
+      );
+
+
+      job.nextChunk =
+        indice +
+        1;
+
+      job.updatedAt =
+        Date.now();
+
+      job.status =
+        job.nextChunk >=
+          job.totalChunks
+          ? 'finalizing'
+          : 'uploading';
+
+      await salvarJobLocal(job);
+
+      await atualizarFilaUI();
+
+    }
+
+    job.status =
+      'finalizing';
+
+    job.updatedAt =
+      Date.now();
+
+    await salvarJobLocal(job);
+
+    await atualizarFilaUI();
+
+    mostrarMensagem(
+      job.mediaType === 'AUDIO'
+        ? '🧩 Montando o áudio no Google Drive — aguarde...'
+        : '🧩 Montando o vídeo no Google Drive — aguarde...',
+      'warning'
+    );
+
+    debugUploadCliente(
+      'ANTES_FINALIZAR_UPLOAD',
+      job,
+      {
+        nextChunk:
+          job.nextChunk,
+
+        totalChunks:
+          job.totalChunks
+      }
+    );
+
+
+    const resultado =
+      await finalizarUpload(
+        job
+      );
+
+
+    debugUploadCliente(
+      'FINALIZAR_UPLOAD_RETORNOU',
+      job,
+      {
+        sucesso:
+          !!resultado,
+
+        idArquivo:
+          resultado &&
+          resultado.idArquivo
+            ? resultado.idArquivo
+            : ''
+      }
+    );
+
+    if (
+      !resultado ||
+      !resultado.idArquivo
+    ) {
+      throw new Error(
+        'CONFIRMACAO_FINAL_NAO_RECEBIDA'
+      );
+    }
+
+    const idRegistro =
+      resultado &&
+      resultado.idRegistro
+        ? resultado.idRegistro
+        : '';
+
+
+    await apagarJobLocal(
+      job.uploadId
+    );
+
+
+    if (
+      job.mediaType === 'AUDIO'
+    ) {
+
+      mostrarMensagem(
+        '✅ Áudio da inspeção enviado para o Google Drive.',
+        'success'
+      );
+
+    }
+    else
+    if (
+      idRegistro
+    ) {
+
+      mostrarMensagem(
+        '✅ Vídeo enviado e registro ' +
+        idRegistro +
+        ' criado.',
+        'success'
+      );
+
+    }
+    else {
+
+      limparMensagem();
+
+    }
+
+    await atualizarFilaUI();
+
+    await liberarWakeLockSeSeguro();
+
+    return true;
+
+  }
+  catch (erro) {
+
+    debugUploadCliente(
+      'JOB_ERRO',
+      job,
+      {
+        erro:
+          erro &&
+          erro.message
+            ? erro.message
+            : String(
+                erro
+              ),
+
+        stack:
+          erro &&
+          erro.stack
+            ? erro.stack
+            : '',
+
+        status:
+          job.status,
+
+        nextChunk:
+          job.nextChunk,
+
+        totalChunks:
+          job.totalChunks
+      }
+    );
+
+
+    console.warn(
+      'Job pausado:',
+      job.uploadId,
+      erro
+    );
+
+    const falhouNaFinalizacao =
+      job.status === 'finalizing' ||
+      Number(job.nextChunk || 0) >= Number(job.totalChunks || 0);
+
+    if (
+      falhouNaFinalizacao
+    ) {
+
+      mostrarMensagem(
+        '⚠️ Falha na montagem/finalização: ' +
+        (
+          erro &&
+          erro.message
+            ? erro.message
+            : String(
+                erro
+              )
+        ) +
+        '. O vídeo continua protegido no aparelho.',
+        'warning'
+      );
+
+    }
+
+    job.status =
+      'paused';
+
+    job.retryCount =
+      Number(job.retryCount || 0) +
+      1;
+
+    const espera =
+      Math.min(
+        60000,
+        5000 *
+          Math.pow(
+            2,
+            Math.min(
+              4,
+              job.retryCount - 1
+            )
+          )
+      );
+
+    job.nextAttemptAt =
+      Date.now() +
+      espera;
+
+    job.updatedAt =
+      Date.now();
+
+    await salvarJobLocal(job);
+
+    await atualizarFilaUI();
+
+    await liberarWakeLockSeSeguro();
+
+    if (
+      erro &&
+      erro.message === 'SEM_INTERNET'
+    ) {
+
+      mostrarMensagem(
+        '📡 Sem conexão. O vídeo ficou salvo e será retomado quando a internet voltar.',
+        'warning'
+      );
+
+    }
+    else if (falhouNaFinalizacao) {
+
+      mostrarMensagem(
+        '⚠️ A montagem/confirmação do vídeo foi interrompida. O vídeo permanece salvo no aparelho e a montagem será tentada novamente automaticamente.',
+        'warning'
+      );
+
+    }
+    else {
+
+      mostrarMensagem(
+        '⚠️ O envio foi pausado. O vídeo permanece salvo no aparelho e será retomado automaticamente.',
+        'warning'
+      );
+
+    }
+
+    return false;
+
+  }
+
+}
+
+
+async function inicializarFilaUploads() {
+
+  await solicitarArmazenamentoPersistente();
+
+  try {
+    await excluirJobsAntigosIncompletos();
+  }
+  catch (erro) {}
+
+  await atualizarFilaUI();
+
+  await processarFilaUploads();
+
+  atualizarFilaPeriodicamente();
+
+}
+
+
+/* =====================================================
+   MENSAGENS
+   ===================================================== */
+
+function mostrarMensagem(
+  texto,
+  tipo
+) {
+
+  const box =
+    document.getElementById(
+      'message'
+    );
+
+  box.textContent =
+    texto;
+
+  box.className =
+    'message ' + tipo;
+
+}
+
+
+function limparMensagem() {
+
+  const box =
+    document.getElementById(
+      'message'
+    );
+
+  box.textContent =
+    '';
+
+  box.className =
+    'message';
+
+}
+
+
+/* =====================================================
+   TEMPO
+   ===================================================== */
+
+function formatarTempo(
+  segundos
+) {
+
+  const minutos =
+    Math.floor(
+      segundos / 60
+    );
+
+  const segundosRestantes =
+    segundos % 60;
+
+  return (
+    String(minutos)
+      .padStart(2, '0')
+    +
+    ':'
+    +
+    String(segundosRestantes)
+      .padStart(2, '0')
+  );
+
+}
+
+
+/* =====================================================
+   DADOS TEMPORÁRIOS
+   ===================================================== */
+
+async function carregarDados() {
+
+  /*
+   * Máquina:
+   *   somente da URL (?m=M1). Não consulta/valida CAD_MAQUINAS.
+   *
+   * Operador e Produto:
+   *   obrigatoriamente carregados da planilha via Apps Script.
+   */
+
+  const machineElement =
+    document.getElementById(
+      'machine'
+    );
+
+
+  if (machineElement) {
+
+    machineElement.textContent =
+      maquina
+        ? (
+            maquina.startsWith('M')
+              ? 'M-' +
+                maquina.substring(1)
+              : maquina
+          )
+        : 'MÁQUINA NÃO INFORMADA';
+
+  }
+
+
+  maquinaValida =
+    !!maquina;
+
+
+  if (!maquinaValida) {
+
+    mostrarMensagem(
+      '❌ Máquina não informada.',
+      'error'
+    );
+
+    return;
+
+  }
+
+
+  mostrarMensagem(
+    '🔄 Carregando operadores e produtos da planilha...',
+    'warning'
+  );
+
+
+  try {
+
+    const dados =
+      await carregarDadosRemotos();
+
+
+    if (
+      !dados ||
+      !dados.sucesso
+    ) {
+
+      throw new Error(
+        dados &&
+        dados.erro
+          ? dados.erro
+          : 'Não foi possível carregar os cadastros.'
+      );
+
+    }
+
+
+    operadores =
+      Array.isArray(
+        dados.operadores
+      )
+        ? dados.operadores
+            .map(
+              function(item) {
+
+                return (
+                  typeof item ===
+                  'string'
+                    ? item
+                    : (
+                        item.nome ||
+                        ''
+                      )
+                );
+
+              }
+            )
+            .filter(
+              function(nome) {
+
+                return Boolean(
+                  nome
+                );
+
+              }
+            )
+        : [];
+
+
+    produtos =
+      Array.isArray(
+        dados.produtos
+      )
+        ? dados.produtos
+            .map(
+              function(item) {
+
+                if (
+                  typeof item ===
+                  'string'
+                ) {
+
+                  return {
+                    nome:
+                      item,
+
+                    ciclo:
+                      0
+                  };
+
+                }
+
+
+                return {
+                  nome:
+                    item.nome ||
+                    '',
+
+                  ciclo:
+                    Number(
+                      item.ciclo ||
+                      0
+                    ),
+
+                  codigoInterno:
+                    item.codigoInterno ||
+                    ''
+                };
+
+              }
+            )
+            .filter(
+              function(item) {
+
+                return Boolean(
+                  item.nome
+                );
+
+              }
+            )
+        : [];
+
+
+    TEMPO_MAX_AUDIO =
+      Math.max(
+        1,
+        Number(
+          dados.tempoMaxAudio ||
+          30
+        )
+      );
+
+
+    if (
+      operadores.length ===
+      0
+    ) {
+
+      throw new Error(
+        'Nenhum operador ativo foi retornado pela planilha.'
+      );
+
+    }
+
+
+    if (
+      produtos.length ===
+      0
+    ) {
+
+      throw new Error(
+        'Nenhum produto ativo foi retornado pela planilha.'
+      );
+
+    }
+
+
+    preencherSelecoes();
+
+
+    verificarFormulario();
+
+
+    mostrarMensagem(
+      '✅ Máquina ' +
+      maquina +
+      ' identificada. Operadores e produtos carregados.',
+      'success'
+    );
+
+  }
+  catch (erro) {
+
+    console.error(
+      '[CADASTROS_PLANILHA]',
+      erro
+    );
+
+
+    operadores =
+      [];
+
+
+    produtos =
+      [];
+
+
+    preencherSelecoes();
+
+
+    verificarFormulario();
+
+
+    mostrarMensagem(
+      '❌ Não foi possível carregar Operadores e Produtos da planilha: ' +
+      (
+        erro &&
+        erro.message
+          ? erro.message
+          : 'erro de comunicação'
+      ),
+      'error'
+    );
+
+  }
+
+}
+
+
+function preencherSelecoes() {
+
+  const selectOperador =
+    document.getElementById(
+      'operador'
+    );
+
+
+  const selectProduto =
+    document.getElementById(
+      'produto'
+    );
+
+
+  if (
+    !selectOperador ||
+    !selectProduto
+  ) {
+
+    return;
+
+  }
+
+
+  selectOperador.innerHTML =
+    '<option value="">Selecione o operador</option>';
+
+
+  operadores.forEach(
+    function(nome) {
+
+      const option =
+        document.createElement(
+          'option'
+        );
+
+
+      option.value =
+        nome;
+
+
+      option.textContent =
+        nome;
+
+
+      selectOperador
+        .appendChild(
+          option
+        );
+
+    }
+  );
+
+
+  selectProduto.innerHTML =
+    '<option value="">Selecione o produto</option>';
+
+
+  produtos.forEach(
+    function(produto) {
+
+      const ehTexto =
+        typeof produto ===
+        'string';
+
+
+      const nome =
+        ehTexto
+          ? produto
+          : produto.nome;
+
+
+      const ciclo =
+        ehTexto
+          ? 0
+          : Number(
+              produto.ciclo ||
+              0
+            );
+
+
+      const option =
+        document.createElement(
+          'option'
+        );
+
+
+      option.value =
+        nome;
+
+
+      option.textContent =
+        nome;
+
+
+      option.dataset.ciclo =
+        String(
+          ciclo
+        );
+
+
+      selectProduto
+        .appendChild(
+          option
+        );
+
+    }
+  );
+
+}
+
+
+function carregarDadosRemotos() {
+
+  return new Promise(
+    function(
+      resolve,
+      reject
+    ) {
+
+      const callbackName =
+        'dadosPlanilha_' +
+        Date.now() +
+        '_' +
+        Math.random()
+          .toString(36)
+          .substring(
+            2,
+            10
+          );
+
+
+      let script =
+        null;
+
+
+      let timeout =
+        null;
+
+
+      let terminou =
+        false;
+
+
+      function limpar() {
+
+        try {
+
+          if (
+            script &&
+            script.parentNode
+          ) {
+
+            script.parentNode
+              .removeChild(
+                script
+              );
+
+          }
+
+        }
+        catch (erro) {}
+
+
+        try {
+
+          delete window[
+            callbackName
+          ];
+
+        }
+        catch (erro) {}
+
+      }
+
+
+      function falhar(
+        mensagem
+      ) {
+
+        if (
+          terminou
+        ) {
+
+          return;
+
+        }
+
+
+        terminou =
+          true;
+
+
+        if (
+          timeout
+        ) {
+
+          clearTimeout(
+            timeout
+          );
+
+        }
+
+
+        limpar();
+
+
+        reject(
+          new Error(
+            mensagem
+          )
+        );
+
+      }
+
+
+      window[
+        callbackName
+      ] =
+      function(
+        dados
+      ) {
+
+        if (
+          terminou
+        ) {
+
+          return;
+
+        }
+
+
+        terminou =
+          true;
+
+
+        if (
+          timeout
+        ) {
+
+          clearTimeout(
+            timeout
+          );
+
+        }
+
+
+        limpar();
+
+
+        if (
+          !dados
+        ) {
+
+          reject(
+            new Error(
+              'A planilha retornou uma resposta vazia.'
+            )
+          );
+
+          return;
+
+        }
+
+
+        resolve(
+          dados
+        );
+
+      };
+
+
+      script =
+        document.createElement(
+          'script'
+        );
+
+
+      script.async =
+        true;
+
+
+      script.src =
+        URL_APPS_SCRIPT +
+        '?status=data' +
+        '&m=' +
+        encodeURIComponent(
+          maquina
+        ) +
+        '&callback=' +
+        encodeURIComponent(
+          callbackName
+        ) +
+        '&_=' +
+        Date.now();
+
+
+      script.onerror =
+        function() {
+
+          falhar(
+            'Falha de comunicação com o Apps Script.'
+          );
+
+        };
+
+
+      timeout =
+        setTimeout(
+          function() {
+
+            falhar(
+              'Tempo excedido ao carregar os cadastros.'
+            );
+
+          },
+          15000
+        );
+
+
+      document.head.appendChild(
+        script
+      );
+
+    }
+  );
+
+}
+
+
+
+
+
+
+
+
+
+
+
+/* =====================================================
+   STATUS DA PONTE
+   ===================================================== */
+
+function produtoSelecionado() {
+
+  limparMensagem();
+
+
+  const selectProduto =
+    document.getElementById(
+      'produto'
+    );
+
+
+  if (!selectProduto) {
+
+    return;
+
+  }
+
+
+  const nome =
+    selectProduto.value;
+
+
+  conformidade =
+    '';
+
+
+  document
+    .getElementById(
+      'btnSim'
+    )
+    .classList
+    .remove(
+      'selected'
+    );
+
+
+  document
+    .getElementById(
+      'btnNao'
+    )
+    .classList
+    .remove(
+      'selected'
+    );
+
+
+  if (!nome) {
+
+    produtoAtual =
+      null;
+
+    tempoCiclo =
+      0;
+
+
+    document
+      .getElementById(
+        'cycleBox'
+      )
+      .classList
+      .add(
+        'hidden'
+      );
+
+
+    document
+      .getElementById(
+        'conformidadeCard'
+      )
+      .classList
+      .add(
+        'hidden'
+      );
+
+
+    document
+      .getElementById(
+        'startCard'
+      )
+      .classList
+      .add(
+        'hidden'
+      );
+
+
+    return;
+
+  }
+
+
+  /*
+   * Primeiro tenta encontrar o produto vindo do cadastro.
+   */
+  const encontrado =
+    produtos.find(
+      function(item) {
+
+        const itemNome =
+          typeof item ===
+          'string'
+            ? item
+            : item.nome;
+
+
+        return (
+          itemNome ===
+          nome
+        );
+
+      }
+    );
+
+
+  /*
+   * Se, por alguma razão, o objeto não estiver
+   * disponível, usamos os dados da própria <option>.
+   */
+  const optionSelecionada =
+    selectProduto
+      .options[
+        selectProduto.selectedIndex
+      ];
+
+
+  const cicloDaOption =
+    Number(
+      optionSelecionada &&
+      optionSelecionada.dataset
+        ? optionSelecionada.dataset.ciclo
+        : 0
+    );
+
+
+  produtoAtual =
+    encontrado
+      ? (
+          typeof encontrado ===
+          'string'
+            ? {
+                nome:
+                  encontrado,
+
+                ciclo:
+                  cicloDaOption
+
+              }
+            : encontrado
+        )
+      : {
+
+          nome:
+            nome,
+
+          ciclo:
+            cicloDaOption
+
+        };
+
+
+  /*
+   * Fallbacks para os produtos já cadastrados.
+   * Isso evita que uma alteração de cabeçalho
+   * na planilha esconda os próximos passos.
+   */
+  const ciclosConhecidos = {
+
+    'Reservatório 25L':
+      130,
+
+    'Reservatório 50L':
+      140,
+
+    'Tampa de 50L cinza':
+      100,
+
+    'Tampa de 100L Cinza':
+      155
+
+  };
+
+
+  tempoCiclo =
+    Number(
+      produtoAtual.ciclo ||
+      cicloDaOption ||
+      ciclosConhecidos[
+        nome
+      ] ||
+      0
+    );
+
+
+  /*
+   * Mostramos o ciclo imediatamente.
+   */
+  document
+    .getElementById(
+      'cycleTime'
+    )
+    .textContent =
+    tempoCiclo > 0
+      ? formatarTempo(
+          tempoCiclo
+        )
+      : 'NÃO CONFIGURADO';
+
+
+  document
+    .getElementById(
+      'inspectionProduct'
+    )
+    .textContent =
+    nome +
+    (
+      tempoCiclo > 0
+        ? ' — ciclo de ' +
+          formatarTempo(
+            tempoCiclo
+          )
+        : ''
+    );
+
+
+  document
+    .getElementById(
+      'cycleBox'
+    )
+    .classList
+    .remove(
+      'hidden'
+    );
+
+
+  /*
+   * O próximo passo sempre aparece após escolher
+   * um produto. Se o ciclo estiver faltando,
+   * o aviso fica visível em vez de esconder o fluxo.
+   */
+  document
+    .getElementById(
+      'conformidadeCard'
+    )
+    .classList
+    .remove(
+      'hidden'
+    );
+
+
+  if (
+    tempoCiclo <= 0
+  ) {
+
+    mostrarMensagem(
+      '⚠️ O produto está cadastrado, mas o tempo de ciclo não foi encontrado no CAD_PRODUTOS.',
+      'warning'
+    );
+
+  }
+
+
+  verificarFormulario();
+
+}
+
+
+
+
+
+/* =====================================================
+   CONFORMIDADE
+   ===================================================== */
+
+function selecionarConformidade(
+  valor
+) {
+
+  conformidade =
+    valor;
+
+
+  document
+    .getElementById(
+      'btnSim'
+    )
+    .classList
+    .toggle(
+      'selected',
+      valor === 'SIM'
+    );
+
+
+  document
+    .getElementById(
+      'btnNao'
+    )
+    .classList
+    .toggle(
+      'selected',
+      valor === 'NÃO'
+    );
+
+
+  verificarFormulario();
+
+}
+
+
+/* =====================================================
+   LIBERAR BOTÃO
+   ===================================================== */
+
+function verificarFormulario() {
+
+  const operador =
+    document
+      .getElementById(
+        'operador'
+      )
+      .value;
+
+
+  const produto =
+    document
+      .getElementById(
+        'produto'
+      )
+      .value;
+
+
+  const conformidadeSelecionada =
+    Boolean(
+      conformidade
+    );
+
+
+  const dadosBasicosOk =
+    Boolean(
+      operador &&
+      produto &&
+      produtoAtual
+    );
+
+
+  const pronto =
+    Boolean(
+      dadosBasicosOk &&
+      tempoCiclo > 0 &&
+      conformidadeSelecionada
+    );
+
+
+  const conformidadeCard =
+    document.getElementById(
+      'conformidadeCard'
+    );
+
+
+  const startCard =
+    document.getElementById(
+      'startCard'
+    );
+
+
+  const btn =
+    document.getElementById(
+      'btnIniciar'
+    );
+
+
+  if (
+    dadosBasicosOk
+  ) {
+
+    conformidadeCard
+      .classList
+      .remove(
+        'hidden'
+      );
+
+  }
+  else {
+
+    conformidadeCard
+      .classList
+      .add(
+        'hidden'
+      );
+
+  }
+
+
+  if (
+    pronto
+  ) {
+
+    startCard
+      .classList
+      .remove(
+        'hidden'
+      );
+
+    btn.disabled =
+      false;
+
+  }
+  else {
+
+    startCard
+      .classList
+      .add(
+        'hidden'
+      );
+
+    btn.disabled =
+      true;
+
+  }
+
+}
+
+
+
+
+
+/* =====================================================
+   PREPARAR
+   ===================================================== */
+
+async function prepararInspecao() {
+
+  limparMensagem();
+
+
+  const operador =
+    document
+      .getElementById(
+        'operador'
+      )
+      .value;
+
+
+  if (!operador) {
+
+    mostrarMensagem(
+      'Selecione o operador.',
+      'error'
+    );
+
+    return;
+
+  }
+
+
+  if (!produtoAtual) {
+
+    mostrarMensagem(
+      'Selecione o produto.',
+      'error'
+    );
+
+    return;
+
+  }
+
+
+  if (!conformidade) {
+
+    mostrarMensagem(
+      'Informe se o processo/peça está conforme.',
+      'error'
+    );
+
+    return;
+
+  }
+
+
+  document
+    .getElementById(
+      'mainForm'
+    )
+    .classList
+    .add(
+      'hidden'
+    );
+
+
+  document
+    .getElementById(
+      'inspectionScreen'
+    )
+    .classList
+    .remove(
+      'hidden'
+    );
+
+
+  await solicitarWakeLock();
+
+  await iniciarCamera();
+
+}
+
+
+/* =====================================================
+   WAKE LOCK
+   ===================================================== */
+
+async function solicitarWakeLock() {
+
+  if (
+    'wakeLock' in navigator
+  ) {
+
+    try {
+
+      wakeLock =
+        await navigator
+          .wakeLock
+          .request(
+            'screen'
+          );
+
+    }
+    catch (erro) {
+
+      console.warn(
+        erro
+      );
+
+    }
+
+  }
+
+}
+
+
+async function liberarWakeLock() {
+
+  if (!wakeLock) {
+
+    return;
+
+  }
+
+
+  try {
+
+    await wakeLock.release();
+
+  }
+  catch (erro) {}
+
+  wakeLock =
+    null;
+
+}
+
+
+/* =====================================================
+   CÂMERA
+   ===================================================== */
+
+async function iniciarCamera() {
+
+  try {
+
+    cameraStream =
+      await navigator
+        .mediaDevices
+        .getUserMedia({
+
+          video: {
+
+            facingMode: {
+              ideal: 'environment'
+            },
+
+            width: {
+              ideal: 1280
+            },
+
+            height: {
+              ideal: 720
+            }
+
+          },
+
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true
+          }
+
+        });
+
+
+    const camera =
+      document.getElementById(
+        'cameraPreview'
+      );
+
+
+    camera.srcObject =
+      cameraStream;
+
+
+    await camera.play();
+
+
+    if (
+      cameraStream.getAudioTracks().length ===
+      0
+    ) {
+
+      throw new Error(
+        'O aparelho não disponibilizou o microfone.'
+      );
+
+    }
+
+
+    document
+      .getElementById(
+        'preparationBlock'
+      )
+      .classList
+      .remove(
+        'hidden'
+      );
+
+
+    document
+      .getElementById(
+        'cameraBlock'
+      )
+      .classList
+      .remove(
+        'hidden'
+      );
+
+
+    iniciarContagemPreparacao();
+
+  }
+  catch (erro) {
+
+    await liberarWakeLock();
+
+
+    mostrarMensagem(
+      'Não foi possível acessar a câmera e o microfone.',
+      'error'
+    );
+
+
+    fecharInspecao();
+
+  }
+
+}
+
+
+/* =====================================================
+   3 2 1
+   ===================================================== */
+
+function iniciarContagemPreparacao() {
+
+  let contador =
+    3;
+
+
+  document
+    .getElementById(
+      'countdown'
+    )
+    .textContent =
+    contador;
+
+
+  countdownInterval =
+    setInterval(
+      function() {
+
+        contador--;
+
+
+        document
+          .getElementById(
+            'countdown'
+          )
+          .textContent =
+          contador;
+
+
+        if (
+          contador <= 0
+        ) {
+
+          clearInterval(
+            countdownInterval
+          );
+
+
+          countdownInterval =
+            null;
+
+
+          iniciarGravacao();
+
+        }
+
+      },
+      1000
+    );
+
+}
+
+
+/* =====================================================
+   MIME
+   ===================================================== */
+
+function escolherMimeType() {
+
+  const tipos = [
+
+    'video/webm;codecs=vp8,opus',
+
+    'video/webm;codecs=vp8',
+
+    'video/webm',
+
+    'video/mp4'
+
+  ];
+
+
+  for (
+    const tipo
+    of tipos
+  ) {
+
+    if (
+      typeof MediaRecorder
+        .isTypeSupported ===
+      'function'
+      &&
+      MediaRecorder
+        .isTypeSupported(
+          tipo
+        )
+    ) {
+
+      return tipo;
+
+    }
+
+  }
+
+
+  return '';
+
+}
+
+
+/* =====================================================
+   GRAVAÇÃO
+   ===================================================== */
+
+function iniciarGravacao() {
+
+  partesVideo =
+    [];
+
+  videoBlob =
+    null;
+
+  inicioGravacao =
+    new Date();
+
+  gravacaoChunkPromises =
+    [];
+
+  gravacaoChunkIndex =
+    0;
+
+  gravacaoPersistenciaFalhou =
+    false;
+
+  gravacaoUploadId =
+    criarIdUpload();
+
+  document
+    .getElementById(
+      'preparationBlock'
+    )
+    .classList
+    .add(
+      'hidden'
+    );
+
+  document
+    .getElementById(
+      'recordingBlock'
+    )
+    .classList
+    .remove(
+      'hidden'
+    );
+
+  segundosRestantes =
+    tempoCiclo;
+
+  document
+    .getElementById(
+      'inspectionTimer'
+    )
+    .textContent =
+    formatarTempo(
+      segundosRestantes
+    );
+
+  const mimeType =
+    escolherMimeType();
+
+  const opcoes = {
+
+    videoBitsPerSecond:
+      900000,
+
+    audioBitsPerSecond:
+      64000
+
+  };
+
+  if (mimeType) {
+    opcoes.mimeType =
+      mimeType;
+  }
+
+  try {
+
+    if (
+      cameraStream.getAudioTracks().length ===
+      0
+    ) {
+
+      throw new Error(
+        'O vídeo não poderá ser gravado sem áudio.'
+      );
+
+    }
+
+
+    mediaRecorder =
+      new MediaRecorder(
+        cameraStream,
+        opcoes
+      );
+
+  }
+  catch (erro) {
+
+    mostrarMensagem(
+      'O navegador não conseguiu iniciar a gravação.',
+      'error'
+    );
+
+    fecharInspecao();
+    return;
+
+  }
+
+  mediaRecorder.ondataavailable =
+    function(evento) {
+
+      if (
+        !evento.data ||
+        evento.data.size <= 0
+      ) {
+        return;
+      }
+
+      const indice =
+        gravacaoChunkIndex++;
+
+      partesVideo.push(
+        evento.data
+      );
+
+      const promessa =
+        salvarChunkLocal(
+          gravacaoUploadId,
+          indice,
+          evento.data
+        )
+        .catch(
+          function(erro) {
+
+            gravacaoPersistenciaFalhou =
+              true;
+
+            console.error(
+              'Falha ao salvar chunk local:',
+              erro
+            );
+
+            throw erro;
+
+          }
+        );
+
+      gravacaoChunkPromises.push(
+        promessa
+      );
+
+    };
+
+  mediaRecorder.onstop =
+    async function() {
+
+      fimGravacao =
+        new Date();
+
+      try {
+
+        await Promise.all(
+          gravacaoChunkPromises
+        );
+
+      }
+      catch (erro) {
+
+        gravacaoPersistenciaFalhou =
+          true;
+
+      }
+
+      const tipo =
+        mediaRecorder.mimeType ||
+        'video/webm';
+
+      videoBlob =
+        new Blob(
+          partesVideo,
+          {
+            type:
+              tipo
+          }
+        );
+
+      const url =
+        URL.createObjectURL(
+          videoBlob
+        );
+
+      if (ultimaVideoUrl) {
+        try {
+          URL.revokeObjectURL(
+            ultimaVideoUrl
+          );
+        }
+        catch (erro) {}
+      }
+
+      ultimaVideoUrl =
+        url;
+
+      document
+        .getElementById(
+          'videoPreview'
+        )
+        .src =
+        url;
+
+      const duracaoReal =
+        Math.max(
+          0,
+          Math.round(
+            (
+              fimGravacao -
+              inicioGravacao
+            ) / 1000
+          )
+        );
+
+      const tamanhoMB =
+        (
+          videoBlob.size /
+          1024 /
+          1024
+        ).toFixed(2);
+
+      if (
+        gravacaoPersistenciaFalhou
+      ) {
+
+        mostrarMensagem(
+          '❌ Não foi possível salvar o vídeo no armazenamento local. Não iniciaremos o upload automático.',
+          'error'
+        );
+
+      }
+      else {
+
+        const totalChunks =
+          gravacaoChunkIndex;
+
+        const job = {
+
+          uploadId:
+            gravacaoUploadId,
+
+          maquina:
+            maquina,
+
+          operador:
+            document
+              .getElementById(
+                'operador'
+              )
+              .value,
+
+          produto:
+            produtoAtual.nome,
+
+          conforme:
+            conformidade,
+
+          ciclo:
+            String(
+              tempoCiclo
+            ),
+
+          duracaoReal:
+            duracaoReal,
+
+          inicioVideo:
+            inicioGravacao.toISOString(),
+
+          fimVideo:
+            fimGravacao.toISOString(),
+
+          mimeType:
+            tipo,
+
+          mediaType:
+            'VIDEO',
+
+          totalChunks:
+            totalChunks,
+
+          nextChunk:
+            0,
+
+          status:
+            'queued',
+
+          createdAt:
+            Date.now(),
+
+          updatedAt:
+            Date.now(),
+
+          tamanhoBytes:
+            videoBlob.size,
+
+          retryCount:
+            0,
+
+          nextAttemptAt:
+            0
+
+        };
+
+        await salvarJobLocal(
+          job
+        );
+
+        mostrarMensagem(
+          '✅ Ciclo salvo. O envio do vídeo começou em segundo plano; você já pode iniciar outra inspeção.',
+          'success'
+        );
+
+        await atualizarFilaUI();
+
+        try {
+
+          await processarFilaUploads();
+
+        }
+        catch (erroFila) {
+
+          console.warn(
+            'Fila de vídeo não iniciou imediatamente:',
+            erroFila
+          );
+
+        }
+
+      }
+
+      document
+        .getElementById(
+          'videoResultInfo'
+        )
+        .innerHTML =
+        produtoAtual.nome +
+        '<br>' +
+        'Ciclo: <strong>' +
+        formatarTempo(
+          tempoCiclo
+        ) +
+        '</strong><br>' +
+        'Duração real: <strong>' +
+        duracaoReal +
+        ' s</strong><br>' +
+        'Tamanho: <strong>' +
+        tamanhoMB +
+        ' MB</strong><br>' +
+        (
+          gravacaoPersistenciaFalhou
+            ? '<strong>⚠️ Não foi possível proteger o vídeo localmente.</strong>'
+            : '<strong>✅ Vídeo protegido no armazenamento local. Envio em segundo plano.</strong>'
+        );
+
+      document
+        .getElementById(
+          'inspectionScreen'
+        )
+        .classList
+        .add(
+          'hidden'
+        );
+
+      document
+        .getElementById(
+          'videoResult'
+        )
+        .classList
+        .remove(
+          'hidden'
+        );
+
+
+      configurarPainelAudio();
+
+
+      liberarWakeLock();
+
+    };
+
+  try {
+
+    mediaRecorder.start(
+      TIMESLICE_GRAVACAO
+    );
+
+  }
+  catch (erro) {
+
+    mostrarMensagem(
+      'Não foi possível iniciar a gravação.',
+      'error'
+    );
+
+    fecharInspecao();
+    return;
+
+  }
+
+  atualizarContadorCiclo();
+
+  cicloInterval =
+    setInterval(
+      function() {
+
+        segundosRestantes--;
+
+        atualizarContadorCiclo();
+
+        if (
+          segundosRestantes <= 0
+        ) {
+
+          clearInterval(
+            cicloInterval
+          );
+
+          cicloInterval =
+            null;
+
+          pararGravacao();
+
+        }
+
+      },
+      1000
+    );
+
+}
+
+
+/* =====================================================
+   CONTADOR
+   ===================================================== */
+
+function atualizarContadorCiclo() {
+
+  document
+    .getElementById(
+      'inspectionTimer'
+    )
+    .textContent =
+    formatarTempo(
+      segundosRestantes
+    );
+
+}
+
+
+/* =====================================================
+   PARAR
+   ===================================================== */
+
+function pararGravacao() {
+
+  if (
+    mediaRecorder &&
+    mediaRecorder.state !==
+    'inactive'
+  ) {
+
+    mediaRecorder.stop();
+
+  }
+
+
+  desligarCamera();
+
+}
+
+
+/* =====================================================
+   DESLIGAR
+   ===================================================== */
+
+function desligarCamera() {
+
+  if (cameraStream) {
+
+    cameraStream
+      .getTracks()
+      .forEach(
+        function(track) {
+
+          track.stop();
+
+        }
+      );
+
+  }
+
+
+  cameraStream =
+    null;
+
+}
+
+
+
+/* =====================================================
+   ÁUDIO DA INSPEÇÃO
+   ===================================================== */
+
+function configurarPainelAudio() {
+
+  const conformeAtual =
+    String(
+      conformidade || ''
+    )
+      .trim()
+      .toUpperCase();
+
+  audioConcluido = false;
+  audioPulado = false;
+  audioBlob = null;
+  audioUploadId = null;
+
+  const titulo =
+    document.getElementById('audioPanelTitle');
+
+  const info =
+    document.getElementById('audioPanelInfo');
+
+  const status =
+    document.getElementById('audioStatus');
+
+  const btnGravar =
+    document.getElementById('btnGravarAudio');
+
+  const btnParar =
+    document.getElementById('btnPararAudio');
+
+  const btnSem =
+    document.getElementById('btnSemAudio');
+
+  const btnNova =
+    document.getElementById('btnNovaInspecaoVideo');
+
+  if (titulo) {
+    titulo.textContent =
+      conformeAtual === 'NÃO'
+        ? '🎙️ ÁUDIO OBRIGATÓRIO'
+        : '🎙️ ÁUDIO DA INSPEÇÃO';
+  }
+
+  if (info) {
+    info.innerHTML =
+      conformeAtual === 'NÃO'
+        ? '<strong style="color:#C62828;">NÃO CONFORME: a gravação de áudio é obrigatória antes de iniciar outra inspeção.</strong>'
+        : 'CONFORME: a gravação de áudio é opcional.';
+  }
+
+  if (status) {
+    status.textContent =
+      conformeAtual === 'NÃO'
+        ? 'Grave a justificativa/observação da não conformidade.'
+        : 'Você pode gravar uma observação ou continuar sem áudio.';
+  }
+
+  if (btnGravar) {
+    btnGravar.classList.remove('hidden');
+    btnGravar.disabled = false;
+    btnGravar.textContent = '🎙️ GRAVAR ÁUDIO';
+  }
+
+  if (btnParar) {
+    btnParar.classList.add('hidden');
+  }
+
+  if (btnSem) {
+    btnSem.classList.toggle(
+      'hidden',
+      conformeAtual !== 'SIM'
+    );
+  }
+
+  if (btnNova) {
+    btnNova.disabled =
+      conformeAtual === 'NÃO';
+  }
+
+  atualizarAudioTimer(0);
+}
+
+
+function atualizarAudioTimer(
+  segundos
+) {
+
+  const timer =
+    document.getElementById(
+      'audioTimer'
+    );
+
+  if (timer) {
+    timer.textContent =
+      formatarTempo(
+        Number(
+          segundos || 0
+        )
+      );
+  }
+
+}
+
+
+function escolherMimeAudio() {
+
+  const tipos = [
+    'audio/webm;codecs=opus',
+    'audio/webm',
+    'audio/ogg;codecs=opus',
+    'audio/ogg'
+  ];
+
+  for (const tipo of tipos) {
+
+    if (
+      typeof MediaRecorder.isTypeSupported === 'function' &&
+      MediaRecorder.isTypeSupported(tipo)
+    ) {
+      return tipo;
+    }
+
+  }
+
+  return '';
+}
+
+
+async function iniciarGravacaoAudio() {
+
+  if (audioGravando) {
+    return;
+  }
+
+  try {
+
+    audioStream =
+      await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true
+        }
+      });
+
+    if (
+      !audioStream ||
+      audioStream.getAudioTracks().length === 0
+    ) {
+      throw new Error(
+        'Microfone não disponível.'
+      );
+    }
+
+    const mimeType =
+      escolherMimeAudio();
+
+    const opcoes = {};
+
+    if (mimeType) {
+      opcoes.mimeType =
+        mimeType;
+    }
+
+    audioRecorder =
+      new MediaRecorder(
+        audioStream,
+        opcoes
+      );
+
+    partesAudio = [];
+    audioChunkPromises = [];
+    audioChunkIndex = 0;
+    audioUploadId =
+      criarIdUpload() +
+      '_AUDIO';
+
+    audioGravando = true;
+    audioConcluido = false;
+
+    const btnGravar =
+      document.getElementById('btnGravarAudio');
+
+    const btnParar =
+      document.getElementById('btnPararAudio');
+
+    const btnSem =
+      document.getElementById('btnSemAudio');
+
+    const btnNova =
+      document.getElementById('btnNovaInspecaoVideo');
+
+    const status =
+      document.getElementById('audioStatus');
+
+    const timer =
+      document.getElementById('audioTimer');
+
+    if (btnGravar) {
+      btnGravar.classList.add('hidden');
+    }
+
+    if (btnParar) {
+      btnParar.classList.remove('hidden');
+    }
+
+    if (btnSem) {
+      btnSem.classList.add('hidden');
+    }
+
+    if (btnNova) {
+      btnNova.disabled = true;
+    }
+
+    if (timer) {
+      timer.classList.remove('hidden');
+    }
+
+    if (status) {
+      status.textContent =
+        '🔴 Gravando áudio... fale a justificativa da inspeção.';
+    }
+
+    audioRecorder.ondataavailable =
+      function(evento) {
+
+        if (
+          !evento.data ||
+          evento.data.size <= 0
+        ) {
+          return;
+        }
+
+        const indice =
+          audioChunkIndex++;
+
+        partesAudio.push(
+          evento.data
+        );
+
+        audioChunkPromises.push(
+          salvarChunkLocal(
+            audioUploadId,
+            indice,
+            evento.data
+          )
+        );
+
+      };
+
+    audioRecorder.onstop =
+      async function() {
+
+        audioGravando = false;
+
+        if (audioTimer) {
+          clearInterval(audioTimer);
+          audioTimer = null;
+        }
+
+        try {
+          await Promise.all(
+            audioChunkPromises
+          );
+        }
+        catch (erro) {
+
+          mostrarMensagem(
+            '❌ Não foi possível proteger o áudio no aparelho.',
+            'error'
+          );
+
+          audioConcluido = false;
+          return;
+
+        }
+
+        try {
+          if (audioStream) {
+            audioStream
+              .getTracks()
+              .forEach(
+                function(track) {
+                  track.stop();
+                }
+              );
+          }
+        }
+        catch (erro) {}
+
+        audioStream = null;
+
+        const tipo =
+          audioRecorder.mimeType ||
+          'audio/webm';
+
+        audioBlob =
+          new Blob(
+            partesAudio,
+            {
+              type:
+                tipo
+            }
+          );
+
+        const totalChunks =
+          audioChunkIndex;
+
+        if (
+          totalChunks <= 0 ||
+          !audioBlob.size
+        ) {
+
+          mostrarMensagem(
+            '❌ A gravação de áudio ficou vazia.',
+            'error'
+          );
+
+          audioConcluido = false;
+          return;
+
+        }
+
+        const job = {
+
+          uploadId:
+            audioUploadId,
+
+          mediaType:
+            'AUDIO',
+
+          parentUploadId:
+            gravacaoUploadId,
+
+          maquina:
+            maquina,
+
+          operador:
+            document
+              .getElementById('operador')
+              .value,
+
+          produto:
+            produtoAtual &&
+            produtoAtual.nome
+              ? produtoAtual.nome
+              : '',
+
+          conforme:
+            String(
+              conformidade ||
+              ''
+            )
+              .trim()
+              .toUpperCase(),
+
+          ciclo:
+            String(
+              tempoCiclo
+            ),
+
+          mimeType:
+            tipo,
+
+          totalChunks:
+            totalChunks,
+
+          nextChunk:
+            0,
+
+          status:
+            'queued',
+
+          createdAt:
+            Date.now(),
+
+          updatedAt:
+            Date.now(),
+
+          tamanhoBytes:
+            audioBlob.size,
+
+          retryCount:
+            0,
+
+          nextAttemptAt:
+            0
+
+        };
+
+        await salvarJobLocal(
+          job
+        );
+
+        audioConcluido = true;
+
+        const btnGravar =
+          document.getElementById('btnGravarAudio');
+
+        const btnParar =
+          document.getElementById('btnPararAudio');
+
+        const btnNova =
+          document.getElementById('btnNovaInspecaoVideo');
+
+        const status =
+          document.getElementById('audioStatus');
+
+        if (btnParar) {
+          btnParar.classList.add('hidden');
+        }
+
+        if (btnGravar) {
+          btnGravar.classList.remove('hidden');
+          btnGravar.textContent =
+            '🔄 GRAVAR ÁUDIO NOVAMENTE';
+        }
+
+        if (btnNova) {
+          btnNova.disabled = false;
+        }
+
+        if (status) {
+          status.textContent =
+            '✅ Áudio protegido no aparelho e colocado na fila de envio.';
+        }
+
+        await atualizarFilaUI();
+
+        try {
+
+          await processarFilaUploads();
+
+        }
+        catch (erroFila) {
+
+          console.warn(
+            'Fila de áudio não iniciou imediatamente:',
+            erroFila
+          );
+
+        }
+
+      };
+
+    audioRecorder.start(
+      1000
+    );
+
+    audioSegundos = 0;
+    atualizarAudioTimer(0);
+
+    audioTimer =
+      setInterval(
+        function() {
+
+          audioSegundos++;
+          atualizarAudioTimer(
+            audioSegundos
+          );
+
+          if (
+            audioSegundos >=
+            TEMPO_MAX_AUDIO
+          ) {
+            pararGravacaoAudio();
+          }
+
+        },
+        1000
+      );
+
+  }
+  catch (erro) {
+
+    audioGravando = false;
+
+    if (audioStream) {
+      try {
+        audioStream
+          .getTracks()
+          .forEach(
+            function(track) {
+              track.stop();
+            }
+          );
+      }
+      catch (erroStop) {}
+    }
+
+    audioStream = null;
+
+    mostrarMensagem(
+      '❌ Não foi possível iniciar o áudio. Verifique a permissão do microfone.',
+      'error'
+    );
+
+  }
+
+}
+
+
+function pararGravacaoAudio() {
+
+  if (
+    audioRecorder &&
+    audioRecorder.state !== 'inactive'
+  ) {
+
+    audioRecorder.stop();
+
+  }
+
+}
+
+
+function continuarSemAudio() {
+
+  if (
+    String(
+      conformidade || ''
+    )
+      .trim()
+      .toUpperCase() !== 'SIM'
+  ) {
+
+    mostrarMensagem(
+      'O áudio é obrigatório para uma inspeção NÃO CONFORME.',
+      'error'
+    );
+
+    return;
+
+  }
+
+  audioPulado = true;
+  audioConcluido = true;
+
+  const status =
+    document.getElementById(
+      'audioStatus'
+    );
+
+  if (status) {
+    status.textContent =
+      'ℹ️ Inspeção CONFORME: operador optou por não gravar áudio.';
+  }
+
+  const btnNova =
+    document.getElementById(
+      'btnNovaInspecaoVideo'
+    );
+
+  if (btnNova) {
+    btnNova.disabled = false;
+  }
+
+}
+
+
+/* =====================================================
+   GRAVAR NOVAMENTE
+   ===================================================== */
+
+async function gravarNovamente() {
+
+  if (audioGravando) {
+    try { pararGravacaoAudio(); } catch (erro) {}
+  }
+
+  if (audioStream) {
+    try {
+      audioStream
+        .getTracks()
+        .forEach(
+          function(track) {
+            track.stop();
+          }
+        );
+    }
+    catch (erro) {}
+  }
+
+  audioStream = null;
+  audioRecorder = null;
+  audioConcluido = false;
+  audioPulado = false;
+  audioBlob = null;
+
+  if (
+    ultimaVideoUrl
+  ) {
+
+    try {
+      URL.revokeObjectURL(
+        ultimaVideoUrl
+      );
+    }
+    catch (erro) {}
+
+    ultimaVideoUrl =
+      null;
+
+  }
+
+  videoBlob =
+    null;
+
+  partesVideo =
+    [];
+
+  document
+    .getElementById(
+      'videoResult'
+    )
+    .classList
+    .add(
+      'hidden'
+    );
+
+  document
+    .getElementById(
+      'mainForm'
+    )
+    .classList
+    .remove(
+      'hidden'
+    );
+
+}
+
+
+
+/* =====================================================
+   UPLOAD EM PARTES - SERVIDOR
+   ===================================================== */
+
+async function enviarVideo() {
+
+  await processarFilaUploads();
+
+}
+
+
+function criarIdUpload() {
+
+  const agora =
+    Date.now()
+      .toString(36);
+
+
+  const aleatorio =
+    Math.random()
+      .toString(36)
+      .substring(
+        2,
+        10
+      );
+
+
+  return (
+    'UP_' +
+    agora +
+    '_' +
+    aleatorio
+  );
+
+}
+
+
+/*
+ * Envia uma parte pelo formulário para o iframe.
+ */
+function blobParaBase64(
+  blob
+) {
+
+  return new Promise(
+    function(
+      resolve,
+      reject
+    ) {
+
+      const leitor =
+        new FileReader();
+
+
+      leitor.onload =
+        function() {
+
+          const resultado =
+            leitor.result;
+
+
+          if (
+            !resultado
+          ) {
+
+            reject(
+              new Error(
+                'Não foi possível ler a parte do vídeo.'
+              )
+            );
+
+            return;
+
+          }
+
+
+          const separador =
+            resultado.indexOf(
+              ','
+            );
+
+
+          const base64 =
+            separador >= 0
+              ? resultado.substring(
+                  separador + 1
+                )
+              : resultado;
+
+
+          if (
+            !base64
+          ) {
+
+            reject(
+              new Error(
+                'A conversão da parte do vídeo resultou em vazio.'
+              )
+            );
+
+            return;
+
+          }
+
+
+          resolve(
+            base64
+          );
+
+        };
+
+
+      leitor.onerror =
+        function() {
+
+          reject(
+            new Error(
+              'Falha ao converter a parte do vídeo para Base64.'
+            )
+          );
+
+        };
+
+
+      leitor.readAsDataURL(
+        blob
+      );
+
+    }
+  );
+
+}
+
+
+
+/*
+ * Cria um campo hidden para os POSTs.
+ */
+function adicionarCampo(
+  formulario,
+  nome,
+  valor
+) {
+
+  const campo =
+    document.createElement(
+      'input'
+    );
+
+
+  campo.type =
+    'hidden';
+
+
+  campo.name =
+    nome;
+
+
+  campo.value =
+    valor == null
+      ? ''
+      : String(
+          valor
+        );
+
+
+  formulario.appendChild(
+    campo
+  );
+
+}
+
+
+function enviarChunk(
+  dados
+) {
+
+  /*
+   * Primeiro disparamos o POST para o Apps Script.
+   *
+   * Não aguardamos a resposta do POST, porque o
+   * navegador não consegue ler uma resposta cross-origin
+   * com segurança neste cenário.
+   */
+
+  dispararPostChunk(
+    dados
+  );
+
+
+  /*
+   * Depois confirmamos a chegada consultando um endpoint
+   * JSONP. <script src> pode carregar conteúdo cross-origin
+   * sem depender de CORS.
+   */
+
+  return aguardarStatusChunk(
+    dados.uploadId,
+    dados.chunkIndex
+  );
+
+}
+
+
+/*
+ * Dispara o POST do chunk através de um formulário oculto.
+ */
+function dispararPostChunk(
+  dados
+) {
+
+  const frame =
+    document.createElement(
+      'iframe'
+    );
+
+
+  const frameName =
+    'postChunk_' +
+    Date.now() +
+    '_' +
+    dados.chunkIndex +
+    '_' +
+    Math.random()
+      .toString(36)
+      .substring(
+        2,
+        8
+      );
+
+
+  frame.name =
+    frameName;
+
+
+  frame.style.display =
+    'none';
+
+
+  document.body.appendChild(
+    frame
+  );
+
+
+  const formulario =
+    document.createElement(
+      'form'
+    );
+
+
+  formulario.method =
+    'POST';
+
+
+  formulario.action =
+    URL_APPS_SCRIPT;
+
+
+  formulario.target =
+    frameName;
+
+
+  formulario.style.display =
+    'none';
+
+
+  adicionarCampo(
+    formulario,
+    'tipo',
+    dados &&
+    dados.mediaType === 'AUDIO'
+      ? 'AUDIO_CHUNK'
+      : 'VIDEO_CHUNK'
+  );
+
+
+  adicionarCampo(
+    formulario,
+    'uploadId',
+    dados.uploadId
+  );
+
+
+  adicionarCampo(
+    formulario,
+    'chunkIndex',
+    String(
+      dados.chunkIndex
+    )
+  );
+
+
+  adicionarCampo(
+    formulario,
+    'totalChunks',
+    String(
+      dados.totalChunks
+    )
+  );
+
+
+  adicionarCampo(
+    formulario,
+    'chunkBase64',
+    dados.chunkBase64
+  );
+
+
+  adicionarCampo(
+    formulario,
+    'mimeType',
+    dados.mimeType
+  );
+
+
+  adicionarCampo(
+    formulario,
+    'maquina',
+    dados.maquina
+  );
+
+
+  adicionarCampo(
+    formulario,
+    'operador',
+    dados.operador
+  );
+
+
+  adicionarCampo(
+    formulario,
+    'produto',
+    dados.produto
+  );
+
+
+  adicionarCampo(
+    formulario,
+    'conforme',
+    dados.conforme
+  );
+
+
+  adicionarCampo(
+    formulario,
+    'ciclo',
+    dados.ciclo
+  );
+
+
+  adicionarCampo(
+    formulario,
+    'duracaoReal',
+    dados.duracaoReal
+  );
+
+
+  adicionarCampo(
+    formulario,
+    'inicioVideo',
+    dados.inicioVideo
+  );
+
+
+  adicionarCampo(
+    formulario,
+    'fimVideo',
+    dados.fimVideo
+  );
+
+
+  document.body.appendChild(
+    formulario
+  );
+  debugUploadCliente(
+    'POST_CHUNK_PREPARADO',
+    {
+      uploadId:
+        dados.uploadId,
+
+      mediaType:
+        dados.mediaType ||
+        'VIDEO',
+
+      chunkIndex:
+        dados.chunkIndex,
+
+      totalChunks:
+        dados.totalChunks,
+
+      bytesBase64:
+        dados.chunkBase64
+          ? dados.chunkBase64.length
+          : 0
+    },
+    dados
+  );
+
+
+  formulario.submit();
+
+
+  debugUploadCliente(
+    'POST_CHUNK_SUBMETIDO',
+    {
+      uploadId:
+        dados.uploadId,
+
+      mediaType:
+        dados.mediaType ||
+        'VIDEO',
+
+      chunkIndex:
+        dados.chunkIndex,
+
+      totalChunks:
+        dados.totalChunks
+    },
+    dados
+  );
+
+
+  /*
+   * O iframe fica apenas como destino silencioso da requisição.
+   * Não dependemos do evento load.
+   */
+
+  setTimeout(
+    function() {
+
+      try {
+
+        document.body
+          .removeChild(
+            formulario
+          );
+
+      }
+      catch (erro) {}
+
+    },
+    2000
+  );
+
+
+  setTimeout(
+    function() {
+
+      try {
+
+        document.body
+          .removeChild(
+            frame
+          );
+
+      }
+      catch (erro) {}
+
+    },
+    30000
+  );
+
+}
+
+
+/*
+ * Consulta o status do chunk por JSONP.
+ */
+function aguardarStatusChunk(
+  uploadId,
+  chunkIndex
+) {
+
+  return new Promise(
+    function(
+      resolve,
+      reject
+    ) {
+
+      let tentativas =
+        0;
+
+
+      const maxTentativas =
+        60;
+
+
+      const consultar =
+        function() {
+
+          tentativas++;
+
+
+          const callbackName =
+            'jsonpChunk_' +
+            Date.now() +
+            '_' +
+            Math.random()
+              .toString(36)
+              .substring(
+                2,
+                10
+              );
+
+
+          let script = null;
+
+
+          const limpar =
+            function() {
+
+              try {
+
+                if (
+                  script &&
+                  script.parentNode
+                ) {
+
+                  script.parentNode
+                    .removeChild(
+                      script
+                    );
+
+                }
+
+              }
+              catch (erro) {}
+
+
+              try {
+
+                delete window[
+                  callbackName
+                ];
+
+              }
+              catch (erro) {}
+
+            };
+
+
+          const timeout =
+            setTimeout(
+              function() {
+
+                limpar();
+
+
+                if (
+                  tentativas >=
+                  maxTentativas
+                ) {
+
+                  reject(
+                    new Error(
+                      'Tempo excedido ao confirmar a parte ' +
+                      (
+                        Number(
+                          chunkIndex
+                        ) + 1
+                      ) +
+                      '.'
+                    )
+                  );
+
+                  return;
+
+                }
+
+
+                setTimeout(
+                  consultar,
+                  1000
+                );
+
+              },
+              5000
+            );
+
+
+          window[
+            callbackName
+          ] =
+            function(
+              resposta
+            ) {
+
+              clearTimeout(
+                timeout
+              );
+
+
+              limpar();
+
+
+              if (
+                resposta &&
+                resposta.sucesso &&
+                resposta.recebido
+              ) {
+
+                resolve(
+                  resposta
+                );
+
+                return;
+
+              }
+
+
+              if (
+                resposta &&
+                resposta.erro
+              ) {
+
+                reject(
+                  new Error(
+                    resposta.erro
+                  )
+                );
+
+                return;
+
+              }
+
+
+              if (
+                tentativas >=
+                maxTentativas
+              ) {
+
+                reject(
+                  new Error(
+                    'Tempo excedido ao confirmar a parte ' +
+                    (
+                      Number(
+                        chunkIndex
+                      ) + 1
+                    ) +
+                    '.'
+                  )
+                );
+
+                return;
+
+              }
+
+
+              setTimeout(
+                consultar,
+                1000
+              );
+
+            };
+
+
+          script =
+            document.createElement(
+              'script'
+            );
+
+
+          script.src =
+            URL_APPS_SCRIPT +
+            '?status=chunk' +
+            '&uploadId=' +
+            encodeURIComponent(
+              uploadId
+            ) +
+            '&chunkIndex=' +
+            encodeURIComponent(
+              chunkIndex
+            ) +
+            '&callback=' +
+            encodeURIComponent(
+              callbackName
+            ) +
+            '&_=' +
+            Date.now();
+
+
+          script.onerror =
+            function() {
+
+              clearTimeout(
+                timeout
+              );
+
+
+              limpar();
+
+
+              if (
+                tentativas >=
+                maxTentativas
+              ) {
+
+                reject(
+                  new Error(
+                    'Não foi possível consultar o status da parte ' +
+                    (
+                      Number(
+                        chunkIndex
+                      ) + 1
+                    ) +
+                    '.'
+                  )
+                );
+
+                return;
+
+              }
+
+
+              setTimeout(
+                consultar,
+                1000
+              );
+
+            };
+
+
+          document.head.appendChild(
+            script
+          );
+
+        };
+
+
+      consultar();
+
+    }
+  );
+
+}
+
+
+/*
+ * Finaliza o upload:
+ *
+ * 1. dispara POST VIDEO_FINALIZE;
+ * 2. consulta o status final por JSONP.
+ */
+async function finalizarUpload(
+  job
+) {
+
+  const uploadId =
+    job && job.uploadId
+      ? job.uploadId
+      : null;
+
+  if (!uploadId) {
+    throw new Error(
+      'Upload ID não informado para finalização.'
+    );
+  }
+
+  dispararPostFinalizacao(
+    uploadId,
+    job
+  );
+
+  return aguardarStatusFinal(
+    uploadId,
+    job
+  );
+
+}
+
+
+/*
+ * Dispara a requisição de finalização.
+ */
+function dispararPostFinalizacao(
+  uploadId,
+  job
+) {
+
+  const frame =
+    document.createElement(
+      'iframe'
+    );
+
+
+  const frameName =
+    'postFinalize_' +
+    Date.now() +
+    '_' +
+    Math.random()
+      .toString(36)
+      .substring(
+        2,
+        8
+      );
+
+
+  frame.name =
+    frameName;
+
+
+  frame.style.display =
+    'none';
+
+
+  document.body.appendChild(
+    frame
+  );
+
+
+  const formulario =
+    document.createElement(
+      'form'
+    );
+
+
+  formulario.method =
+    'POST';
+
+
+  formulario.action =
+    URL_APPS_SCRIPT;
+
+
+  formulario.target =
+    frameName;
+
+
+  formulario.style.display =
+    'none';
+
+
+  adicionarCampo(
+    formulario,
+    'tipo',
+    job &&
+    job.mediaType === 'AUDIO'
+      ? 'AUDIO_FINALIZE'
+      : 'VIDEO_FINALIZE'
+  );
+
+
+  adicionarCampo(
+    formulario,
+    'uploadId',
+    uploadId
+  );
+
+  adicionarCampo(
+    formulario,
+    'totalChunks',
+    job && job.totalChunks != null
+      ? job.totalChunks
+      : 0
+  );
+
+  adicionarCampo(
+    formulario,
+    'mimeType',
+    job && job.mimeType
+      ? job.mimeType
+      : 'video/webm'
+  );
+
+  adicionarCampo(
+    formulario,
+    'duracaoReal',
+    String(
+      job &&
+      job.duracaoReal != null
+        ? job.duracaoReal
+        : 0
+    )
+  );
+
+
+  adicionarCampo(
+    formulario,
+    'inicioVideo',
+    job && job.inicioVideo
+      ? job.inicioVideo
+      : ''
+  );
+
+
+  adicionarCampo(
+    formulario,
+    'fimVideo',
+    job && job.fimVideo
+      ? job.fimVideo
+      : ''
+  );
+
+
+  document.body.appendChild(
+    formulario
+  );
+
+
+  debugUploadCliente(
+    'POST_FINALIZACAO_SUBMETIDO',
+    job,
+    {
+      tipo:
+        job &&
+        job.mediaType === 'AUDIO'
+          ? 'AUDIO_FINALIZE'
+          : 'VIDEO_FINALIZE',
+
+      uploadId:
+        uploadId,
+
+      totalChunks:
+        job &&
+        job.totalChunks
+          ? job.totalChunks
+          : 0
+    }
+  );
+
+
+  formulario.submit();
+
+
+  setTimeout(
+    function() {
+
+      try {
+
+        document.body
+          .removeChild(
+            formulario
+          );
+
+      }
+      catch (erro) {}
+
+    },
+    2000
+  );
+
+
+  setTimeout(
+    function() {
+
+      try {
+
+        document.body
+          .removeChild(
+            frame
+          );
+
+      }
+      catch (erro) {}
+
+    },
+    300000
+  );
+
+}
+
+
+/*
+ * Consulta o status da finalização.
+ */
+function aguardarStatusFinal(
+  uploadId,
+  job
+) {
+
+  return new Promise(
+    function(
+      resolve,
+      reject
+    ) {
+
+      let tentativas =
+        0;
+
+
+      const maxTentativas =
+        180;
+
+
+      const consultar =
+        function() {
+
+          tentativas++;
+
+
+          /*
+           * A cada tentativa consultamos o último
+           * resultado finalizado do servidor.
+           *
+           * O servidor só responde finalizado=true
+           * se o uploadId for exatamente o nosso.
+           */
+
+          const callbackName =
+            'jsonpFinalLatest_' +
+            Date.now() +
+            '_' +
+            Math.random()
+              .toString(36)
+              .substring(
+                2,
+                10
+              );
+
+
+          let script = null;
+
+
+          const limpar =
+            function() {
+
+              try {
+
+                if (
+                  script &&
+                  script.parentNode
+                ) {
+
+                  script.parentNode
+                    .removeChild(
+                      script
+                    );
+
+                }
+
+              }
+              catch (erro) {}
+
+
+              try {
+
+                delete window[
+                  callbackName
+                ];
+
+              }
+              catch (erro) {}
+
+            };
+
+
+          const timeout =
+            setTimeout(
+              function() {
+
+                limpar();
+
+
+                if (
+                  tentativas >=
+                  maxTentativas
+                ) {
+
+                  reject(
+                    new Error(
+                      'O servidor criou o vídeo, mas a confirmação final não retornou ao aparelho.'
+                    )
+                  );
+
+                  return;
+
+                }
+
+
+                setTimeout(
+                  consultar,
+                  1000
+                );
+
+              },
+              5000
+            );
+
+
+          window[
+            callbackName
+          ] =
+            function(
+              resposta
+            ) {
+
+              clearTimeout(
+                timeout
+              );
+
+
+              limpar();
+
+
+              if (
+                resposta &&
+                resposta.sucesso &&
+                (
+                  resposta.finalizado ||
+                  resposta.idArquivo
+                ) &&
+                resposta.uploadId ===
+                  uploadId
+              ) {
+
+                resolve(
+                  resposta
+                );
+
+                return;
+
+              }
+
+
+              if (
+                resposta &&
+                resposta.erro
+              ) {
+
+                reject(
+                  new Error(
+                    resposta.erro
+                  )
+                );
+
+                return;
+
+              }
+
+
+              if (
+                tentativas >=
+                maxTentativas
+              ) {
+
+                reject(
+                  new Error(
+                    'O servidor terminou o processamento, mas não foi possível confirmar o upload no aparelho.'
+                  )
+                );
+
+                return;
+
+              }
+
+
+              setTimeout(
+                consultar,
+                1000
+              );
+
+            };
+
+
+          script =
+            document.createElement(
+              'script'
+            );
+
+
+          script.src =
+            URL_APPS_SCRIPT +
+            '?status=final' +
+            '&uploadId=' +
+            encodeURIComponent(
+              uploadId
+            ) +
+            '&maquina=' +
+            encodeURIComponent(
+              job && job.maquina
+                ? job.maquina
+                : ''
+            ) +
+            '&operador=' +
+            encodeURIComponent(
+              job && job.operador
+                ? job.operador
+                : ''
+            ) +
+            '&produto=' +
+            encodeURIComponent(
+              job && job.produto
+                ? job.produto
+                : ''
+            ) +
+            '&callback=' +
+            encodeURIComponent(
+              callbackName
+            ) +
+            '&_=' +
+            Date.now();
+
+
+          script.onerror =
+            function() {
+
+              clearTimeout(
+                timeout
+              );
+
+
+              limpar();
+
+
+              if (
+                tentativas >=
+                maxTentativas
+              ) {
+
+                reject(
+                  new Error(
+                    'Não foi possível consultar a confirmação final do servidor.'
+                  )
+                );
+
+                return;
+
+              }
+
+
+              setTimeout(
+                consultar,
+                1000
+              );
+
+            };
+
+
+          document.head.appendChild(
+            script
+          );
+
+        };
+
+
+      consultar();
+
+    }
+  );
+
+}
+
+
+
+
+
+/* =====================================================
+   FECHAR INSPEÇÃO
+   ===================================================== */
+
+function fecharInspecao() {
+
+  if (
+    countdownInterval
+  ) {
+
+    clearInterval(
+      countdownInterval
+    );
+
+    countdownInterval =
+      null;
+
+  }
+
+
+  if (
+    cicloInterval
+  ) {
+
+    clearInterval(
+      cicloInterval
+    );
+
+    cicloInterval =
+      null;
+
+  }
+
+
+  try {
+
+    if (
+      mediaRecorder &&
+      mediaRecorder.state !==
+      'inactive'
+    ) {
+
+      mediaRecorder.stop();
+
+    }
+
+  }
+  catch (erro) {}
+
+
+  desligarCamera();
+
+  liberarWakeLock();
+
+
+  document
+    .getElementById(
+      'inspectionScreen'
+    )
+    .classList
+    .add(
+      'hidden'
+    );
+
+
+  document
+    .getElementById(
+      'mainForm'
+    )
+    .classList
+    .remove(
+      'hidden'
+    );
+
+}
+
+
+/* =====================================================
+   NOVA INSPEÇÃO
+   ===================================================== */
+
+function novoRegistro() {
+
+  
+  if (
+    String(
+      conformidade || ''
+    )
+      .trim()
+      .toUpperCase() === 'NÃO' &&
+    !audioConcluido
+  ) {
+
+    mostrarMensagem(
+      '⚠️ Grave o áudio obrigatório da não conformidade antes de iniciar uma nova inspeção.',
+      'error'
+    );
+
+    return;
+
+  }
+
+
+if (
+    ultimaVideoUrl
+  ) {
+
+    try {
+      URL.revokeObjectURL(
+        ultimaVideoUrl
+      );
+    }
+    catch (erro) {}
+
+    ultimaVideoUrl =
+      null;
+
+  }
+
+  videoBlob =
+    null;
+
+  partesVideo =
+    [];
+
+  conformidade =
+    '';
+
+  document
+    .getElementById(
+      'btnSim'
+    )
+    .classList
+    .remove(
+      'selected'
+    );
+
+  document
+    .getElementById(
+      'btnNao'
+    )
+    .classList
+    .remove(
+      'selected'
+    );
+
+  document
+    .getElementById(
+      'videoResult'
+    )
+    .classList
+    .add(
+      'hidden'
+    );
+
+  document
+    .getElementById(
+      'successScreen'
+    )
+    .classList
+    .add(
+      'hidden'
+    );
+
+  document
+    .getElementById(
+      'mainForm'
+    )
+    .classList
+    .remove(
+      'hidden'
+    );
+
+  mostrarMensagem(
+    '',
+    ''
+  );
+
+  verificarFormulario();
+  atualizarFilaUI();
+  processarFilaUploads();
+
+}
+
+
+/* =====================================================
+   WAKE LOCK
+   ===================================================== */
+
+document.addEventListener(
+  'visibilitychange',
+  async function() {
+
+    if (
+      document.visibilityState ===
+      'visible'
+    ) {
+
+      if (
+        cameraStream
+      ) {
+
+        await solicitarWakeLock();
+
+      }
+
+      try {
+
+        await processarFilaUploads();
+
+      }
+      catch (erroFila) {
+
+        console.warn(
+          'Fila após retorno à tela:',
+          erroFila
+        );
+
+      }
+
+      await atualizarFilaUI();
+
+    }
+
+  }
+);
+
+
+window.addEventListener(
+  'online',
+  async function() {
+
+    try {
+
+      await processarFilaUploads();
+
+    }
+    catch (erroFila) {
+
+      console.warn(
+        'Fila após retorno da internet:',
+        erroFila
+      );
+
+    }
+
+    await atualizarFilaUI();
+
+  }
+);
+
+
+window.addEventListener(
+  'offline',
+  function() {
+
+    atualizarFilaUI();
+
+    mostrarMensagem(
+      '📡 Sem internet. As gravações permanecem na fila e serão enviadas quando a conexão voltar.',
+      'warning'
+    );
+
+  }
+);
+
+
+window.addEventListener(
+  'beforeunload',
+  function(evento) {
+
+    if (
+      mediaRecorder &&
+      mediaRecorder.state !==
+        'inactive'
+    ) {
+
+      evento.preventDefault();
+      evento.returnValue =
+        'Uma gravação está em andamento.';
+
+      return;
+
+    }
+
+  }
+);
+
+
+/* =====================================================
+   INICIALIZAÇÃO DO SISTEMA
+   ===================================================== */
+
+/*
+ * Carrega operadores, produtos e identifica a máquina
+ * antes de iniciar a fila de uploads.
+ */
+carregarDados()
+  .finally(
+    function() {
+
+      inicializarFilaUploads();
+
+    }
+  );
+</script>
+
+</body>
+
+</html>
+e>RA Polymers - Monitoramento</title>
 
   <style>
 
