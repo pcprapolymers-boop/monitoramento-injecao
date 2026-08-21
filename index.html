@@ -943,7 +943,7 @@ const TAMANHO_CHUNK =
   512 * 1024;
 
 const TIMESLICE_GRAVACAO =
-  5000;
+  2000;
 
 let filaProcessando =
   false;
@@ -4096,6 +4096,31 @@ function iniciarGravacao() {
       partesVideo.push(
         evento.data
       );
+
+      debugUploadCliente(
+        'VIDEO_CHUNK_GRAVADO_LOCAL',
+        {
+          uploadId:
+            gravacaoUploadId,
+
+          mediaType:
+            'VIDEO',
+
+          nextChunk:
+            indice
+        },
+        {
+          bytes:
+            evento.data.size,
+
+          kb:
+            (
+              evento.data.size /
+              1024
+            ).toFixed(1)
+        }
+      );
+
 
       const promessa =
         salvarChunkLocal(
