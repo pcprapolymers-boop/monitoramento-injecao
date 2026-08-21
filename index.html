@@ -5307,6 +5307,34 @@ function blobParaBase64(
           }
 
 
+          try {
+
+            debugUploadCliente(
+              'BASE64_VIDEO_CONVERTIDO',
+              {
+                uploadId:
+                  gravacaoUploadId,
+
+                mediaType:
+                  'VIDEO'
+              },
+              {
+                blobBytes:
+                  blob.size,
+
+                base64Chars:
+                  base64.length,
+
+                resto4:
+                  base64.length %
+                    4
+              }
+            );
+
+          }
+          catch (debugErro) {}
+
+
           resolve(
             base64
           );
