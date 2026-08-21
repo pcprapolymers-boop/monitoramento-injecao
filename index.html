@@ -2425,6 +2425,118 @@ async function carregarDados() {
 }
 
 
+function preencherSelecoes() {
+
+  const selectOperador =
+    document.getElementById(
+      'operador'
+    );
+
+
+  const selectProduto =
+    document.getElementById(
+      'produto'
+    );
+
+
+  if (
+    !selectOperador ||
+    !selectProduto
+  ) {
+
+    return;
+
+  }
+
+
+  selectOperador.innerHTML =
+    '<option value="">Selecione o operador</option>';
+
+
+  operadores.forEach(
+    function(nome) {
+
+      const option =
+        document.createElement(
+          'option'
+        );
+
+
+      option.value =
+        nome;
+
+
+      option.textContent =
+        nome;
+
+
+      selectOperador
+        .appendChild(
+          option
+        );
+
+    }
+  );
+
+
+  selectProduto.innerHTML =
+    '<option value="">Selecione o produto</option>';
+
+
+  produtos.forEach(
+    function(produto) {
+
+      const ehTexto =
+        typeof produto ===
+        'string';
+
+
+      const nome =
+        ehTexto
+          ? produto
+          : produto.nome;
+
+
+      const ciclo =
+        ehTexto
+          ? 0
+          : Number(
+              produto.ciclo ||
+              0
+            );
+
+
+      const option =
+        document.createElement(
+          'option'
+        );
+
+
+      option.value =
+        nome;
+
+
+      option.textContent =
+        nome;
+
+
+      option.dataset.ciclo =
+        String(
+          ciclo
+        );
+
+
+      selectProduto
+        .appendChild(
+          option
+        );
+
+    }
+  );
+
+}
+
+
 function carregarDadosRemotos() {
 
   return new Promise(
