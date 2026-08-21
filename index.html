@@ -410,6 +410,16 @@
       class="pending-progress hidden"
     ></div>
 
+    <button
+      id="btnRetentarFila"
+      class="btn-secondary"
+      type="button"
+      style="margin-top:8px;width:100%;"
+      onclick="processarFilaUploads()"
+    >
+      🔄 PROCESSAR FILA AGORA
+    </button>
+
   </div>
 
 
@@ -1511,7 +1521,7 @@ async function atualizarFilaUI() {
     text.textContent =
       '📦 ' +
       jobs.length +
-      ' vídeo(s) na fila • ' +
+      ' arquivo(s) na fila • ' +
       enviando +
       ' enviando • ' +
       aguardando +
@@ -1574,14 +1584,36 @@ async function atualizarFilaUI() {
 }
 
 
-function atualizarFilaPeriodicamente() {
+async function atualizarFilaPeriodicamente() {
 
-  atualizarFilaUI();
+  try {
 
-  setTimeout(
-    atualizarFilaPeriodicamente,
-    3000
-  );
+    await atualizarFilaUI();
+
+    /*
+     * O watchdog também dispara a fila.
+     * Isso elimina a dependência de um único
+     * evento no momento em que o vídeo/áudio é salvo.
+     */
+    await processarFilaUploads();
+
+  }
+  catch (erro) {
+
+    console.warn(
+      'Watchdog da fila:',
+      erro
+    );
+
+  }
+  finally {
+
+    setTimeout(
+      atualizarFilaPeriodicamente,
+      3000
+    );
+
+  }
 
 }
 
@@ -3862,7 +3894,19 @@ function iniciarGravacao() {
 
         await atualizarFilaUI();
 
-        processarFilaUploads();
+        try {
+
+          await processarFilaUploads();
+
+        }
+        catch (erroFila) {
+
+          console.warn(
+            'Fila de vídeo não iniciou imediatamente:',
+            erroFila
+          );
+
+        }
 
       }
 
@@ -4466,7 +4510,20 @@ async function iniciarGravacaoAudio() {
         }
 
         await atualizarFilaUI();
-        processarFilaUploads();
+
+        try {
+
+          await processarFilaUploads();
+
+        }
+        catch (erroFila) {
+
+          console.warn(
+            'Fila de áudio não iniciou imediatamente:',
+            erroFila
+          );
+
+        }
 
       };
 
@@ -6067,8 +6124,21 @@ document.addEventListener(
 
       }
 
-      processarFilaUploads();
-      atualizarFilaUI();
+      try {
+
+        await processarFilaUploads();
+
+      }
+      catch (erroFila) {
+
+        console.warn(
+          'Fila após retorno à tela:',
+          erroFila
+        );
+
+      }
+
+      await atualizarFilaUI();
 
     }
 
@@ -6078,10 +6148,23 @@ document.addEventListener(
 
 window.addEventListener(
   'online',
-  function() {
+  async function() {
 
-    processarFilaUploads();
-    atualizarFilaUI();
+    try {
+
+      await processarFilaUploads();
+
+    }
+    catch (erroFila) {
+
+      console.warn(
+        'Fila após retorno da internet:',
+        erroFila
+      );
+
+    }
+
+    await atualizarFilaUI();
 
   }
 );
