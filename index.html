@@ -5278,18 +5278,59 @@ function blobParaBase64(
           }
 
 
-          const separador =
-            resultado.indexOf(
-              ','
+          let base64 =
+            String(
+              resultado
             );
 
 
-          const base64 =
-            separador >= 0
-              ? resultado.substring(
-                  separador + 1
-                )
-              : resultado;
+          /*
+           * Data URL:
+           *
+           * data:video/webm;codecs=vp8,opus;base64,<PAYLOAD>
+           *
+           * Não podemos usar indexOf(',') porque
+           * "vp8,opus" já contém uma vírgula.
+           */
+          if (
+            base64.indexOf(
+              'base64,'
+            ) >= 0
+          ) {
+
+            base64 =
+              base64.substring(
+                base64.lastIndexOf(
+                  'base64,'
+                ) +
+                'base64,'.length
+              );
+
+          }
+
+
+          base64 =
+            base64
+              .replace(
+                /\r/g,
+                ''
+              )
+              .replace(
+                /\n/g,
+                ''
+              )
+              .trim();
+
+
+          /*
+           * Retira espaços que não deveriam existir
+           * no payload e valida o formato.
+           */
+          base64 =
+            base64.replace(
+              /\s/g,
+              ''
+            );
 
 
           if (
@@ -5299,6 +5340,47 @@ function blobParaBase64(
             reject(
               new Error(
                 'A conversão da parte do vídeo resultou em vazio.'
+              )
+            );
+
+            return;
+
+          }
+
+
+          const resto =
+            base64.length %
+            4;
+
+
+          /*
+           * O padding pode ficar ausente em alguns
+           * transportes. Corrigimos aqui antes do envio.
+           */
+          if (
+            resto > 0 &&
+            resto !== 1
+          ) {
+
+            base64 +=
+              '='.repeat(
+                4 -
+                resto
+              );
+
+          }
+
+
+          if (
+            base64.length %
+              4 ===
+              1
+          ) {
+
+            reject(
+              new Error(
+                'Base64 de vídeo inválido: comprimento=' +
+                base64.length
               )
             );
 
@@ -5327,7 +5409,30 @@ function blobParaBase64(
 
                 resto4:
                   base64.length %
-                    4
+                    4,
+
+                possuiCabecalhoDataUrl:
+                  String(
+                    resultado
+                  ).indexOf(
+                    'data:'
+                  ) ===
+                  0,
+
+                inicio:
+                  base64.substring(
+                    0,
+                    24
+                  ),
+
+                fim:
+                  base64.substring(
+                    Math.max(
+                      0,
+                      base64.length -
+                        24
+                    )
+                  )
               }
             );
 
@@ -5362,6 +5467,9 @@ function blobParaBase64(
   );
 
 }
+
+
+
 
 
 
