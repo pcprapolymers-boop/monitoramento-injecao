@@ -4650,9 +4650,12 @@ async function iniciarGravacaoAudio() {
     audioStream =
       await navigator.mediaDevices.getUserMedia({
         audio: {
-          echoCancellation: true,
+          echoCancellation: false,
           noiseSuppression: true,
-          autoGainControl: true
+          autoGainControl: true,
+          channelCount: 1,
+          sampleRate: 48000,
+          sampleSize: 16
         }
       });
 
@@ -4675,11 +4678,66 @@ async function iniciarGravacaoAudio() {
         mimeType;
     }
 
+    /*
+     * Voz: 128 kbps Opus.
+     * Em Android/Chrome o navegador pode ajustar o valor,
+     * então registramos o valor efetivamente aplicado.
+     */
+    opcoes.audioBitsPerSecond =
+      128000;
+
     audioRecorder =
       new MediaRecorder(
         audioStream,
         opcoes
       );
+
+
+    try {
+
+      const track =
+        audioStream
+          .getAudioTracks()[0];
+
+
+      debugUploadCliente(
+        'AUDIO_CONFIG_REAL',
+        {
+          uploadId:
+            audioUploadId,
+
+          mediaType:
+            'AUDIO'
+        },
+        {
+          mimeType:
+            audioRecorder.mimeType ||
+            mimeType ||
+            '',
+
+          audioBitsPerSecond:
+            audioRecorder.audioBitsPerSecond ||
+            0,
+
+          trackSettings:
+            track &&
+            typeof track.getSettings ===
+            'function'
+              ? track.getSettings()
+              : {},
+
+          trackConstraints:
+            track &&
+            typeof track.getConstraints ===
+            'function'
+              ? track.getConstraints()
+              : {}
+        }
+      );
+
+    }
+    catch (debugErro) {}
+
 
     partesAudio = [];
     audioChunkPromises = [];
@@ -4746,7 +4804,7 @@ async function iniciarGravacaoAudio() {
 
     if (status) {
       status.textContent =
-        '🔴 Gravando áudio... fale a justificativa da inspeção.';
+        '🔴 Gravando áudio em alta qualidade... fale próximo ao telefone.';
     }
 
     audioRecorder.ondataavailable =
