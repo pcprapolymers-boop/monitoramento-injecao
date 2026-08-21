@@ -346,7 +346,18 @@
 
     }
 
-  </style>
+  
+/* V12.25 — cronômetro do áudio centralizado */
+#audioTimer {
+  display: block;
+  width: 100%;
+  text-align: center !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+  font-variant-numeric: tabular-nums;
+}
+
+</style>
 
 </head>
 
@@ -4766,6 +4777,13 @@ async function iniciarGravacaoAudio() {
 
     const timer =
       document.getElementById('audioTimer');
+
+    if (timer) {
+      timer.style.textAlign = 'center';
+      timer.style.width = '100%';
+      timer.style.marginLeft = 'auto';
+      timer.style.marginRight = 'auto';
+    }
 
     if (btnGravar) {
       btnGravar.classList.add('hidden');
