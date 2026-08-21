@@ -411,18 +411,7 @@ ativarDebugLocalSeSolicitado();
       id="uploadQueueProgress"
       class="pending-progress hidden"
     ></div>
-
-    <button
-      id="btnRetentarFila"
-      class="btn-secondary"
-      type="button"
-      style="margin-top:8px;width:100%;"
-      onclick="processarFilaUploads()"
-    >
-      🔄 PROCESSAR FILA AGORA
-    </button>
-
-  </div>
+</div>
 
 
 
@@ -932,7 +921,7 @@ let audioConcluido = false;
 let audioPulado = false;
 let audioTimer = null;
 let audioSegundos = 0;
-let TEMPO_MAX_AUDIO = 60;
+let TEMPO_MAX_AUDIO = 30;
 
 
 
@@ -4299,27 +4288,6 @@ function iniciarGravacao() {
           job
         );
 
-        mostrarMensagem(
-          '✅ Ciclo salvo. O envio do vídeo começou em segundo plano; você já pode iniciar outra inspeção.',
-          'success'
-        );
-
-        await atualizarFilaUI();
-
-        try {
-
-          await processarFilaUploads();
-
-        }
-        catch (erroFila) {
-
-          console.warn(
-            'Fila de vídeo não iniciou imediatamente:',
-            erroFila
-          );
-
-        }
-
       }
 
       document
@@ -4369,6 +4337,32 @@ function iniciarGravacao() {
 
 
       liberarWakeLock();
+
+
+      /*
+       * O vídeo está protegido localmente.
+       * A fila sobe em segundo plano sem bloquear
+       * a etapa de áudio.
+       */
+
+      setTimeout(
+        function() {
+
+          processarFilaUploads()
+            .catch(
+              function(erroFila) {
+
+                console.warn(
+                  'Fila do vídeo:',
+                  erroFila
+                );
+
+              }
+            );
+
+        },
+        50
+      );
 
     };
 
@@ -4697,7 +4691,22 @@ async function iniciarGravacaoAudio() {
     }
 
     if (btnParar) {
-      btnParar.classList.remove('hidden');
+
+      btnParar.classList.remove(
+        'hidden'
+      );
+
+      btnParar.textContent =
+        String(
+          conformidade || ''
+        )
+          .trim()
+          .toUpperCase() === 'NÃO'
+            ? '⏱️ AGUARDE ' +
+              TEMPO_MAX_AUDIO +
+              's'
+            : '⏹️ PARAR ÁUDIO';
+
     }
 
     if (btnSem) {
@@ -4998,9 +5007,49 @@ async function iniciarGravacaoAudio() {
 
 function pararGravacaoAudio() {
 
+  const conformeAtual =
+    String(
+      conformidade || ''
+    )
+      .trim()
+      .toUpperCase();
+
+
+  if (
+    conformeAtual === 'NÃO' &&
+    audioSegundos <
+      TEMPO_MAX_AUDIO
+  ) {
+
+    const status =
+      document.getElementById(
+        'audioStatus'
+      );
+
+
+    if (status) {
+
+      status.textContent =
+        '⏱️ Áudio obrigatório: aguarde ' +
+        Math.max(
+          0,
+          TEMPO_MAX_AUDIO -
+          audioSegundos
+        ) +
+        ' segundo(s).';
+
+    }
+
+
+    return;
+
+  }
+
+
   if (
     audioRecorder &&
-    audioRecorder.state !== 'inactive'
+    audioRecorder.state !==
+      'inactive'
   ) {
 
     audioRecorder.stop();
@@ -5008,6 +5057,9 @@ function pararGravacaoAudio() {
   }
 
 }
+
+
+
 
 
 function continuarSemAudio() {
@@ -5566,8 +5618,7 @@ function aguardarStatusChunk(
         0;
 
 
-      const maxTentativas =
-        60;
+      const maxTentativas = 6;
 
 
       const consultar =
@@ -5627,6 +5678,24 @@ function aguardarStatusChunk(
           const timeout =
             setTimeout(
               function() {
+            debugUploadCliente(
+              'STATUS_CHUNK_TIMEOUT',
+              {
+                uploadId:
+                  uploadId,
+                status:
+                  'uploading',
+                nextChunk:
+                  chunkIndex
+              },
+              {
+                tentativa:
+                  tentativas,
+                maxTentativas:
+                  maxTentativas
+              }
+            );
+
 
                 limpar();
 
@@ -5684,6 +5753,22 @@ function aguardarStatusChunk(
                 resposta.recebido
               ) {
 
+                debugUploadCliente(
+                  'STATUS_CHUNK_CONFIRMADO',
+                  {
+                    uploadId:
+                      uploadId,
+                    status:
+                      'uploading',
+                    nextChunk:
+                      chunkIndex
+                  },
+                  {
+                    tentativa:
+                      tentativas
+                  }
+                );
+
                 resolve(
                   resposta
                 );
@@ -5737,6 +5822,53 @@ function aguardarStatusChunk(
               );
 
             };
+
+
+          debugUploadCliente(
+
+
+            'STATUS_CHUNK_CONSULTA',
+
+
+            {
+
+
+              uploadId:
+
+
+                uploadId,
+
+
+              status:
+
+
+                'uploading',
+
+
+              nextChunk:
+
+
+                chunkIndex
+
+
+            },
+
+
+            {
+
+
+              tentativa:
+
+
+                tentativas
+
+
+            }
+
+
+          );
+
+
 
 
           script =
@@ -6041,8 +6173,7 @@ function aguardarStatusFinal(
         0;
 
 
-      const maxTentativas =
-        180;
+      const maxTentativas = 20;
 
 
       const consultar =
@@ -6110,6 +6241,17 @@ function aguardarStatusFinal(
           const timeout =
             setTimeout(
               function() {
+            debugUploadCliente(
+              'STATUS_FINAL_TIMEOUT',
+              job,
+              {
+                tentativa:
+                  tentativas,
+                maxTentativas:
+                  maxTentativas
+              }
+            );
+
 
                 limpar();
 
@@ -6166,6 +6308,15 @@ function aguardarStatusFinal(
                   uploadId
               ) {
 
+                debugUploadCliente(
+                  'STATUS_FINAL_CONFIRMADO',
+                  job,
+                  {
+                    tentativa:
+                      tentativas
+                  }
+                );
+
                 resolve(
                   resposta
                 );
@@ -6213,6 +6364,32 @@ function aguardarStatusFinal(
               );
 
             };
+
+
+          debugUploadCliente(
+
+
+            'STATUS_FINAL_CONSULTA',
+
+
+            job,
+
+
+            {
+
+
+              tentativa:
+
+
+                tentativas
+
+
+            }
+
+
+          );
+
+
 
 
           script =
