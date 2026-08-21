@@ -2416,7 +2416,13 @@ async function carregarDados() {
 
 
     mostrarMensagem(
-      '❌ Não foi possível carregar Operadores e Produtos da planilha.',
+      '❌ Não foi possível carregar Operadores e Produtos da planilha: ' +
+      (
+        erro &&
+        erro.message
+          ? erro.message
+          : 'erro de comunicação'
+      ),
       'error'
     );
 
@@ -2561,12 +2567,12 @@ function carregarDadosRemotos() {
         null;
 
 
-      let terminou =
-        false;
-
-
       let timeout =
         null;
+
+
+      let terminou =
+        false;
 
 
       function limpar() {
@@ -2602,7 +2608,7 @@ function carregarDadosRemotos() {
 
 
       function falhar(
-        erro
+        mensagem
       ) {
 
         if (
@@ -2633,7 +2639,9 @@ function carregarDadosRemotos() {
 
 
         reject(
-          erro
+          new Error(
+            mensagem
+          )
         );
 
       }
@@ -2673,6 +2681,21 @@ function carregarDadosRemotos() {
         limpar();
 
 
+        if (
+          !dados
+        ) {
+
+          reject(
+            new Error(
+              'A planilha retornou uma resposta vazia.'
+            )
+          );
+
+          return;
+
+        }
+
+
         resolve(
           dados
         );
@@ -2680,7 +2703,18 @@ function carregarDadosRemotos() {
       };
 
 
-      const query =
+      script =
+        document.createElement(
+          'script'
+        );
+
+
+      script.async =
+        true;
+
+
+      script.src =
+        URL_APPS_SCRIPT +
         '?status=data' +
         '&m=' +
         encodeURIComponent(
@@ -2694,28 +2728,11 @@ function carregarDadosRemotos() {
         Date.now();
 
 
-      script =
-        document.createElement(
-          'script'
-        );
-
-
-      script.src =
-        URL_APPS_SCRIPT +
-        query;
-
-
-      script.async =
-        true;
-
-
       script.onerror =
         function() {
 
           falhar(
-            new Error(
-              'O Apps Script não respondeu à consulta dos cadastros.'
-            )
+            'Falha de comunicação com o Apps Script.'
           );
 
         };
@@ -2726,9 +2743,7 @@ function carregarDadosRemotos() {
           function() {
 
             falhar(
-              new Error(
-                'Tempo excedido ao carregar Operadores e Produtos da planilha.'
-              )
+              'Tempo excedido ao carregar os cadastros.'
             );
 
           },
@@ -2744,6 +2759,9 @@ function carregarDadosRemotos() {
   );
 
 }
+
+
+
 
 
 
