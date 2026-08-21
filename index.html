@@ -2188,8 +2188,11 @@ function formatarTempo(
 async function carregarDados() {
 
   /*
-   * MÁQUINA:
-   * vem somente da URL (?m=M1). Não depende da planilha.
+   * Máquina:
+   *   somente da URL (?m=M1). Não consulta/valida CAD_MAQUINAS.
+   *
+   * Operador e Produto:
+   *   obrigatoriamente carregados da planilha via Apps Script.
    */
 
   const machineElement =
@@ -2229,66 +2232,195 @@ async function carregarDados() {
   }
 
 
-  /*
-   * OPERADORES E PRODUTOS:
-   * fonte local para o piloto atual.
-   * Não espera planilha/Apps Script.
-   */
-
-  operadores = [
-    'Guilherme',
-    'Jessica',
-    'Airton',
-    'Marco',
-    'Célio',
-    'Walisson'
-  ];
-
-
-  produtos = [
-    {
-      nome:
-        'Reservatório 25L',
-      ciclo:
-        130
-    },
-
-    {
-      nome:
-        'Reservatório 50L',
-      ciclo:
-        140
-    },
-
-    {
-      nome:
-        'Tampa de 50L cinza',
-      ciclo:
-        100
-    },
-
-    {
-      nome:
-        'Tampa de 100L Cinza',
-      ciclo:
-        155
-    }
-  ];
-
-
-  preencherSelecoes();
-
-
-  verificarFormulario();
-
-
   mostrarMensagem(
-    '✅ Máquina ' +
-    maquina +
-    ' identificada.',
-    'success'
+    '🔄 Carregando operadores e produtos da planilha...',
+    'warning'
   );
 
+
+  try {
+
+    const dados =
+      await carregarDadosRemotos();
+
+
+    if (
+      !dados ||
+      !dados.sucesso
+    ) {
+
+      throw new Error(
+        dados &&
+        dados.erro
+          ? dados.erro
+          : 'Não foi possível carregar os cadastros.'
+      );
+
+    }
+
+
+    operadores =
+      Array.isArray(
+        dados.operadores
+      )
+        ? dados.operadores
+            .map(
+              function(item) {
+
+                return (
+                  typeof item ===
+                  'string'
+                    ? item
+                    : (
+                        item.nome ||
+                        ''
+                      )
+                );
+
+              }
+            )
+            .filter(
+              function(nome) {
+
+                return Boolean(
+                  nome
+                );
+
+              }
+            )
+        : [];
+
+
+    produtos =
+      Array.isArray(
+        dados.produtos
+      )
+        ? dados.produtos
+            .map(
+              function(item) {
+
+                if (
+                  typeof item ===
+                  'string'
+                ) {
+
+                  return {
+                    nome:
+                      item,
+
+                    ciclo:
+                      0
+                  };
+
+                }
+
+
+                return {
+                  nome:
+                    item.nome ||
+                    '',
+
+                  ciclo:
+                    Number(
+                      item.ciclo ||
+                      0
+                    ),
+
+                  codigoInterno:
+                    item.codigoInterno ||
+                    ''
+                };
+
+              }
+            )
+            .filter(
+              function(item) {
+
+                return Boolean(
+                  item.nome
+                );
+
+              }
+            )
+        : [];
+
+
+    TEMPO_MAX_AUDIO =
+      Math.max(
+        1,
+        Number(
+          dados.tempoMaxAudio ||
+          30
+        )
+      );
+
+
+    if (
+      operadores.length ===
+      0
+    ) {
+
+      throw new Error(
+        'Nenhum operador ativo foi retornado pela planilha.'
+      );
+
+    }
+
+
+    if (
+      produtos.length ===
+      0
+    ) {
+
+      throw new Error(
+        'Nenhum produto ativo foi retornado pela planilha.'
+      );
+
+    }
+
+
+    preencherSelecoes();
+
+
+    verificarFormulario();
+
+
+    mostrarMensagem(
+      '✅ Máquina ' +
+      maquina +
+      ' identificada. Operadores e produtos carregados.',
+      'success'
+    );
+
+  }
+  catch (erro) {
+
+    console.error(
+      '[CADASTROS_PLANILHA]',
+      erro
+    );
+
+
+    operadores =
+      [];
+
+
+    produtos =
+      [];
+
+
+    preencherSelecoes();
+
+
+    verificarFormulario();
+
+
+    mostrarMensagem(
+      '❌ Não foi possível carregar Operadores e Produtos da planilha.',
+      'error'
+    );
+
+  }
 
 }
 
@@ -2302,7 +2434,7 @@ function carregarDadosRemotos() {
     ) {
 
       const callbackName =
-        'dadosInicial_' +
+        'dadosPlanilha_' +
         Date.now() +
         '_' +
         Math.random()
@@ -2321,68 +2453,78 @@ function carregarDadosRemotos() {
         false;
 
 
-      const limpar =
-        function() {
-
-          try {
-
-            if (
-              script &&
-              script.parentNode
-            ) {
-
-              script.parentNode
-                .removeChild(
-                  script
-                );
-
-            }
-
-          }
-          catch (erro) {}
+      let timeout =
+        null;
 
 
-          try {
+      function limpar() {
 
-            delete window[
-              callbackName
-            ];
+        try {
+
+          if (
+            script &&
+            script.parentNode
+          ) {
+
+            script.parentNode
+              .removeChild(
+                script
+              );
 
           }
-          catch (erro) {}
 
-        };
-
-
-      const timeout =
-        setTimeout(
-          function() {
-
-            if (
-              terminou
-            ) {
-
-              return;
-
-            }
+        }
+        catch (erro) {}
 
 
-            terminou =
-              true;
+        try {
+
+          delete window[
+            callbackName
+          ];
+
+        }
+        catch (erro) {}
+
+      }
 
 
-            limpar();
+      function falhar(
+        erro
+      ) {
+
+        if (
+          terminou
+        ) {
+
+          return;
+
+        }
 
 
-            reject(
-              new Error(
-                'Tempo excedido ao carregar os cadastros.'
-              )
-            );
+        terminou =
+          true;
 
-          },
-          15000
+
+        if (
+          timeout
+        ) {
+
+          clearTimeout(
+            timeout
+          );
+
+        }
+
+
+        limpar();
+
+
+        reject(
+          erro
         );
+
+      }
 
 
       window[
@@ -2405,9 +2547,15 @@ function carregarDadosRemotos() {
           true;
 
 
-        clearTimeout(
+        if (
           timeout
-        );
+        ) {
+
+          clearTimeout(
+            timeout
+          );
+
+        }
 
 
         limpar();
@@ -2420,14 +2568,7 @@ function carregarDadosRemotos() {
       };
 
 
-      script =
-        document.createElement(
-          'script'
-        );
-
-
-      script.src =
-        URL_APPS_SCRIPT +
+      const query =
         '?status=data' +
         '&m=' +
         encodeURIComponent(
@@ -2441,37 +2582,46 @@ function carregarDadosRemotos() {
         Date.now();
 
 
+      script =
+        document.createElement(
+          'script'
+        );
+
+
+      script.src =
+        URL_APPS_SCRIPT +
+        query;
+
+
+      script.async =
+        true;
+
+
       script.onerror =
         function() {
 
-          if (
-            terminou
-          ) {
-
-            return;
-
-          }
-
-
-          terminou =
-            true;
-
-
-          clearTimeout(
-            timeout
-          );
-
-
-          limpar();
-
-
-          reject(
+          falhar(
             new Error(
-              'Não foi possível carregar os cadastros.'
+              'O Apps Script não respondeu à consulta dos cadastros.'
             )
           );
 
         };
+
+
+      timeout =
+        setTimeout(
+          function() {
+
+            falhar(
+              new Error(
+                'Tempo excedido ao carregar Operadores e Produtos da planilha.'
+              )
+            );
+
+          },
+          15000
+        );
 
 
       document.head.appendChild(
@@ -2482,6 +2632,9 @@ function carregarDadosRemotos() {
   );
 
 }
+
+
+
 
 
 
