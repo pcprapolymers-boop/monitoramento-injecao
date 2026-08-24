@@ -357,6 +357,21 @@
   font-variant-numeric: tabular-nums;
 }
 
+
+#machineSelectionCard {
+  display: block !important;
+  border: 2px solid #2F6F8F;
+  background: #F8FBFD;
+}
+
+#machineSelector {
+  display: block !important;
+  width: 100%;
+  min-height: 48px;
+  font-size: 17px;
+  font-weight: 600;
+}
+
 </style>
 
 </head>
@@ -383,7 +398,7 @@
       class="machine"
       id="machine"
     >
-      IDENTIFICANDO MÁQUINA...
+      SELECIONE A MÁQUINA
     </div>
 
   </div>
@@ -462,6 +477,51 @@
   <!-- FORMULÁRIO PRINCIPAL -->
 
   <div id="mainForm">
+
+
+    <!-- MÁQUINA — MODO PROVISÓRIO -->
+    <div class="card" id="machineSelectionCard">
+
+      <div
+        style="
+          font-size:18px;
+          font-weight:700;
+          margin-bottom:8px;
+        "
+      >
+        🏭 SELECIONE A MÁQUINA
+      </div>
+
+      <label for="machineSelector">
+        Máquina
+      </label>
+
+      <select
+        id="machineSelector"
+        onchange="selecionarMaquinaProvisoria()"
+      >
+        <option value="">Selecione a máquina</option>
+        <option value="M1">M-1</option>
+        <option value="M2">M-2</option>
+        <option value="M3">M-3</option>
+        <option value="M4">M-4</option>
+        <option value="M5">M-5</option>
+        <option value="M6">M-6</option>
+      </select>
+
+      <div
+        style="
+          margin-top:6px;
+          font-size:12px;
+          color:#536777;
+        "
+      >
+        Seleção provisória. Posteriormente será substituída
+        pela identificação automática via NFC.
+      </div>
+
+    </div>
+
 
     <!-- OPERADOR -->
 
@@ -868,13 +928,19 @@ const parametros =
   );
 
 
-const maquina =
+let maquina =
   (
     parametros.get('m') ||
     ''
   )
   .trim()
   .toUpperCase();
+
+/*
+ * Modo provisório de seleção de máquina.
+ * Quando o NFC estiver disponível, esta variável será
+ * alimentada pela leitura da tag.
+ */
 
 
 /* =====================================================
@@ -2627,6 +2693,206 @@ function formatarTempo(
    DADOS TEMPORÁRIOS
    ===================================================== */
 
+
+function normalizarMaquinaTela(
+  valor
+) {
+
+  const texto =
+    String(
+      valor ||
+      ''
+    )
+      .trim()
+      .toUpperCase();
+
+
+  if (
+    /^M\d+$/.test(
+      texto
+    )
+  ) {
+
+    return texto;
+
+  }
+
+
+  const semSeparadores =
+    texto.replace(
+      /[^A-Z0-9]/g,
+      ''
+    );
+
+
+  return /^M\d+$/.test(
+    semSeparadores
+  )
+    ? semSeparadores
+    : '';
+
+}
+
+
+function atualizarSeletorMaquina() {
+
+  const seletor =
+    document.getElementById(
+      'machineSelector'
+    );
+
+
+  if (
+    !seletor
+  ) {
+
+    return;
+
+  }
+
+
+  seletor.value =
+    maquina ||
+    '';
+
+
+  const machineElement =
+    document.getElementById(
+      'machine'
+    );
+
+
+  if (
+    machineElement
+  ) {
+
+    machineElement.textContent =
+      maquina
+        ? 'M-' +
+          maquina.substring(
+            1
+          )
+        : 'SELECIONE A MÁQUINA';
+
+  }
+
+}
+
+
+async function selecionarMaquinaProvisoria() {
+
+  const seletor =
+    document.getElementById(
+      'machineSelector'
+    );
+
+
+  if (
+    !seletor
+  ) {
+
+    return;
+
+  }
+
+
+  const novaMaquina =
+    normalizarMaquinaTela(
+      seletor.value
+    );
+
+
+  /*
+   * Nenhuma máquina selecionada:
+   * limpa o fluxo e mantém a tela bloqueada.
+   */
+  if (
+    !novaMaquina
+  ) {
+
+    maquina = '';
+
+    maquinaValida = false;
+
+    operadores = [];
+
+    produtos = [];
+
+    produtoAtual = null;
+
+    conformidade = '';
+
+    tempoCiclo = 0;
+
+    preencherSelecoes();
+
+    atualizarSeletorMaquina();
+
+    verificarFormulario();
+
+    mostrarMensagem(
+      'Selecione uma máquina para iniciar.',
+      'warning'
+    );
+
+    return;
+
+  }
+
+
+  maquina =
+    novaMaquina;
+
+
+  maquinaValida =
+    true;
+
+
+  /*
+   * Limpa as escolhas anteriores para evitar
+   * carregar operador/produto de uma máquina anterior.
+   */
+  operadores = [];
+
+  produtos = [];
+
+  produtoAtual = null;
+
+  conformidade = '';
+
+  tempoCiclo = 0;
+
+  const selectOperador =
+    document.getElementById(
+      'operador'
+    );
+
+  const selectProduto =
+    document.getElementById(
+      'produto'
+    );
+
+  if (selectOperador) {
+    selectOperador.value = '';
+  }
+
+  if (selectProduto) {
+    selectProduto.value = '';
+  }
+
+
+  atualizarSeletorMaquina();
+
+  verificarFormulario();
+
+  /*
+   * Recarrega os cadastros após a escolha.
+   */
+  await carregarDados();
+
+}
+
+
 async function carregarDados() {
 
   /*
@@ -2637,25 +2903,7 @@ async function carregarDados() {
    *   obrigatoriamente carregados da planilha via Apps Script.
    */
 
-  const machineElement =
-    document.getElementById(
-      'machine'
-    );
-
-
-  if (machineElement) {
-
-    machineElement.textContent =
-      maquina
-        ? (
-            maquina.startsWith('M')
-              ? 'M-' +
-                maquina.substring(1)
-              : maquina
-          )
-        : 'MÁQUINA NÃO INFORMADA';
-
-  }
+  atualizarSeletorMaquina();
 
 
   maquinaValida =
@@ -2664,9 +2912,13 @@ async function carregarDados() {
 
   if (!maquinaValida) {
 
+    preencherSelecoes();
+
+    verificarFormulario();
+
     mostrarMensagem(
-      '❌ Máquina não informada.',
-      'error'
+      '🏭 Selecione uma máquina para iniciar.',
+      'warning'
     );
 
     return;
@@ -2828,9 +3080,9 @@ async function carregarDados() {
 
 
     mostrarMensagem(
-      '✅ Máquina ' +
-      maquina +
-      ' identificada. Operadores e produtos carregados.',
+      '✅ Máquina M-' +
+      maquina.substring(1) +
+      ' selecionada. Operadores e produtos carregados.',
       'success'
     );
 
@@ -7353,27 +7605,44 @@ window.addEventListener(
    INICIALIZAÇÃO DO SISTEMA
    ===================================================== */
 
-/*
- * Carrega operadores, produtos e identifica a máquina
- * antes de iniciar a fila de uploads.
- */
-carregarDados()
-  .finally(
-    function() {
-
-      inicializarFilaUploads();
-
-    }
-  );
-
-
-
 document.addEventListener(
   'DOMContentLoaded',
-  function() {
+  async function() {
+
+    atualizarSeletorMaquina();
+
     ativarDebugLocalSeSolicitado();
+
+    /*
+     * Se vier ?m=M1, mantém compatibilidade.
+     * Sem parâmetro, a lista é a fonte da máquina.
+     */
+    if (
+      maquina
+    ) {
+
+      await carregarDados();
+
+    }
+    else {
+
+      maquinaValida =
+        false;
+
+      verificarFormulario();
+
+      mostrarMensagem(
+        '🏭 Selecione uma máquina na lista acima para iniciar.',
+        'warning'
+      );
+
+    }
+
+    inicializarFilaUploads();
+
   }
 );
+
 </script>
 
 </body>
