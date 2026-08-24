@@ -710,18 +710,30 @@
       </div>
 
       <label
-        for="machineStatusOperator"
+        for="operador"
         style="margin-top:10px;display:block;"
       >
-        👤 Responsável pela alteração
+        👤 Operador
       </label>
 
       <select
-        id="machineStatusOperator"
+        id="operador"
         style="width:100%;min-height:44px;margin-bottom:8px;"
       >
         <option value="">Selecione o operador</option>
       </select>
+
+      <div
+        style="
+          margin-top:6px;
+          margin-bottom:8px;
+          font-size:12px;
+          color:#536777;
+        "
+      >
+        O mesmo operador será usado no histórico da máquina e no histórico da inspeção.
+      </div>
+
 
       <select
         id="machineStatusSelector"
@@ -894,33 +906,6 @@
       </button>
       <div id="alarmTestStatus" style="margin-top:10px;font-size:12px;font-weight:700;"></div>
     </div>
-
-    <!-- OPERADOR -->
-
-    <div class="card">
-
-      <label>
-        👤 Operador
-      </label>
-
-      <select
-        id="operador"
-        onchange="verificarFormulario()"
-      >
-
-        <option value="">
-          Selecione o operador
-        </option>
-
-      </select>
-
-      <div class="info-line">
-        Identificação biométrica será integrada
-        posteriormente nos Samsung A17.
-      </div>
-
-    </div>
-
 
     <!-- PRODUTO -->
 
@@ -5489,7 +5474,7 @@ async function salvarStatusMaquina() {
 
   const operadorSelect =
     document.getElementById(
-      'machineStatusOperator'
+      'operador'
     );
 
   const mensagem =
@@ -6529,7 +6514,7 @@ function preencherOperadoresStatus() {
 
   const select =
     document.getElementById(
-      'machineStatusOperator'
+      'operador'
     );
 
   if (!select) return;
@@ -6712,7 +6697,7 @@ async function gravarAudioStatus() {
 
   const operadorSelect =
     document.getElementById(
-      'machineStatusOperator'
+      'operador'
     );
 
   const statusSelect =
@@ -7434,7 +7419,7 @@ function atualizarTravamentoCamposStatusAudio(
 
   const operador =
     document.getElementById(
-      'machineStatusOperator'
+      'operador'
     );
 
   const status =
@@ -7527,7 +7512,7 @@ function manterStatusAtual() {
 
   const operadorSelect =
     document.getElementById(
-      'machineStatusOperator'
+      'operador'
     );
 
   const mensagem =
@@ -7675,6 +7660,49 @@ function manterStatusAtual() {
 
     }
   );
+
+}
+
+
+
+function operadorSelecionadoUnico() {
+
+  const select =
+    document.getElementById(
+      'operador'
+    );
+
+  const valor =
+    String(
+      select &&
+      select.value
+        ? select.value
+        : ''
+    ).trim();
+
+  operadorStatusSelecionado =
+    valor;
+
+  verificarFormulario();
+
+  try {
+
+    debugUploadCliente(
+      'OPERADOR_UNICO_SELECIONADO',
+      {
+        mediaType:
+          'OPERADOR'
+      },
+      {
+        operador:
+          valor,
+        maquina:
+          maquina
+      }
+    );
+
+  }
+  catch (erro) {}
 
 }
 
@@ -12452,7 +12480,7 @@ function limparTodosOsDadosNovaInspecao() {
   const campos =
     [
       'machineSelector',
-      'machineStatusOperator',
+      'operador',
       'machineStatusSelector',
       'operador',
       'produto',
@@ -12986,7 +13014,7 @@ document.addEventListener(
 
     const statusOperator =
       document.getElementById(
-        'machineStatusOperator'
+        'operador'
       );
 
     const statusAudioButton =
@@ -13017,14 +13045,30 @@ document.addEventListener(
       );
     }
 
-    if (statusOperator) {
+    if (
+      statusOperator
+    ) {
+
       statusOperator.addEventListener(
         'change',
         function() {
-          operadorStatusSelecionado =
-            statusOperator.value;
+
+          if (
+            statusAudioCamposTravados
+          ) {
+
+            statusOperator.value =
+              operadorStatusSelecionado;
+
+            return;
+
+          }
+
+          operadorSelecionadoUnico();
+
         }
       );
+
     }
 
     if (statusAudioButton) {
