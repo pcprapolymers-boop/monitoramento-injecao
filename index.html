@@ -569,6 +569,37 @@
     </div>
 
 
+
+    <div
+      id="alarmTestCard"
+      class="card"
+      style="
+        display:none;
+        margin-top:12px;
+        border:2px dashed #7B61FF;
+        background:#F7F4FF;
+      "
+    >
+      <div style="font-size:18px;font-weight:800;margin-bottom:8px;">
+        🧪 TESTE DO ALARME
+      </div>
+      <div style="font-size:13px;margin-bottom:8px;">
+        Exclusivo para validação. Produção continua usando 60 minutos.
+      </div>
+      <select id="alarmTestInterval" style="width:100%;min-height:44px;margin-bottom:8px;">
+        <option value="60000">1 minuto</option>
+        <option value="120000" selected>2 minutos</option>
+        <option value="300000">5 minutos</option>
+      </select>
+      <button id="btnAlarmTestStart" type="button" style="width:100%;min-height:44px;margin-bottom:8px;">
+        ▶️ INICIAR TESTE
+      </button>
+      <button id="btnAlarmTestForce" type="button" style="width:100%;min-height:44px;">
+        🔔 FORÇAR ALARME AGORA
+      </button>
+      <div id="alarmTestStatus" style="margin-top:10px;font-size:12px;font-weight:700;"></div>
+    </div>
+
     <!-- OPERADOR -->
 
     <div class="card">
@@ -983,6 +1014,17 @@ let maquina =
   .toUpperCase();
 
 let ultimaInspecaoRegistrada = null;
+
+const modoTesteAlarme =
+  new URLSearchParams(
+    window.location.search
+  ).get(
+    'testeAlarme'
+  ) === '1';
+
+let intervaloTesteAlarmeMs =
+  2 * 60 * 1000;
+
 let proximaInspecaoTimestamp = null;
 let alarmeInspecaoInterval = null;
 let alarmeInspecaoAtivo = false;
@@ -3550,6 +3592,102 @@ function marcarInspecaoComoConcluida(
   alarmeAtrasoMinutos = 0;
 
   atualizarAlarmeInspecaoUI();
+}
+
+
+
+function ativarModuloTesteAlarme() {
+
+  if (!modoTesteAlarme) {
+    return;
+  }
+
+  const card = document.getElementById('alarmTestCard');
+  const seletor = document.getElementById('alarmTestInterval');
+  const inicio = document.getElementById('btnAlarmTestStart');
+  const forcar = document.getElementById('btnAlarmTestForce');
+  const status = document.getElementById('alarmTestStatus');
+
+  if (card) {
+    card.style.display = 'block';
+  }
+
+  if (inicio) {
+    inicio.onclick = function() {
+
+      if (!maquina) {
+        if (status) {
+          status.textContent = '⚠️ Selecione uma máquina primeiro.';
+        }
+        return;
+      }
+
+      intervaloTesteAlarmeMs =
+        Math.max(
+          10000,
+          Number(
+            seletor && seletor.value
+              ? seletor.value
+              : 120000
+          )
+        );
+
+      ultimaInspecaoRegistrada =
+        new Date().toLocaleString('pt-BR');
+
+      proximaInspecaoTimestamp =
+        Date.now() +
+        intervaloTesteAlarmeMs;
+
+      alarmeInspecaoAtivo = false;
+
+      atualizarAlarmeInspecaoUI();
+
+      if (status) {
+        status.textContent =
+          '✅ Teste iniciado. Alarme em ' +
+          Math.round(
+            intervaloTesteAlarmeMs / 60000
+          ) +
+          ' minuto(s).';
+      }
+
+    };
+  }
+
+  if (forcar) {
+    forcar.onclick = function() {
+
+      if (!maquina) {
+        if (status) {
+          status.textContent = '⚠️ Selecione uma máquina primeiro.';
+        }
+        return;
+      }
+
+      proximaInspecaoTimestamp =
+        Date.now() - 1000;
+
+      ultimaInspecaoRegistrada =
+        new Date(
+          Date.now() -
+          INTERVALO_INSPECAO_MS -
+          1000
+        ).toLocaleString('pt-BR');
+
+      alarmeInspecaoAtivo = false;
+
+      atualizarAlarmeInspecaoUI();
+      emitirAlarmeInspecao();
+
+      if (status) {
+        status.textContent =
+          '🔔 Alarme forçado. Verifique a tela, vibração e som.';
+      }
+
+    };
+  }
+
 }
 
 
@@ -8281,6 +8419,8 @@ document.addEventListener(
     atualizarSeletorMaquina();
 
     ativarDebugLocalSeSolicitado();
+
+    ativarModuloTesteAlarme();
 
     /*
      * Se vier ?m=M1, mantém compatibilidade.
