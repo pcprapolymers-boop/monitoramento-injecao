@@ -12200,15 +12200,564 @@ function fecharInspecao() {
    NOVA INSPEÇÃO
    ===================================================== */
 
+
+function limparTodosOsDadosNovaInspecao() {
+
+  /*
+   * Regra operacional:
+   * NOVA INSPEÇÃO sempre começa como um formulário novo.
+   * Nenhum dado da inspeção anterior pode ser reutilizado
+   * automaticamente.
+   */
+
+  try {
+
+    if (
+      audioGravando
+    ) {
+      pararGravacaoAudio();
+    }
+
+  }
+  catch (erro) {}
+
+  try {
+
+    if (
+      mediaRecorder &&
+      mediaRecorder.state !==
+        'inactive'
+    ) {
+      mediaRecorder.stop();
+    }
+
+  }
+  catch (erro) {}
+
+  try {
+
+    if (
+      audioStream
+    ) {
+
+      audioStream
+        .getTracks()
+        .forEach(
+          function(track) {
+            track.stop();
+          }
+        );
+
+    }
+
+  }
+  catch (erro) {}
+
+  audioStream =
+    null;
+
+  audioRecorder =
+    null;
+
+  audioBlob =
+    null;
+
+  audioConcluido =
+    false;
+
+  audioPulado =
+    false;
+
+  audioGravando =
+    false;
+
+  /*
+   * Estado do vídeo.
+   */
+  try {
+
+    if (
+      ultimaVideoUrl
+    ) {
+
+      URL.revokeObjectURL(
+        ultimaVideoUrl
+      );
+
+    }
+
+  }
+  catch (erro) {}
+
+  ultimaVideoUrl =
+    null;
+
+  videoBlob =
+    null;
+
+  partesVideo =
+    [];
+
+  mediaRecorder =
+    null;
+
+  inicioGravacao =
+    null;
+
+  fimGravacao =
+    null;
+
+  gravacaoChunkPromises =
+    [];
+
+  gravacaoChunkIndex =
+    0;
+
+  gravacaoPersistenciaFalhou =
+    false;
+
+  gravacaoUploadId =
+    null;
+
+  /*
+   * Estado da inspeção.
+   */
+  conformidade =
+    '';
+
+  produtoAtual =
+    null;
+
+  tempoCiclo =
+    0;
+
+  segundosRestantes =
+    0;
+
+  operadorStatusSelecionado =
+    '';
+
+  statusOperacionalMaquina =
+    'PRODUZINDO';
+
+  statusAtualizadoEm =
+    null;
+
+  statusAtualizacaoObrigatoria =
+    false;
+
+  statusConfirmadoLocalEm =
+    null;
+
+  statusAudioCamposTravados =
+    false;
+
+  statusAudioGravando =
+    false;
+
+  statusAudioConcluido =
+    false;
+
+  statusAudioBlob =
+    null;
+
+  statusAudioUploadId =
+    null;
+
+  statusAudioSegundos =
+    0;
+
+  statusAudioTimer =
+    null;
+
+  statusAudioMimeType =
+    'audio/webm';
+
+  motivoParadaMaquina =
+    '';
+
+  inicioStatusMaquina =
+    null;
+
+  responsavelStatusMaquina =
+    '';
+
+  observacaoStatusMaquina =
+    '';
+
+  ultimaInspecaoRegistrada =
+    null;
+
+  proximaInspecaoTimestamp =
+    null;
+
+  alarmeInspecaoAtivo =
+    false;
+
+  alarmeAtrasoMinutos =
+    0;
+
+  /*
+   * Interrompe timers locais.
+   */
+  if (
+    countdownInterval
+  ) {
+
+    clearInterval(
+      countdownInterval
+    );
+
+    countdownInterval =
+      null;
+
+  }
+
+  if (
+    cicloInterval
+  ) {
+
+    clearInterval(
+      cicloInterval
+    );
+
+    cicloInterval =
+      null;
+
+  }
+
+  pararSilencioPosAlarme();
+
+  pararAlarmeInspecaoContinuo();
+
+  /*
+   * Limpa os cadastros carregados para que nada
+   * seja reaproveitado antes de nova seleção.
+   */
+  operadores =
+    [];
+
+  produtos =
+    [];
+
+  maquina =
+    '';
+
+  maquinaValida =
+    false;
+
+  /*
+   * Limpa campos visuais.
+   */
+  const campos =
+    [
+      'machineSelector',
+      'machineStatusOperator',
+      'machineStatusSelector',
+      'operador',
+      'produto',
+      'cycleTime'
+    ];
+
+  campos.forEach(
+    function(id) {
+
+      const campo =
+        document.getElementById(
+          id
+        );
+
+      if (
+        campo
+      ) {
+
+        campo.value =
+          '';
+
+      }
+
+    }
+  );
+
+  /*
+   * O status começa sem seleção.
+   * A máquina precisa ser escolhida novamente.
+   */
+  const statusSelect =
+    document.getElementById(
+      'machineStatusSelector'
+    );
+
+  if (
+    statusSelect
+  ) {
+
+    statusSelect.value =
+      'PRODUZINDO';
+
+  }
+
+  /*
+   * Limpa seleção de conformidade.
+   */
+  [
+    'btnSim',
+    'btnNao'
+  ]
+  .forEach(
+    function(id) {
+
+      const botao =
+        document.getElementById(
+          id
+        );
+
+      if (
+        botao
+      ) {
+
+        botao.classList.remove(
+          'selected'
+        );
+
+      }
+
+    }
+  );
+
+  /*
+   * Limpa previews/resultado.
+   */
+  const videoPreview =
+    document.getElementById(
+      'videoPreview'
+    );
+
+  if (
+    videoPreview
+  ) {
+
+    videoPreview.removeAttribute(
+      'src'
+    );
+
+    try {
+      videoPreview.load();
+    }
+    catch (erro) {}
+
+  }
+
+  const videoResult =
+    document.getElementById(
+      'videoResult'
+    );
+
+  const successScreen =
+    document.getElementById(
+      'successScreen'
+    );
+
+  const inspectionScreen =
+    document.getElementById(
+      'inspectionScreen'
+    );
+
+  const mainForm =
+    document.getElementById(
+      'mainForm'
+    );
+
+  if (
+    videoResult
+  ) {
+    videoResult.classList.add(
+      'hidden'
+    );
+  }
+
+  if (
+    successScreen
+  ) {
+    successScreen.classList.add(
+      'hidden'
+    );
+  }
+
+  if (
+    inspectionScreen
+  ) {
+    inspectionScreen.classList.add(
+      'hidden'
+    );
+  }
+
+  if (
+    mainForm
+  ) {
+    mainForm.classList.remove(
+      'hidden'
+    );
+  }
+
+  /*
+   * Painel de status volta ao estado inicial.
+   */
+  const statusCard =
+    document.getElementById(
+      'machineStatusCard'
+    );
+
+  if (
+    statusCard
+  ) {
+
+    statusCard.classList.remove(
+      'status-obrigatorio'
+    );
+
+    statusCard.style.display =
+      'none';
+
+  }
+
+  const mandatoryBanner =
+    document.getElementById(
+      'statusMandatoryBanner'
+    );
+
+  if (
+    mandatoryBanner
+  ) {
+
+    mandatoryBanner.style.display =
+      'none';
+
+  }
+
+  const mandatoryOverlay =
+    document.getElementById(
+      'statusMandatoryOverlay'
+    );
+
+  if (
+    mandatoryOverlay
+  ) {
+
+    mandatoryOverlay.style.display =
+      'none';
+
+  }
+
+  atualizarTravamentoCamposStatusAudio(
+    false
+  );
+
+  const audioCard =
+    document.getElementById(
+      'machineStatusAudioCard'
+    );
+
+  if (
+    audioCard
+  ) {
+
+    audioCard.style.display =
+      'none';
+
+  }
+
+  const regravar =
+    document.getElementById(
+      'btnRegravarStatusAudio'
+    );
+
+  if (
+    regravar
+  ) {
+
+    regravar.style.display =
+      'none';
+
+  }
+
+  const statusMsg =
+    document.getElementById(
+      'machineStatusSaveMessage'
+    );
+
+  if (
+    statusMsg
+  ) {
+
+    statusMsg.textContent =
+      '';
+
+  }
+
+  preencherOperadoresStatus();
+
+  atualizarSeletorMaquina();
+
+  verificarFormulario();
+
+  atualizarFilaUI();
+
+  try {
+
+    debugUploadCliente(
+      'NOVA_INSPECAO_ESTADO_LIMPO',
+      {
+        mediaType:
+          'RESET'
+      },
+      {
+        maquina:
+          maquina,
+        operador:
+          document.getElementById(
+            'operador'
+          ) &&
+          document.getElementById(
+            'operador'
+          ).value,
+
+        produto:
+          document.getElementById(
+            'produto'
+          ) &&
+          document.getElementById(
+            'produto'
+          ).value,
+
+        status:
+          statusOperacionalMaquina,
+
+        conformidade:
+          conformidade
+
+      }
+    );
+
+  }
+  catch (erro) {}
+
+}
+
+
 function novoRegistro() {
 
-  
+  /*
+   * Não permite abandonar uma NÃO CONFORME sem a
+   * justificativa obrigatória de áudio da inspeção.
+   */
   if (
     String(
       conformidade || ''
     )
       .trim()
-      .toUpperCase() === 'NÃO' &&
+      .toUpperCase() ===
+      'NÃO' &&
     !audioConcluido
   ) {
 
@@ -12221,87 +12770,19 @@ function novoRegistro() {
 
   }
 
-
-if (
-    ultimaVideoUrl
-  ) {
-
-    try {
-      URL.revokeObjectURL(
-        ultimaVideoUrl
-      );
-    }
-    catch (erro) {}
-
-    ultimaVideoUrl =
-      null;
-
-  }
-
-  videoBlob =
-    null;
-
-  partesVideo =
-    [];
-
-  conformidade =
-    '';
-
-  document
-    .getElementById(
-      'btnSim'
-    )
-    .classList
-    .remove(
-      'selected'
-    );
-
-  document
-    .getElementById(
-      'btnNao'
-    )
-    .classList
-    .remove(
-      'selected'
-    );
-
-  document
-    .getElementById(
-      'videoResult'
-    )
-    .classList
-    .add(
-      'hidden'
-    );
-
-  document
-    .getElementById(
-      'successScreen'
-    )
-    .classList
-    .add(
-      'hidden'
-    );
-
-  document
-    .getElementById(
-      'mainForm'
-    )
-    .classList
-    .remove(
-      'hidden'
-    );
+  /*
+   * A partir daqui, NOVA INSPEÇÃO significa:
+   * limpar absolutamente todos os dados da inspeção anterior.
+   */
+  limparTodosOsDadosNovaInspecao();
 
   mostrarMensagem(
     '',
     ''
   );
 
-  verificarFormulario();
-  atualizarFilaUI();
-  processarFilaUploads();
-
 }
+
 
 
 /* =====================================================
