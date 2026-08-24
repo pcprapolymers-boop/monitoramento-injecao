@@ -357,6 +357,21 @@
   font-variant-numeric: tabular-nums;
 }
 
+
+#machineSelectionCard {
+  display: block !important;
+  border: 2px solid #2F6F8F;
+  background: #F8FBFD;
+}
+
+#machineSelector {
+  display: block !important;
+  width: 100%;
+  min-height: 48px;
+  font-size: 17px;
+  font-weight: 600;
+}
+
 </style>
 
 </head>
@@ -467,8 +482,18 @@
     <!-- MÁQUINA — MODO PROVISÓRIO -->
     <div class="card" id="machineSelectionCard">
 
+      <div
+        style="
+          font-size:18px;
+          font-weight:700;
+          margin-bottom:8px;
+        "
+      >
+        🏭 SELECIONE A MÁQUINA
+      </div>
+
       <label for="machineSelector">
-        🏭 Máquina
+        Máquina
       </label>
 
       <select
@@ -7580,30 +7605,44 @@ window.addEventListener(
    INICIALIZAÇÃO DO SISTEMA
    ===================================================== */
 
-/*
- * Carrega operadores, produtos e identifica a máquina
- * antes de iniciar a fila de uploads.
- */
-carregarDados()
-  .finally(
-    function() {
-
-      inicializarFilaUploads();
-
-    }
-  );
-
-
-
 document.addEventListener(
   'DOMContentLoaded',
-  function() {
+  async function() {
 
-  atualizarSeletorMaquina();
+    atualizarSeletorMaquina();
 
     ativarDebugLocalSeSolicitado();
+
+    /*
+     * Se vier ?m=M1, mantém compatibilidade.
+     * Sem parâmetro, a lista é a fonte da máquina.
+     */
+    if (
+      maquina
+    ) {
+
+      await carregarDados();
+
+    }
+    else {
+
+      maquinaValida =
+        false;
+
+      verificarFormulario();
+
+      mostrarMensagem(
+        '🏭 Selecione uma máquina na lista acima para iniciar.',
+        'warning'
+      );
+
+    }
+
+    inicializarFilaUploads();
+
   }
 );
+
 </script>
 
 </body>
