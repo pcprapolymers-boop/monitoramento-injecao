@@ -869,6 +869,25 @@
         id="inspectionAlarmText"
         style="font-size:15px;margin-bottom:8px;"
       >--</div>
+
+      <div
+        id="inspectionAlarmInstruction"
+        style="
+          display:none;
+          margin:8px 0;
+          padding:10px;
+          border-radius:8px;
+          background:#FFF3CD;
+          color:#664D03;
+          font-size:13px;
+          font-weight:700;
+          line-height:1.35;
+        "
+      >
+        🛑 <strong>O alarme só será encerrado após o reconhecimento
+        e a seleção do produto que será inspecionado.</strong><br>
+        Selecione o produto abaixo para prosseguir com a inspeção.
+      </div>
       <div
         id="inspectionAlarmCountdown"
         style="font-size:28px;font-weight:700;font-variant-numeric:tabular-nums;"
@@ -3433,6 +3452,11 @@ function atualizarAlarmeInspecaoUI() {
       'inspectionAlarmCountdown'
     );
 
+  const instruction =
+    document.getElementById(
+      'inspectionAlarmInstruction'
+    );
+
   const botaoParar =
     document.getElementById(
       'btnPararAlarmeInspecao'
@@ -3450,6 +3474,13 @@ function atualizarAlarmeInspecaoUI() {
   if (
     !maquina
   ) {
+
+    if (
+      instruction
+    ) {
+      instruction.style.display =
+        'none';
+    }
 
     card.style.display =
       'none';
@@ -3520,6 +3551,13 @@ function atualizarAlarmeInspecaoUI() {
       'PRODUZINDO'
   ) {
 
+    if (
+      instruction
+    ) {
+      instruction.style.display =
+        'none';
+    }
+
     card.style.display =
       'none';
 
@@ -3537,6 +3575,13 @@ function atualizarAlarmeInspecaoUI() {
   }
 
   if (!ultimaInspecaoRegistrada) {
+
+    if (
+      instruction
+    ) {
+      instruction.style.display =
+        'none';
+    }
 
     card.style.display = 'block';
     card.classList.remove(
@@ -3563,6 +3608,13 @@ function atualizarAlarmeInspecaoUI() {
     Date.now();
 
   if (restante > 0) {
+
+    if (
+      instruction
+    ) {
+      instruction.style.display =
+        'none';
+    }
 
     card.style.display = 'block';
     card.classList.remove(
@@ -3607,6 +3659,13 @@ function atualizarAlarmeInspecaoUI() {
     TOLERANCIA_ALARME_MS
   ) {
 
+    if (
+      instruction
+    ) {
+      instruction.style.display =
+        'block';
+    }
+
     card.style.display = 'block';
     card.classList.remove(
       'alarm-overdue'
@@ -3628,6 +3687,13 @@ function atualizarAlarmeInspecaoUI() {
 
   }
   else {
+
+    if (
+      instruction
+    ) {
+      instruction.style.display =
+        'block';
+    }
 
     card.style.display = 'block';
     card.classList.remove(
@@ -3938,7 +4004,7 @@ function criarBotaoPararAlarme() {
       ) {
 
         status.textContent =
-          'ALARME RECONHECIDO';
+          '✅ Alarme reconhecido. Agora selecione o produto para iniciar a inspeção.';
 
       }
 
@@ -5465,6 +5531,236 @@ function vincularAudioStatusAoRegistro(
 }
 
 
+
+function salvarStatusMaquinaEmSegundoPlano(
+  novoStatus,
+  operador,
+  observacao,
+  audioUrl,
+  audioId,
+  acao,
+  operacaoId
+) {
+
+  const params =
+    new URLSearchParams();
+
+  params.set(
+    'tipo',
+    'STATUS_SET'
+  );
+
+  params.set(
+    'm',
+    maquina
+  );
+
+  params.set(
+    'novoStatus',
+    novoStatus
+  );
+
+  params.set(
+    'operador',
+    operador
+  );
+
+  params.set(
+    'observacao',
+    observacao ||
+    ''
+  );
+
+  params.set(
+    'audioUrl',
+    audioUrl ||
+    ''
+  );
+
+  params.set(
+    'audioId',
+    audioId ||
+    ''
+  );
+
+  params.set(
+    'acao',
+    acao ||
+    'ALTERAR_STATUS'
+  );
+
+  params.set(
+    'operacaoId',
+    operacaoId ||
+    ''
+  );
+
+  debugUploadCliente(
+    'STATUS_POST_BACKGROUND_INICIO',
+    {
+      uploadId:
+        operacaoId,
+      mediaType:
+        'STATUS'
+    },
+    {
+      status:
+        novoStatus,
+      operador:
+        operador
+    }
+  );
+
+  return fetch(
+    URL_APPS_SCRIPT,
+    {
+      method:
+        'POST',
+
+      mode:
+        'no-cors',
+
+      cache:
+        'no-store',
+
+      credentials:
+        'omit',
+
+      headers: {
+        'Content-Type':
+          'application/x-www-form-urlencoded;charset=UTF-8'
+      },
+
+      body:
+        params.toString(),
+
+      keepalive:
+        true
+
+    }
+  )
+  .then(
+    function() {
+
+      debugUploadCliente(
+        'STATUS_POST_BACKGROUND_ENVIADO',
+        {
+          uploadId:
+            operacaoId,
+          mediaType:
+            'STATUS'
+        },
+        {}
+      );
+
+    }
+  )
+  .catch(
+    function(erro) {
+
+      debugUploadCliente(
+        'STATUS_POST_BACKGROUND_ERRO',
+        {
+          uploadId:
+            operacaoId,
+          mediaType:
+            'STATUS'
+        },
+        {
+          erro:
+            erro &&
+            erro.message
+              ? erro.message
+              : String(
+                  erro
+                )
+        }
+      );
+
+    }
+  );
+
+}
+
+
+function verificarStatusSalvoEmSegundoPlano(
+  statusEsperado,
+  operacaoId
+) {
+
+  setTimeout(
+    function() {
+
+      carregarStatusMaquina()
+        .then(
+          function(dados) {
+
+            const confirmado =
+              Boolean(
+                dados &&
+                dados.sucesso &&
+                String(
+                  dados.status ||
+                  ''
+                ).trim().toUpperCase() ===
+                  statusEsperado
+              );
+
+            debugUploadCliente(
+              confirmado
+                ? 'STATUS_BACKGROUND_CONFIRMADO'
+                : 'STATUS_BACKGROUND_NAO_CONFIRMADO',
+              {
+                uploadId:
+                  operacaoId,
+                mediaType:
+                  'STATUS'
+              },
+              {
+                statusEsperado:
+                  statusEsperado,
+                statusRetornado:
+                  dados &&
+                  dados.status
+                    ? dados.status
+                    : ''
+              }
+            );
+
+          }
+        )
+        .catch(
+          function(erro) {
+
+            debugUploadCliente(
+              'STATUS_BACKGROUND_VERIFICACAO_ERRO',
+              {
+                uploadId:
+                  operacaoId,
+                mediaType:
+                  'STATUS'
+              },
+              {
+                erro:
+                  erro &&
+                  erro.message
+                    ? erro.message
+                    : String(
+                        erro
+                      )
+              }
+            );
+
+          }
+        );
+
+    },
+    1500
+  );
+
+}
+
+
 async function salvarStatusMaquina() {
 
   const seletor =
@@ -5514,64 +5810,22 @@ async function salvarStatusMaquina() {
       ''
     ).trim();
 
-  statusSalvarOperacaoId =
-    'ST_' +
+  const operacaoId =
+    'ST_FAST_' +
     Date.now() +
     '_' +
     Math.random()
       .toString(36)
       .substring(2,8);
 
-  function atualizarEtapa(
-    texto
-  ) {
-
-    statusSalvarEtapa =
-      texto;
-
-    if (mensagem) {
-      mensagem.textContent =
-        texto;
-    }
-
-    try {
-
-      debugUploadCliente(
-        'STATUS_SAVE_ETAPA',
-        {
-          uploadId:
-            statusSalvarOperacaoId,
-          mediaType:
-            'STATUS'
-        },
-        {
-          etapa:
-            texto,
-          maquina:
-            maquina,
-          operador:
-            operadorStatusSelecionado,
-          status:
-            statusNovo
-        }
-      );
-
-    }
-    catch (erro) {}
-
-  }
-
-  atualizarEtapa(
-    '🔎 Validando operador e justificativa...'
-  );
-
   if (
     !operadorStatusSelecionado
   ) {
 
-    atualizarEtapa(
-      '⚠️ Selecione o operador responsável.'
-    );
+    if (mensagem) {
+      mensagem.textContent =
+        '⚠️ Selecione o operador responsável.';
+    }
 
     return;
 
@@ -5583,9 +5837,10 @@ async function salvarStatusMaquina() {
     !statusAudioConcluido
   ) {
 
-    atualizarEtapa(
-      '⚠️ Grave e conclua os 15 segundos de justificativa.'
-    );
+    if (mensagem) {
+      mensagem.textContent =
+        '⚠️ Grave e conclua os 15 segundos de justificativa.';
+    }
 
     return;
 
@@ -5598,29 +5853,21 @@ async function salvarStatusMaquina() {
 
   try {
 
-    let audioUrl =
-      '';
-
-    let audioId =
-      '';
-
-    let audioUploadId =
-      '';
+    let audioUrl = '';
+    let audioId = '';
 
     if (
       statusNovo !==
       'PRODUZINDO'
     ) {
 
-      atualizarEtapa(
-        '☁️ Iniciando envio da justificativa em segundo plano...'
-      );
-
+      /*
+       * Para parada/quebra, o áudio já é disparado
+       * em segundo plano e o status também será salvo
+       * em segundo plano.
+       */
       const envio =
         await iniciarEnvioAudioStatusEmSegundoPlano();
-
-      audioUploadId =
-        envio.uploadId;
 
       audioUrl =
         envio.pendingUrl;
@@ -5628,106 +5875,152 @@ async function salvarStatusMaquina() {
       audioId =
         envio.pendingId;
 
-      atualizarEtapa(
-        '💾 Salvando status da máquina...'
-      );
-
-    }
-
-    else {
-
-      atualizarEtapa(
-        '💾 Salvando status da máquina...'
-      );
-
     }
 
     /*
-     * O status é salvo imediatamente.
-     * Para status de parada, o áudio fica marcado como PENDENTE_AUDIO
-     * e será vinculado assim que o Drive confirmar o arquivo.
+     * Atualização otimista:
+     * a interface muda IMEDIATAMENTE e o operador
+     * pode seguir o fluxo sem aguardar a resposta do Apps Script.
      */
-    await salvarStatusMaquinaNoServidor(
+    statusOperacionalMaquina =
+      statusNovo;
+
+    statusAtualizadoEm =
+      new Date().toISOString();
+
+    statusConfirmadoLocalEm =
+      Date.now();
+
+    statusAtualizacaoObrigatoria =
+      false;
+
+    inicioStatusMaquina =
+      new Date().toISOString();
+
+    motivoParadaMaquina =
+      statusNovo ===
+        'PRODUZINDO'
+        ? 'RETORNO À PRODUÇÃO'
+        : statusNovo;
+
+    responsavelStatusMaquina =
+      operadorStatusSelecionado;
+
+    observacaoStatusMaquina =
+      '';
+
+    liberarObrigatoriedadeStatusAposSalvar();
+
+    atualizarStatusMaquinaUI();
+
+    atualizarBotoesManterStatus();
+
+    atualizarTravamentoCamposStatusAudio(
+      false
+    );
+
+    atualizarBloqueioStatusObrigatorio_();
+
+    if (
+      statusNovo ===
+      'PRODUZINDO'
+    ) {
+
+      /*
+       * Ao voltar a produzir, reinicia o relógio da inspeção
+       * imediatamente, sem esperar a confirmação do servidor.
+       */
+      marcarInspecaoComoConcluida(
+        new Date().toISOString()
+      );
+
+    }
+
+    if (mensagem) {
+
+      mensagem.textContent =
+        statusNovo ===
+        'PRODUZINDO'
+          ? '✅ Status PRODUZINDO atualizado.'
+          : '✅ Status atualizado. A justificativa continua sendo enviada em segundo plano.';
+
+    }
+
+    debugUploadCliente(
+      'STATUS_UI_LIBERADA_IMEDIATAMENTE',
+      {
+        uploadId:
+          operacaoId,
+        mediaType:
+          'STATUS'
+      },
+      {
+        status:
+          statusNovo,
+        operador:
+          operadorStatusSelecionado
+      }
+    );
+
+    /*
+     * Gravação real em segundo plano.
+     * Não bloqueia o operador.
+     */
+    salvarStatusMaquinaEmSegundoPlano(
       statusNovo,
       operadorStatusSelecionado,
       '',
       audioUrl,
       audioId,
       'ALTERAR_STATUS',
-      statusSalvarOperacaoId
+      operacaoId
     );
 
-    try {
-
-      debugUploadCliente(
-        'STATUS_SAVE_CONCLUIDO',
-        {
-          uploadId:
-            statusSalvarOperacaoId,
-          mediaType:
-            'STATUS'
-        },
-        {
-          status:
-            statusNovo,
-          audioUploadId:
-            audioUploadId
-        }
-      );
-
-    }
-    catch (erro) {}
-
     /*
-     * A partir daqui o operador está liberado.
-     * O acompanhamento do áudio continua em background.
+     * Confirmação assíncrona após o servidor ter tido
+     * tempo para processar o POST.
      */
-    if (mensagem) {
-
-      mensagem.textContent =
-        statusNovo ===
-        'PRODUZINDO'
-          ? '✅ Status PRODUZINDO confirmado.'
-          : '✅ Status atualizado. A justificativa está sendo enviada em segundo plano.';
-
-    }
+    verificarStatusSalvoEmSegundoPlano(
+      statusNovo,
+      operacaoId
+    );
 
   }
   catch (erro) {
 
-    const detalhe =
-      erro &&
-      erro.message
-        ? erro.message
-        : String(
-            erro
-          );
+    if (mensagem) {
 
-    atualizarEtapa(
-      '❌ ' +
-      detalhe
-    );
-
-    try {
-
-      debugUploadCliente(
-        'STATUS_SAVE_ERRO_DETALHADO',
-        {
-          uploadId:
-            statusSalvarOperacaoId,
-          mediaType:
-            'STATUS'
-        },
-        {
-          etapa:
-            statusSalvarEtapa,
-          erro:
-            detalhe
-        }
-      );
+      mensagem.textContent =
+        '❌ ' +
+        (
+          erro &&
+          erro.message
+            ? erro.message
+            : String(
+                erro
+              )
+        );
 
     }
-    catch (debugErro) {}
+
+    debugUploadCliente(
+      'STATUS_FAST_SAVE_ERRO',
+      {
+        uploadId:
+          operacaoId,
+        mediaType:
+          'STATUS'
+      },
+      {
+        erro:
+          erro &&
+          erro.message
+            ? erro.message
+            : String(
+                erro
+              )
+      }
+    );
 
   }
   finally {
@@ -5740,6 +6033,8 @@ async function salvarStatusMaquina() {
   }
 
 }
+
+
 
 
 
@@ -7562,6 +7857,66 @@ function manterStatusAtual() {
     botao.textContent =
       '⏳ MANTENDO STATUS...';
   }
+
+  const operacaoId =
+    'ST_MANUT_FAST_' +
+    Date.now();
+
+  salvarStatusMaquinaEmSegundoPlano(
+    statusAtual,
+    operador,
+    '',
+    '',
+    '',
+    'MANTER_STATUS',
+    operacaoId
+  );
+
+  statusOperacionalMaquina =
+    statusAtual;
+
+  statusAtualizadoEm =
+    new Date().toISOString();
+
+  statusConfirmadoLocalEm =
+    Date.now();
+
+  statusAtualizacaoObrigatoria =
+    false;
+
+  liberarObrigatoriedadeStatusAposSalvar();
+  atualizarStatusMaquinaUI();
+  atualizarBotoesManterStatus();
+
+  if (mensagem) {
+    mensagem.textContent =
+      '✅ Status mantido. Nova confirmação em 1 hora.';
+  }
+
+  verificarStatusSalvoEmSegundoPlano(
+    statusAtual,
+    operacaoId
+  );
+
+  debugUploadCliente(
+    'STATUS_MANUTENCAO_LIBERADO_IMEDIATO',
+    {
+      uploadId:
+        operacaoId,
+      mediaType:
+        'STATUS'
+    },
+    {
+      maquina:
+        maquina,
+      status:
+        statusAtual,
+      operador:
+        operador
+    }
+  );
+
+  return;
 
   salvarStatusMaquinaNoServidor(
     statusAtual,
