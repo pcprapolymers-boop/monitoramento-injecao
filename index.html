@@ -4757,6 +4757,14 @@ async function iniciarGravacaoAudio() {
       criarIdUpload() +
       '_AUDIO';
 
+    /*
+     * Instante real em que o operador iniciou a gravação.
+     * Será enviado ao Apps Script e usado como data/hora
+     * oficial do arquivo e do registro.
+     */
+    const inicioAudio =
+      new Date();
+
     audioGravando = true;
     audioConcluido = false;
 
@@ -4935,6 +4943,9 @@ async function iniciarGravacaoAudio() {
 
           parentUploadId:
             gravacaoUploadId,
+
+          inicioAudio:
+            inicioAudio.toISOString(),
 
           maquina:
             maquina,
@@ -6467,6 +6478,13 @@ async function dispararPostFinalizacao(
     parametros.set(
       'parentUploadId',
       job.parentUploadId ||
+      ''
+    );
+
+
+    parametros.set(
+      'inicioAudio',
+      job.inicioAudio ||
       ''
     );
 
