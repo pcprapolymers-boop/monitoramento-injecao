@@ -8347,6 +8347,20 @@ function produtoSelecionado() {
     tempoCiclo =
       0;
 
+    const cicloVazio =
+      document.getElementById(
+        'cycleTime'
+      );
+
+    if (
+      cicloVazio
+    ) {
+
+      cicloVazio.textContent =
+        '00:00';
+
+    }
+
 
     document
       .getElementById(
@@ -12482,9 +12496,7 @@ function limparTodosOsDadosNovaInspecao() {
       'machineSelector',
       'operador',
       'machineStatusSelector',
-      'operador',
-      'produto',
-      'cycleTime'
+      'produto'
     ];
 
   campos.forEach(
@@ -12506,6 +12518,54 @@ function limparTodosOsDadosNovaInspecao() {
 
     }
   );
+
+
+  /*
+   * CICLO PROGRAMADO é um elemento visual (DIV), não um input.
+   * Portanto, precisa ser zerado explicitamente.
+   */
+  const cicloProgramado =
+    document.getElementById(
+      'cycleTime'
+    );
+
+  if (
+    cicloProgramado
+  ) {
+
+    cicloProgramado.textContent =
+      '00:00';
+
+  }
+
+  const cicloBox =
+    document.getElementById(
+      'cycleBox'
+    );
+
+  if (
+    cicloBox
+  ) {
+
+    cicloBox.classList.add(
+      'hidden'
+    );
+
+  }
+
+  const inspectionProduct =
+    document.getElementById(
+      'inspectionProduct'
+    );
+
+  if (
+    inspectionProduct
+  ) {
+
+    inspectionProduct.textContent =
+      '';
+
+  }
 
   /*
    * O status começa sem seleção.
@@ -12762,7 +12822,20 @@ function limparTodosOsDadosNovaInspecao() {
           statusOperacionalMaquina,
 
         conformidade:
-          conformidade
+          conformidade,
+
+        tempoCiclo:
+          tempoCiclo,
+
+        cicloProgramadoReset:
+          (
+            document.getElementById(
+              'cycleTime'
+            ) &&
+            document.getElementById(
+              'cycleTime'
+            ).textContent
+          )
 
       }
     );
