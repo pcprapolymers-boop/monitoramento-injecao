@@ -6526,7 +6526,12 @@ async function enviarAudioStatusAntesDoStatus() {
 
   const resultado =
     await aguardarAudioStatusResultado(
-      uploadId
+      uploadId,
+      maquina,
+      operadorStatusSelecionado,
+      document.getElementById(
+        'machineStatusSelector'
+      ).value
     );
 
   debugUploadCliente(
@@ -6557,7 +6562,10 @@ async function enviarAudioStatusAntesDoStatus() {
 
 
 function aguardarAudioStatusResultado(
-  uploadId
+  uploadId,
+  maquina,
+  operador,
+  statusMaquina
 ) {
 
   return new Promise(
@@ -6566,7 +6574,15 @@ function aguardarAudioStatusResultado(
       reject
     ) {
 
-      let tentativas = 0;
+      let tentativas =
+        0;
+
+      /*
+       * 30 tentativas x 2s = até 60s.
+       * O Drive pode demorar mais que o POST para concluir.
+       */
+      const maxTentativas =
+        30;
 
       const consultar =
         function() {
@@ -6589,7 +6605,8 @@ function aguardarAudioStatusResultado(
               'script'
             );
 
-          let finalizado = false;
+          let finalizado =
+            false;
 
           const limpar =
             function() {
@@ -6598,18 +6615,24 @@ function aguardarAudioStatusResultado(
                 delete window[
                   callbackName
                 ];
-              } catch (erro) {}
+              }
+              catch (erro) {}
 
               try {
+
                 if (
                   script.parentNode
                 ) {
+
                   script.parentNode
                     .removeChild(
                       script
                     );
+
                 }
-              } catch (erro) {}
+
+              }
+              catch (erro) {}
 
             };
 
@@ -6617,34 +6640,41 @@ function aguardarAudioStatusResultado(
             setTimeout(
               function() {
 
-                if (finalizado) return;
+                if (
+                  finalizado
+                ) {
 
-                finalizado = true;
+                  return;
+
+                }
+
+                finalizado =
+                  true;
+
                 limpar();
 
                 if (
                   tentativas >=
-                  15
+                  maxTentativas
                 ) {
 
                   reject(
                     new Error(
-                      'Timeout ao aguardar gravação da justificativa em áudio.'
+                      'O áudio foi enviado, mas o Google Drive não confirmou o arquivo após 60 segundos.'
                     )
                   );
 
-                }
-                else {
-
-                  setTimeout(
-                    consultar,
-                    1000
-                  );
+                  return;
 
                 }
+
+                setTimeout(
+                  consultar,
+                  2000
+                );
 
               },
-              3000
+              5000
             );
 
           window[
@@ -6654,11 +6684,65 @@ function aguardarAudioStatusResultado(
             dados
           ) {
 
-            if (finalizado) return;
+            if (
+              finalizado
+            ) {
 
-            finalizado = true;
-            clearTimeout(timeout);
+              return;
+
+            }
+
+            finalizado =
+              true;
+
+            clearTimeout(
+              timeout
+            );
+
             limpar();
+
+            try {
+
+              debugUploadCliente(
+                'STATUS_AUDIO_CONSULTA_RESULTADO',
+                {
+                  uploadId:
+                    uploadId,
+                  mediaType:
+                    'STATUS_AUDIO'
+                },
+                {
+                  tentativa:
+                    tentativas,
+
+                  pronto:
+                    Boolean(
+                      dados &&
+                      dados.pronto
+                    ),
+
+                  sucesso:
+                    Boolean(
+                      dados &&
+                      dados.sucesso
+                    ),
+
+                  fallbackDrive:
+                    Boolean(
+                      dados &&
+                      dados.fallbackDrive
+                    ),
+
+                  erro:
+                    dados &&
+                    dados.erro
+                      ? dados.erro
+                      : ''
+                }
+              );
+
+            }
+            catch (debugErro) {}
 
             if (
               dados &&
@@ -6666,12 +6750,18 @@ function aguardarAudioStatusResultado(
               dados.pronto
             ) {
 
-              resolve(dados);
+              resolve(
+                dados
+              );
+
+              return;
 
             }
-            else if (
+
+            if (
               dados &&
-              dados.erro
+              dados.erro &&
+              dados.erroFatal
             ) {
 
               reject(
@@ -6680,28 +6770,65 @@ function aguardarAudioStatusResultado(
                 )
               );
 
+              return;
+
             }
-            else if (
-              tentativas >= 15
+
+            if (
+              tentativas >=
+              maxTentativas
             ) {
 
               reject(
                 new Error(
-                  'A justificativa não foi localizada no Drive.'
+                  dados &&
+                  dados.erro
+                    ? dados.erro
+                    : 'A justificativa não foi localizada no Drive após 60 segundos.'
                 )
               );
 
+              return;
+
             }
-            else {
+
+            setTimeout(
+              consultar,
+              2000
+            );
+
+          };
+
+          script.onerror =
+            function() {
+
+              clearTimeout(
+                timeout
+              );
+
+              limpar();
+
+              if (
+                tentativas >=
+                maxTentativas
+              ) {
+
+                reject(
+                  new Error(
+                    'Não foi possível consultar a confirmação do áudio no Apps Script.'
+                  )
+                );
+
+                return;
+
+              }
 
               setTimeout(
                 consultar,
-                1000
+                2000
               );
 
-            }
-
-          };
+            };
 
           script.src =
             URL_APPS_SCRIPT +
@@ -6710,6 +6837,21 @@ function aguardarAudioStatusResultado(
             encodeURIComponent(
               uploadId
             ) +
+            '&maquina=' +
+            encodeURIComponent(
+              maquina ||
+              ''
+            ) +
+            '&operador=' +
+            encodeURIComponent(
+              operador ||
+              ''
+            ) +
+            '&statusMaquina=' +
+            encodeURIComponent(
+              statusMaquina ||
+              ''
+            ) +
             '&callback=' +
             encodeURIComponent(
               callbackName
@@ -6717,7 +6859,8 @@ function aguardarAudioStatusResultado(
             '&_=' +
             Date.now();
 
-          script.async = true;
+          script.async =
+            true;
 
           document.head.appendChild(
             script
@@ -6731,6 +6874,9 @@ function aguardarAudioStatusResultado(
   );
 
 }
+
+
+
 
 
 
