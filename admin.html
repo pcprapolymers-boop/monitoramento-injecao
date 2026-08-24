@@ -805,6 +805,57 @@ function limparFiltros() {
 
 
 
+
+function construirUrlAudioDrive(
+  audioId,
+  audioUrl
+) {
+
+  const id =
+    String(
+      audioId ||
+      ''
+    ).trim();
+
+  if (
+    id &&
+    !id.startsWith(
+      'PENDENTE_AUDIO:'
+    )
+  ) {
+
+    return (
+      'https://drive.google.com/file/d/' +
+      encodeURIComponent(
+        id
+      ) +
+      '/view'
+    );
+
+  }
+
+  const url =
+    String(
+      audioUrl ||
+      ''
+    ).trim();
+
+  if (
+    url &&
+    /^https?:\/\//i.test(
+      url
+    )
+  ) {
+
+    return url;
+
+  }
+
+  return '';
+
+}
+
+
 async function carregarHistoricoStatusMaquinas(
   dataBR
 ) {
@@ -982,15 +1033,32 @@ async function carregarHistoricoStatusMaquinas(
 
             '<td>' +
             (
-              registro.audioUrl
-                ? (
-                    '<a class="video" href="' +
-                    escapeHtml(
+              (
+                String(
+                  registro.audioUrl ||
+                  ''
+                ).indexOf(
+                  'PENDENTE_AUDIO:'
+                ) === 0
+              )
+                ? '<span style="color:#D88916;font-weight:800;">⏳ ÁUDIO PENDENTE</span>'
+                : (
+                    construirUrlAudioDrive(
+                      registro.audioId,
                       registro.audioUrl
-                    ) +
-                    '" target="_blank" rel="noopener">🎙️ OUVIR</a>'
+                    )
+                      ? (
+                          '<a class="video" href="' +
+                          escapeHtml(
+                            construirUrlAudioDrive(
+                              registro.audioId,
+                              registro.audioUrl
+                            )
+                          ) +
+                          '" target="_blank" rel="noopener" title="Abrir justificativa no Google Drive">🎙️ OUVIR</a>'
+                        )
+                      : '-'
                   )
-                : '-'
             ) +
             '</td>' +
 
