@@ -430,11 +430,73 @@
   font-weight: 800;
 }
 
+
+/* V12.34 — confirmação horária obrigatória do status */
+#statusMandatoryBanner {
+  display:none;
+  position:fixed;
+  z-index:9998;
+  left:10px;
+  right:10px;
+  top:10px;
+  padding:14px;
+  border-radius:12px;
+  background:#C62828;
+  color:#fff;
+  box-shadow:0 6px 20px rgba(0,0,0,.25);
+  text-align:center;
+  font-weight:800;
+}
+
+#statusMandatoryOverlay {
+  display:none;
+  position:fixed;
+  z-index:9997;
+  inset:0;
+  background:rgba(0,0,0,.35);
+}
+
+#machineStatusCard.status-obrigatorio {
+  border-color:#C62828 !important;
+  background:#FFF0F0 !important;
+}
+
+.factory-pause-note {
+  margin-top:6px;
+  font-size:12px;
+  color:#536777;
+}
+
+
+/* V12.35 — cartão de status permanece clicável durante o bloqueio */
+#machineStatusCard.status-obrigatorio {
+  position: relative;
+  z-index: 9999 !important;
+}
 </style>
 
 </head>
 
 <body>
+
+
+<div
+  id="statusMandatoryOverlay"
+  aria-hidden="true"
+></div>
+
+<div
+  id="statusMandatoryBanner"
+  role="alert"
+>
+  🔴 CONFIRMAÇÃO OBRIGATÓRIA DO STATUS DA MÁQUINA
+  <div
+    id="statusMandatoryBannerText"
+    style="margin-top:5px;font-size:14px;font-weight:600;"
+  >
+    Confirme o status para continuar.
+  </div>
+</div>
 
 <div class="app">
 
@@ -1155,6 +1217,19 @@ let maquina =
 
 let statusOperacionalMaquina =
   'PRODUZINDO';
+
+
+let statusAtualizadoEm =
+  null;
+
+let statusAtualizacaoObrigatoria =
+  false;
+
+let statusObrigatorioTimer =
+  null;
+
+const INTERVALO_STATUS_OBRIGATORIO_MS =
+  60 * 60 * 1000;
 
 let motivoParadaMaquina =
   '';
@@ -3116,7 +3191,12 @@ async function selecionarMaquinaProvisoria() {
 
   carregarUltimaInspecaoMaquina();
 
-  carregarStatusMaquina();
+  carregarStatusMaquina()
+    .then(
+      function() {
+        atualizarBloqueioStatusObrigatorio_();
+      }
+    );
 
 
 
@@ -3258,8 +3338,10 @@ function atualizarAlarmeInspecaoUI() {
 
 
   if (
+    fabricaParadaSemanal_() ||
+    statusAtualizacaoObrigatoria ||
     statusOperacionalMaquina !==
-    'PRODUZINDO'
+      'PRODUZINDO'
   ) {
 
     card.style.display =
@@ -4223,12 +4305,20 @@ function atualizarStatusMaquinaUI() {
     'PRODUZINDO';
 
   if (
+    fabricaParadaSemanal_()
+  ) {
+
+    info.textContent =
+      '🌙 Fábrica parada. Alarmes suspensos até segunda-feira às 07:00.';
+
+  }
+  else if (
     statusOperacionalMaquina ===
     'PRODUZINDO'
   ) {
 
     info.textContent =
-      '✅ A máquina está produzindo. O alarme horário está ativo.';
+      '✅ A máquina está produzindo. O alarme horário está ativo e o status deve ser confirmado a cada hora.';
 
   }
   else {
@@ -4426,6 +4516,10 @@ function carregarStatusMaquina() {
             dados.inicioStatus ||
             null;
 
+          statusAtualizadoEm =
+            dados.atualizadoEm ||
+            null;
+
           responsavelStatusMaquina =
             dados.responsavel ||
             '';
@@ -4463,6 +4557,8 @@ function carregarStatusMaquina() {
           }
 
           atualizarStatusMaquinaUI();
+
+          atualizarBloqueioStatusObrigatorio_();
 
         }
 
@@ -4734,6 +4830,14 @@ function salvarStatusMaquina() {
         new Date()
           .toISOString();
 
+      statusAtualizadoEm =
+        dados.inicioStatus ||
+        new Date()
+          .toISOString();
+
+      statusAtualizacaoObrigatoria =
+        false;
+
       responsavelStatusMaquina =
         dados.responsavel ||
         String(
@@ -4770,6 +4874,8 @@ function salvarStatusMaquina() {
       }
 
       atualizarStatusMaquinaUI();
+
+      atualizarBloqueioStatusObrigatorio_();
 
       if (
         mensagem
@@ -4821,6 +4927,371 @@ function salvarStatusMaquina() {
   document.head.appendChild(
     script
   );
+
+}
+
+
+
+function obterAgoraBrasil_() {
+
+  const partes =
+    new Intl.DateTimeFormat(
+      'en-US',
+      {
+        timeZone:
+          'America/Sao_Paulo',
+        weekday:
+          'short',
+        hour:
+          '2-digit',
+        minute:
+          '2-digit',
+        second:
+          '2-digit',
+        hour12:
+          false
+      }
+    )
+      .formatToParts(
+        new Date()
+      );
+
+  const mapa = {};
+
+  partes.forEach(
+    function(item) {
+      mapa[
+        item.type
+      ] =
+        item.value;
+    }
+  );
+
+  return {
+    weekday:
+      mapa.weekday,
+    hour:
+      Number(
+        mapa.hour
+      ),
+    minute:
+      Number(
+        mapa.minute
+      ),
+    second:
+      Number(
+        mapa.second
+      )
+  };
+
+}
+
+
+function fabricaParadaSemanal_() {
+
+  if (
+    modoTesteAlarme
+  ) {
+    return false;
+  }
+
+  /*
+   * Domingo 07:00 até segunda 07:00.
+   */
+  const agora =
+    obterAgoraBrasil_();
+
+  if (
+    agora.weekday ===
+    'Sun' &&
+    agora.hour >=
+      7
+  ) {
+    return true;
+  }
+
+  if (
+    agora.weekday ===
+    'Mon' &&
+    agora.hour < 7
+  ) {
+    return true;
+  }
+
+  return false;
+
+}
+
+
+function minutosAteFimParadaSemanal_() {
+
+  if (
+    !fabricaParadaSemanal_()
+  ) {
+    return 0;
+  }
+
+  const agora =
+    new Date();
+
+  const partes =
+    new Intl.DateTimeFormat(
+      'en-US',
+      {
+        timeZone:
+          'America/Sao_Paulo',
+        weekday:
+          'short',
+        hour:
+          '2-digit',
+        minute:
+          '2-digit',
+        second:
+          '2-digit',
+        hour12:
+          false
+      }
+    )
+      .formatToParts(
+        agora
+      );
+
+  const mapa = {};
+  partes.forEach(function(item){
+    mapa[item.type] = item.value;
+  });
+
+  const hora =
+    Number(
+      mapa.hour
+    );
+
+  const minuto =
+    Number(
+      mapa.minute
+    );
+
+  const segundo =
+    Number(
+      mapa.second
+    );
+
+  if (
+    mapa.weekday ===
+    'Sun'
+  ) {
+
+    return (
+      (
+        24 -
+        hora +
+        7
+      ) * 60
+    ) -
+    minuto -
+    (
+      segundo /
+      60
+    );
+
+  }
+
+  /*
+   * Segunda antes das 07:00.
+   */
+  return (
+    (
+      7 -
+      hora
+    ) * 60
+  ) -
+  minuto -
+  (
+    segundo /
+    60
+  );
+
+}
+
+
+function atualizarBloqueioStatusObrigatorio_() {
+
+  const banner =
+    document.getElementById(
+      'statusMandatoryBanner'
+    );
+
+  const overlay =
+    document.getElementById(
+      'statusMandatoryOverlay'
+    );
+
+  const bannerText =
+    document.getElementById(
+      'statusMandatoryBannerText'
+    );
+
+  /*
+   * Parada semanal: nada de alarme nem cobrança de status.
+   */
+  if (
+    fabricaParadaSemanal_()
+  ) {
+
+    statusAtualizacaoObrigatoria =
+      false;
+
+    if (
+      banner
+    ) {
+      banner.style.display =
+        'none';
+    }
+
+    if (
+      overlay
+    ) {
+      overlay.style.display =
+        'none';
+    }
+
+    pararAlarmeInspecaoContinuo();
+
+    return;
+
+  }
+
+  if (
+    !statusAtualizadoEm
+  ) {
+
+    statusAtualizacaoObrigatoria =
+      true;
+
+  }
+  else {
+
+    const data =
+      new Date(
+        statusAtualizadoEm
+      );
+
+    statusAtualizacaoObrigatoria =
+      !isNaN(
+        data.getTime()
+      ) &&
+      (
+        Date.now() -
+        data.getTime()
+      ) >=
+      INTERVALO_STATUS_OBRIGATORIO_MS;
+
+  }
+
+  if (
+    statusAtualizacaoObrigatoria
+  ) {
+
+    if (
+      banner
+    ) {
+      banner.style.display =
+        'block';
+    }
+
+    if (
+      bannerText
+    ) {
+
+      bannerText.textContent =
+        'Confirme o status atual de M-' +
+        (
+          maquina
+            ? maquina.substring(1)
+            : ''
+        ) +
+        ' para continuar.';
+
+    }
+
+    if (
+      overlay
+    ) {
+      overlay.style.display =
+        'block';
+    }
+
+    const card =
+      document.getElementById(
+        'machineStatusCard'
+      );
+
+    if (
+      card
+    ) {
+      card.classList.add(
+        'status-obrigatorio'
+      );
+    }
+
+    pararAlarmeInspecaoContinuo();
+
+  }
+  else {
+
+    if (
+      banner
+    ) {
+      banner.style.display =
+        'none';
+    }
+
+    if (
+      overlay
+    ) {
+      overlay.style.display =
+        'none';
+    }
+
+    const card =
+      document.getElementById(
+        'machineStatusCard'
+      );
+
+    if (
+      card
+    ) {
+      card.classList.remove(
+        'status-obrigatorio'
+      );
+    }
+
+  }
+
+}
+
+
+function iniciarRelogioStatusObrigatorio() {
+
+  if (
+    statusObrigatorioTimer
+  ) {
+
+    clearInterval(
+      statusObrigatorioTimer
+    );
+
+  }
+
+  statusObrigatorioTimer =
+    setInterval(
+      function() {
+
+        atualizarBloqueioStatusObrigatorio_();
+
+      },
+      1000
+    );
 
 }
 
@@ -9584,6 +10055,10 @@ document.addEventListener(
     ativarDebugLocalSeSolicitado();
 
     ativarModuloTesteAlarme();
+
+    iniciarRelogioStatusObrigatorio();
+
+    atualizarBloqueioStatusObrigatorio_();
 
     const btnStatus =
       document.getElementById(
