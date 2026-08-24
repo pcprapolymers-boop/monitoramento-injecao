@@ -3218,6 +3218,8 @@ async function selecionarMaquinaProvisoria() {
   alarmeInspecaoAtivo =
     false;
 
+  pararSilencioPosAlarme();
+
   carregarUltimaInspecaoMaquina();
 
   carregarStatusMaquina()
@@ -3371,6 +3373,53 @@ function atualizarAlarmeInspecaoUI() {
 
 
   if (
+    alarmeEmSilencioPosAlarme()
+  ) {
+
+    card.style.display =
+      'block';
+
+    card.classList.remove(
+      'alarm-due',
+      'alarm-overdue'
+    );
+
+    title.textContent =
+      '🔕 INSPEÇÃO EM ANDAMENTO';
+
+    text.textContent =
+      'Alarme silenciado por 5 minutos após o reconhecimento.';
+
+    const restanteSilencio =
+      (
+        inicioSilencioPosAlarme +
+        SILENCIO_POS_ALARME_MS
+      ) -
+      Date.now();
+
+    countdown.textContent =
+      formatarTempoAlarme(
+        Math.max(
+          0,
+          restanteSilencio
+        )
+      );
+
+    if (
+      botaoParar
+    ) {
+      botaoParar.style.display =
+        'none';
+    }
+
+    pararAlarmeInspecaoContinuo();
+
+    return;
+
+  }
+
+
+  if (
     fabricaParadaSemanal_() ||
     statusAtualizacaoObrigatoria ||
     statusOperacionalMaquina !==
@@ -3512,6 +3561,11 @@ function atualizarAlarmeInspecaoUI() {
 
 let contextoAlarmeInspecao = null;
 let intervaloSomAlarmeInspecao = null;
+
+let alarmeReconhecidoManualmente = false;
+let inicioSilencioPosAlarme = null;
+const SILENCIO_POS_ALARME_MS = 5 * 60 * 1000;
+
 let osciladoresAlarmeInspecao = [];
 let alarmeAudioLiberado = false;
 
@@ -3775,6 +3829,11 @@ function criarBotaoPararAlarme() {
 
       pararAlarmeInspecaoContinuo();
 
+      alarmeReconhecidoManualmente =
+        true;
+
+      iniciarSilencioPosAlarmeSePronto();
+
       const status =
         document.getElementById(
           'inspectionAlarmCountdown'
@@ -3829,6 +3888,93 @@ function criarBotaoPararAlarme() {
   return botao;
 
 }
+
+
+function iniciarSilencioPosAlarmeSePronto() {
+
+  if (
+    !alarmeReconhecidoManualmente ||
+    !produtoAtual ||
+    !produtoAtual.nome
+  ) {
+    return false;
+  }
+
+  inicioSilencioPosAlarme =
+    Date.now();
+
+  pararAlarmeInspecaoContinuo();
+
+  try {
+    debugUploadCliente(
+      'ALARME_SILENCIO_5MIN_INICIO',
+      { mediaType: 'ALARM' },
+      {
+        maquina: maquina,
+        produto: produtoAtual.nome,
+        inicio:
+          new Date(
+            inicioSilencioPosAlarme
+          ).toISOString(),
+        fim:
+          new Date(
+            inicioSilencioPosAlarme +
+            SILENCIO_POS_ALARME_MS
+          ).toISOString()
+      }
+    );
+  } catch (erro) {}
+
+  return true;
+
+}
+
+
+function alarmeEmSilencioPosAlarme() {
+
+  if (
+    !inicioSilencioPosAlarme
+  ) {
+    return false;
+  }
+
+  if (
+    Date.now() <
+    inicioSilencioPosAlarme +
+    SILENCIO_POS_ALARME_MS
+  ) {
+    return true;
+  }
+
+  inicioSilencioPosAlarme =
+    null;
+
+  alarmeReconhecidoManualmente =
+    false;
+
+  try {
+    debugUploadCliente(
+      'ALARME_SILENCIO_5MIN_FIM',
+      { mediaType: 'ALARM' },
+      { maquina: maquina }
+    );
+  } catch (erro) {}
+
+  return false;
+
+}
+
+
+function pararSilencioPosAlarme() {
+
+  inicioSilencioPosAlarme =
+    null;
+
+  alarmeReconhecidoManualmente =
+    false;
+
+}
+
 
 function emitirAlarmeInspecao() {
 
@@ -6020,6 +6166,8 @@ function produtoSelecionado() {
     produtoAtual =
       null;
 
+    pararSilencioPosAlarme();
+
     tempoCiclo =
       0;
 
@@ -6228,6 +6376,8 @@ function produtoSelecionado() {
 
   }
 
+
+  iniciarSilencioPosAlarmeSePronto();
 
   verificarFormulario();
 
