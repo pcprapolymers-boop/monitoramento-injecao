@@ -3906,6 +3906,67 @@ function formatarTempoAlarme(ms) {
 }
 
 
+
+function gravacaoAtivaBloqueiaAlarme() {
+
+  /*
+   * REGRA OPERACIONAL:
+   * o alarme nunca deve tocar enquanto houver qualquer
+   * gravação em andamento.
+   */
+
+  const videoAtivo =
+    Boolean(
+      (
+        typeof mediaRecorder !==
+          'undefined'
+      ) &&
+      mediaRecorder &&
+      mediaRecorder.state ===
+        'recording'
+    );
+
+  const audioInspecaoAtivo =
+    Boolean(
+      (
+        typeof audioRecorder !==
+          'undefined'
+      ) &&
+      audioRecorder &&
+      audioRecorder.state ===
+        'recording'
+    ) ||
+    Boolean(
+      typeof audioGravando !==
+        'undefined' &&
+      audioGravando
+    );
+
+  const audioStatusAtivo =
+    Boolean(
+      (
+        typeof statusAudioGravador !==
+          'undefined'
+      ) &&
+      statusAudioGravador &&
+      statusAudioGravador.state ===
+        'recording'
+    ) ||
+    Boolean(
+      typeof statusAudioGravando !==
+        'undefined' &&
+      statusAudioGravando
+    );
+
+  return (
+    videoAtivo ||
+    audioInspecaoAtivo ||
+    audioStatusAtivo
+  );
+
+}
+
+
 function atualizarAlarmeInspecaoUI() {
 
   const card =
@@ -3945,6 +4006,70 @@ function atualizarAlarmeInspecaoUI() {
     !countdown
   ) {
     return;
+  }
+
+  /*
+   * Durante vídeo/áudio, o alarme fica completamente silencioso
+   * e não ocupa a tela. Ao terminar a gravação, a função é
+   * chamada novamente e recalcula o prazo normalmente.
+   */
+  if (
+    gravacaoAtivaBloqueiaAlarme()
+  ) {
+
+    card.style.display =
+      'none';
+
+    if (
+      botaoParar
+    ) {
+
+      botaoParar.style.display =
+        'none';
+
+    }
+
+    pararAlarmeInspecaoContinuo();
+
+    try {
+
+      debugUploadCliente(
+        'ALARME_BLOQUEADO_GRAVACAO',
+        {
+          mediaType:
+            'ALARM'
+        },
+        {
+          maquina:
+            maquina,
+          video:
+            Boolean(
+              typeof mediaRecorder !==
+                'undefined' &&
+              mediaRecorder &&
+              mediaRecorder.state ===
+                'recording'
+            ),
+          audio:
+            Boolean(
+              typeof audioGravando !==
+                'undefined' &&
+              audioGravando
+            ),
+          statusAudio:
+            Boolean(
+              typeof statusAudioGravando !==
+                'undefined' &&
+              statusAudioGravando
+            )
+        }
+      );
+
+    }
+    catch (erro) {}
+
+    return;
+
   }
 
   if (
@@ -7493,6 +7618,8 @@ async function gravarAudioStatus() {
 
     statusAudioGravando = true;
     statusAudioConcluido = false;
+
+    atualizarAlarmeInspecaoUI();
     statusAudioSegundos = 0;
     statusAudioMimeType =
       recorder.mimeType ||
@@ -9795,52 +9922,310 @@ async function iniciarCamera() {
 
   try {
 
+    const dispositivos =
+      navigator.mediaDevices;
+
+    if (
+      !dispositivos ||
+      !dispositivos.getUserMedia
+    ) {
+
+      throw new Error(
+        'Câmera não disponível neste aparelho.'
+      );
+
+    }
+
+    /*
+     * REGRA DO PROJETO:
+     * a câmera deve iniciar sempre na ampliação nativa / 1x.
+     *
+     * Não usamos zoom digital.
+     * Quando o navegador expõe zoom via MediaTrackCapabilities,
+     * forçamos 1x explicitamente.
+     */
+    const constraints = {
+
+      video: {
+
+        facingMode: {
+          ideal:
+            'environment'
+        },
+
+        width: {
+          ideal:
+            1280
+        },
+
+        height: {
+          ideal:
+            720
+        },
+
+        /*
+         * Alguns navegadores reconhecem zoom
+         * diretamente nas constraints.
+         */
+        zoom:
+          1
+
+      },
+
+      audio: {
+
+        echoCancellation:
+          true,
+
+        noiseSuppression:
+          true,
+
+        autoGainControl:
+          true
+
+      }
+
+    };
+
     cameraStream =
-      await navigator
-        .mediaDevices
-        .getUserMedia({
+      await dispositivos
+        .getUserMedia(
+          constraints
+        );
 
-          video: {
+    const tracks =
+      cameraStream
+        .getVideoTracks();
 
-            facingMode: {
-              ideal: 'environment'
+    if (
+      !tracks ||
+      tracks.length ===
+        0
+    ) {
+
+      throw new Error(
+        'O aparelho não disponibilizou uma câmera.'
+      );
+
+    }
+
+    const track =
+      tracks[0];
+
+    /*
+     * Força zoom 1x quando o navegador disponibiliza
+     * essa capacidade.
+     */
+    try {
+
+      const capabilities =
+        typeof track.getCapabilities ===
+          'function'
+            ? track.getCapabilities()
+            : {};
+
+      if (
+        capabilities &&
+        Object.prototype.hasOwnProperty.call(
+          capabilities,
+          'zoom'
+        )
+      ) {
+
+        const minZoom =
+          Number(
+            capabilities.zoom.min
+          );
+
+        const maxZoom =
+          Number(
+            capabilities.zoom.max
+          );
+
+        /*
+         * A escala "1x" é o zoom nativo.
+         * Se a câmera aceitar 1, usamos 1.
+         * Caso o min seja > 1, usamos o menor valor possível,
+         * pois aquele dispositivo não expõe 1x via API.
+         */
+        let zoom1x =
+          1;
+
+        if (
+          Number.isFinite(
+            minZoom
+          ) &&
+          Number.isFinite(
+            maxZoom
+          ) &&
+          (
+            1 < minZoom ||
+            1 > maxZoom
+          )
+        ) {
+
+          zoom1x =
+            minZoom;
+
+        }
+
+        if (
+          typeof track.applyConstraints ===
+          'function'
+        ) {
+
+          await track.applyConstraints({
+
+            advanced: [
+              {
+                zoom:
+                  zoom1x
+              }
+            ]
+
+          });
+
+        }
+
+        try {
+
+          debugUploadCliente(
+            'CAMERA_ZOOM_INICIAL',
+            {
+              mediaType:
+                'CAMERA'
             },
-
-            width: {
-              ideal: 1280
-            },
-
-            height: {
-              ideal: 720
+            {
+              requestedZoom:
+                1,
+              appliedZoom:
+                zoom1x,
+              capabilitiesZoom:
+                {
+                  min:
+                    Number.isFinite(
+                      minZoom
+                    )
+                      ? minZoom
+                      : null,
+                  max:
+                    Number.isFinite(
+                      maxZoom
+                    )
+                      ? maxZoom
+                      : null
+                }
             }
+          );
 
+        }
+        catch (debugErro) {}
+
+      }
+
+    }
+    catch (zoomErro) {
+
+      /*
+       * Alguns aparelhos/navegadores não permitem
+       * controlar zoom pela API. Não bloqueamos a câmera.
+       */
+      try {
+
+        debugUploadCliente(
+          'CAMERA_ZOOM_API_NAO_DISPONIVEL',
+          {
+            mediaType:
+              'CAMERA'
           },
-
-          audio: {
-            echoCancellation: true,
-            noiseSuppression: true,
-            autoGainControl: true
+          {
+            erro:
+              zoomErro &&
+              zoomErro.message
+                ? zoomErro.message
+                : String(
+                    zoomErro
+                  )
           }
+        );
 
-        });
+      }
+      catch (debugErro) {}
 
+    }
+
+    const settings =
+      typeof track.getSettings ===
+        'function'
+          ? track.getSettings()
+          : {};
+
+    try {
+
+      debugUploadCliente(
+        'CAMERA_CONFIG_REAL',
+        {
+          mediaType:
+            'CAMERA'
+        },
+        {
+          facingMode:
+            settings.facingMode ||
+            '',
+          width:
+            settings.width ||
+            0,
+          height:
+            settings.height ||
+            0,
+          zoom:
+            typeof settings.zoom ===
+              'number'
+                ? settings.zoom
+                : null
+        }
+      );
+
+    }
+    catch (debugErro) {}
 
     const camera =
       document.getElementById(
         'cameraPreview'
       );
 
+    if (
+      !camera
+    ) {
+
+      throw new Error(
+        'Elemento de preview da câmera não encontrado.'
+      );
+
+    }
 
     camera.srcObject =
       cameraStream;
 
+    /*
+     * Nunca aplicamos transformações, escala ou zoom via CSS.
+     */
+    camera.style.transform =
+      'none';
+
+    camera.style.objectFit =
+      'cover';
+
+    camera.style.objectPosition =
+      'center center';
 
     await camera.play();
 
-
     if (
-      cameraStream.getAudioTracks().length ===
-      0
+      cameraStream
+        .getAudioTracks()
+        .length ===
+        0
     ) {
 
       throw new Error(
@@ -9849,46 +10234,60 @@ async function iniciarCamera() {
 
     }
 
-
     document
       .getElementById(
         'preparationBlock'
       )
       .classList
-      .remove(
+      .add(
         'hidden'
       );
-
-
-    document
-      .getElementById(
-        'cameraBlock'
-      )
-      .classList
-      .remove(
-        'hidden'
-      );
-
 
     iniciarContagemPreparacao();
 
   }
   catch (erro) {
 
-    await liberarWakeLock();
-
+    console.error(
+      'Câmera:',
+      erro
+    );
 
     mostrarMensagem(
-      'Não foi possível acessar a câmera e o microfone.',
+      '❌ Não foi possível abrir a câmera. Verifique a permissão da câmera e do microfone.',
       'error'
     );
 
+    try {
 
-    fecharInspecao();
+      if (
+        cameraStream
+      ) {
+
+        cameraStream
+          .getTracks()
+          .forEach(
+            function(
+              track
+            ) {
+
+              track.stop();
+
+            }
+          );
+
+      }
+
+    }
+    catch (erroStop) {}
+
+    cameraStream =
+      null;
 
   }
 
 }
+
 
 
 /* =====================================================
@@ -10426,6 +10825,8 @@ function iniciarGravacao() {
       TIMESLICE_GRAVACAO
     );
 
+    atualizarAlarmeInspecaoUI();
+
   }
   catch (erro) {
 
@@ -10788,6 +11189,8 @@ async function iniciarGravacaoAudio() {
     audioGravando = true;
     audioConcluido = false;
 
+    atualizarAlarmeInspecaoUI();
+
     const btnGravar =
       document.getElementById('btnGravarAudio');
 
@@ -10884,6 +11287,8 @@ async function iniciarGravacaoAudio() {
       async function() {
 
         audioGravando = false;
+
+        atualizarAlarmeInspecaoUI();
 
         if (audioTimer) {
           clearInterval(audioTimer);
