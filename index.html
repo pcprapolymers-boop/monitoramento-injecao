@@ -782,11 +782,39 @@
           🎙️ GRAVAR JUSTIFICATIVA
         </button>
 
-        <div
+        
+        <button
+          id="btnRegravarStatusAudio"
+          type="button"
+          style="
+            display:none;
+            width:100%;
+            min-height:44px;
+            margin-top:8px;
+          "
+        >
+          🔄 REGRAVAR JUSTIFICATIVA
+        </button>
+
+<div
           id="machineStatusAudioMessage"
           style="font-size:12px;font-weight:700;"
         ></div>
       </div>
+
+      <button
+        id="btnManterStatus"
+        type="button"
+        style="
+          display:none;
+          width:100%;
+          min-height:44px;
+          margin-top:8px;
+        "
+      >
+        🔁 MANTER STATUS ATUAL
+      </button>
+
 <button
         id="btnSaveMachineStatus"
         type="button"
@@ -1289,6 +1317,10 @@ let statusAtualizadoEm =
 
 let statusAtualizacaoObrigatoria =
   false;
+
+
+let statusConfirmadoLocalEm = null;
+let statusAudioCamposTravados = false;
 
 let statusObrigatorioTimer =
   null;
@@ -3277,6 +3309,12 @@ async function selecionarMaquinaProvisoria() {
   alarmeInspecaoAtivo =
     false;
 
+  statusConfirmadoLocalEm =
+    null;
+
+  statusAudioCamposTravados =
+    false;
+
   pararSilencioPosAlarme();
 
   carregarUltimaInspecaoMaquina();
@@ -4561,6 +4599,8 @@ function atualizarStatusMaquinaUI() {
     statusOperacionalMaquina ||
     'PRODUZINDO';
 
+  atualizarBotoesManterStatus();
+
   if (
     fabricaParadaSemanal_()
   ) {
@@ -5163,7 +5203,8 @@ async function salvarStatusMaquina() {
       operadorStatusSelecionado,
       '',
       audioUrl,
-      audioId
+      audioId,
+      'ALTERAR_STATUS'
     );
 
   }
@@ -5222,7 +5263,8 @@ function salvarStatusMaquinaNoServidor(
   operador,
   observacao,
   audioUrl,
-  audioId
+  audioId,
+  acao
 ) {
 
   return new Promise(
@@ -5249,6 +5291,7 @@ function salvarStatusMaquinaNoServidor(
       params.set('observacao',observacao);
       params.set('audioUrl',audioUrl || '');
       params.set('audioId',audioId || '');
+      params.set('acao',acao || 'ALTERAR_STATUS');
       params.set('callback',callbackName);
       params.set('_',Date.now());
 
@@ -5322,6 +5365,12 @@ function salvarStatusMaquinaNoServidor(
             dados.atualizadoEm ||
             new Date().toISOString();
 
+          statusConfirmadoLocalEm =
+            Date.now();
+
+          statusAtualizacaoObrigatoria =
+            false;
+
           responsavelStatusMaquina =
             dados.operador ||
             operador;
@@ -5344,6 +5393,13 @@ function salvarStatusMaquinaNoServidor(
           liberarObrigatoriedadeStatusAposSalvar();
 
           atualizarBloqueioStatusObrigatorio_();
+
+          atualizarBotoesManterStatus();
+
+          atualizarTravamentoCamposStatusAudio(
+            false
+          );
+
 
           const msg =
             document.getElementById(
@@ -5716,6 +5772,19 @@ function atualizarBloqueioStatusObrigatorio_() {
   }
 
   if (
+    statusConfirmadoLocalEm &&
+    (
+      Date.now() -
+      statusConfirmadoLocalEm
+    ) <
+      INTERVALO_STATUS_OBRIGATORIO_MS
+  ) {
+
+    statusAtualizacaoObrigatoria =
+      false;
+
+  }
+  else if (
     !statusAtualizadoEm
   ) {
 
@@ -6055,13 +6124,58 @@ function atualizarStatusAudioUI() {
 }
 
 
+
 async function gravarAudioStatus() {
 
-  if (
-    statusAudioGravando
-  ) return;
+  if (statusAudioGravando) return;
+
+  const operadorSelect =
+    document.getElementById(
+      'machineStatusOperator'
+    );
+
+  const statusSelect =
+    document.getElementById(
+      'machineStatusSelector'
+    );
+
+  const operadorGravado =
+    String(
+      operadorSelect &&
+      operadorSelect.value
+        ? operadorSelect.value
+        : ''
+    ).trim();
+
+  const statusGravado =
+    String(
+      statusSelect &&
+      statusSelect.value
+        ? statusSelect.value
+        : ''
+    ).trim().toUpperCase();
+
+  const mensagem =
+    document.getElementById(
+      'machineStatusAudioMessage'
+    );
+
+  if (!operadorGravado) {
+    if (mensagem) {
+      mensagem.textContent =
+        '⚠️ Selecione o operador antes de gravar.';
+    }
+    return;
+  }
+
+  if (statusGravado === 'PRODUZINDO') return;
 
   try {
+
+    /*
+     * Trava ANTES de pedir o microfone.
+     */
+    atualizarTravamentoCamposStatusAudio(true);
 
     const stream =
       await navigator.mediaDevices.getUserMedia({
@@ -6078,20 +6192,18 @@ async function gravarAudioStatus() {
     const mime =
       escolherMimeAudio();
 
-    const opcoes = {};
+    const options = {};
 
     if (mime) {
-      opcoes.mimeType =
-        mime;
+      options.mimeType = mime;
     }
 
-    opcoes.audioBitsPerSecond =
-      128000;
+    options.audioBitsPerSecond = 128000;
 
     const recorder =
       new MediaRecorder(
         stream,
-        opcoes
+        options
       );
 
     const partes = [];
@@ -6109,9 +6221,13 @@ async function gravarAudioStatus() {
     try {
       debugUploadCliente(
         'STATUS_AUDIO_GRAVACAO_INICIO',
-        { mediaType: 'STATUS_AUDIO' },
         {
-          mimeType: statusAudioMimeType,
+          mediaType: 'STATUS_AUDIO'
+        },
+        {
+          maquina: maquina,
+          operador: operadorGravado,
+          status: statusGravado,
           duracaoMax: TEMPO_AUDIO_STATUS
         }
       );
@@ -6130,7 +6246,7 @@ async function gravarAudioStatus() {
       };
 
     recorder.onstop =
-      async function() {
+      function() {
 
         if (statusAudioTimer) {
           clearInterval(
@@ -6149,9 +6265,7 @@ async function gravarAudioStatus() {
             );
         } catch (erro) {}
 
-        statusAudioGravando =
-          false;
-
+        statusAudioGravando = false;
         statusAudioSegundos =
           TEMPO_AUDIO_STATUS;
 
@@ -6171,62 +6285,48 @@ async function gravarAudioStatus() {
 
         atualizarStatusAudioUI();
 
+        const regravar =
+          document.getElementById(
+            'btnRegravarStatusAudio'
+          );
+
+        if (regravar) {
+          regravar.style.display =
+            statusAudioConcluido
+              ? 'block'
+              : 'none';
+        }
+
         try {
           debugUploadCliente(
             'STATUS_AUDIO_GRAVACAO_FIM',
-            { mediaType: 'STATUS_AUDIO' },
-            { bytes: statusAudioBlob.size }
+            {
+              mediaType: 'STATUS_AUDIO'
+            },
+            {
+              maquina: maquina,
+              operador: operadorGravado,
+              status: statusGravado,
+              bytes:
+                statusAudioBlob.size
+            }
           );
         } catch (erro) {}
 
-        const botaoSalvar =
+        const salvar =
           document.getElementById(
-            'btnSalvarMachineStatus'
+            'btnSaveMachineStatus'
           );
 
-        const statusSelecionado =
-          String(
-            document.getElementById(
-              'machineStatusSelector'
-            ).value ||
-            'PRODUZINDO'
-          ).trim().toUpperCase();
-
-        if (botaoSalvar) {
-
-          botaoSalvar.disabled =
-            statusSelecionado !==
-              'PRODUZINDO' &&
+        if (salvar) {
+          salvar.disabled =
             !statusAudioConcluido;
-
-          try {
-            debugUploadCliente(
-              'STATUS_AUDIO_BOTAO_ATUALIZADO',
-              {
-                mediaType:
-                  'STATUS_AUDIO'
-              },
-              {
-                status:
-                  statusSelecionado,
-                audioConcluido:
-                  Boolean(
-                    statusAudioConcluido
-                  ),
-                audioBytes:
-                  statusAudioBlob
-                    ? statusAudioBlob.size
-                    : 0,
-                disabled:
-                  Boolean(
-                    botaoSalvar.disabled
-                  )
-              }
-            );
-          }
-          catch (debugErro) {}
-
         }
+
+        /*
+         * Mantém operador e status travados.
+         * Só REGRAVAR permite editar novamente.
+         */
 
       };
 
@@ -6260,6 +6360,9 @@ async function gravarAudioStatus() {
 
     statusAudioGravando = false;
     statusAudioConcluido = false;
+    statusAudioBlob = null;
+
+    atualizarTravamentoCamposStatusAudio(false);
 
     mostrarMensagem(
       '❌ Não foi possível iniciar o áudio de justificativa.',
@@ -6271,6 +6374,8 @@ async function gravarAudioStatus() {
   }
 
 }
+
+
 
 
 async function enviarAudioStatusAntesDoStatus() {
@@ -6536,6 +6641,283 @@ function aguardarAudioStatusResultado(
         };
 
       consultar();
+
+    }
+  );
+
+}
+
+
+
+function atualizarBotoesManterStatus() {
+
+  const botao =
+    document.getElementById(
+      'btnManterStatus'
+    );
+
+  if (!botao) return;
+
+  const statusAtual =
+    String(
+      statusOperacionalMaquina ||
+      'PRODUZINDO'
+    ).trim().toUpperCase();
+
+  botao.style.display =
+    maquina &&
+    statusAtual !== 'PRODUZINDO'
+      ? 'block'
+      : 'none';
+
+}
+
+
+function atualizarTravamentoCamposStatusAudio(
+  travado
+) {
+
+  statusAudioCamposTravados =
+    Boolean(travado);
+
+  const operador =
+    document.getElementById(
+      'machineStatusOperator'
+    );
+
+  const status =
+    document.getElementById(
+      'machineStatusSelector'
+    );
+
+  const manter =
+    document.getElementById(
+      'btnManterStatus'
+    );
+
+  if (operador) {
+    operador.disabled =
+      statusAudioCamposTravados;
+  }
+
+  if (status) {
+    status.disabled =
+      statusAudioCamposTravados;
+  }
+
+  if (manter) {
+    manter.disabled =
+      statusAudioCamposTravados;
+  }
+
+  try {
+    debugUploadCliente(
+      statusAudioCamposTravados
+        ? 'STATUS_CAMPOS_TRAVADOS_AUDIO'
+        : 'STATUS_CAMPOS_LIBERADOS_AUDIO',
+      {
+        mediaType: 'STATUS_AUDIO'
+      },
+      {
+        maquina: maquina,
+        operador:
+          operador
+            ? operador.value
+            : '',
+        status:
+          status
+            ? status.value
+            : ''
+      }
+    );
+  } catch (erro) {}
+
+}
+
+
+function iniciarRegravacaoStatusAudio() {
+
+  statusAudioBlob = null;
+  statusAudioConcluido = false;
+  statusAudioSegundos = 0;
+
+  atualizarTravamentoCamposStatusAudio(
+    false
+  );
+
+  const botao =
+    document.getElementById(
+      'btnRegravarStatusAudio'
+    );
+
+  if (botao) {
+    botao.style.display = 'none';
+  }
+
+  atualizarObrigatoriedadeAudioStatus();
+
+  try {
+    debugUploadCliente(
+      'STATUS_AUDIO_REGRAVACAO_SOLICITADA',
+      {
+        mediaType: 'STATUS_AUDIO'
+      },
+      {
+        maquina: maquina
+      }
+    );
+  } catch (erro) {}
+
+}
+
+
+function manterStatusAtual() {
+
+  const operadorSelect =
+    document.getElementById(
+      'machineStatusOperator'
+    );
+
+  const mensagem =
+    document.getElementById(
+      'machineStatusSaveMessage'
+    );
+
+  const botao =
+    document.getElementById(
+      'btnManterStatus'
+    );
+
+  const statusAtual =
+    String(
+      statusOperacionalMaquina ||
+      ''
+    ).trim().toUpperCase();
+
+  const operador =
+    String(
+      operadorSelect &&
+      operadorSelect.value
+        ? operadorSelect.value
+        : ''
+    ).trim();
+
+  if (!maquina) return;
+
+  if (!operador) {
+    if (mensagem) {
+      mensagem.textContent =
+        '⚠️ Selecione o operador antes de manter o status.';
+    }
+    return;
+  }
+
+  if (statusAtual === 'PRODUZINDO') {
+    if (mensagem) {
+      mensagem.textContent =
+        'ℹ️ Para PRODUZINDO, use ATUALIZAR STATUS.';
+    }
+    return;
+  }
+
+  if (botao) {
+    botao.disabled = true;
+    botao.textContent =
+      '⏳ MANTENDO STATUS...';
+  }
+
+  salvarStatusMaquinaNoServidor(
+    statusAtual,
+    operador,
+    '',
+    '',
+    '',
+    'MANTER_STATUS'
+  )
+  .then(
+    function(dados) {
+
+      statusOperacionalMaquina =
+        dados.status ||
+        statusAtual;
+
+      statusAtualizadoEm =
+        dados.atualizadoEm ||
+        new Date().toISOString();
+
+      statusConfirmadoLocalEm =
+        Date.now();
+
+      statusAtualizacaoObrigatoria =
+        false;
+
+      liberarObrigatoriedadeStatusAposSalvar();
+      atualizarStatusMaquinaUI();
+      atualizarBotoesManterStatus();
+
+      if (mensagem) {
+        mensagem.textContent =
+          '✅ Status mantido. Nova confirmação em 1 hora.';
+      }
+
+      try {
+        debugUploadCliente(
+          'STATUS_MANUTENCAO_OK',
+          {
+            mediaType: 'STATUS'
+          },
+          {
+            maquina: maquina,
+            status: statusAtual,
+            operador: operador
+          }
+        );
+      } catch (erro) {}
+
+    }
+  )
+  .catch(
+    function(erro) {
+
+      if (mensagem) {
+        mensagem.textContent =
+          '❌ ' +
+          (
+            erro &&
+            erro.message
+              ? erro.message
+              : String(erro)
+          );
+      }
+
+      try {
+        debugUploadCliente(
+          'STATUS_MANUTENCAO_ERRO',
+          {
+            mediaType: 'STATUS'
+          },
+          {
+            maquina: maquina,
+            status: statusAtual,
+            erro:
+              erro &&
+              erro.message
+                ? erro.message
+                : String(erro)
+          }
+        );
+      } catch (debugErro) {}
+
+    }
+  )
+  .finally(
+    function() {
+
+      if (botao) {
+        botao.disabled = false;
+        botao.textContent =
+          '🔁 MANTER STATUS ATUAL';
+      }
 
     }
   );
@@ -11300,6 +11682,21 @@ document.addEventListener(
 );
 
 
+
+document.getElementById(
+  'btnManterStatus'
+)?.addEventListener(
+  'click',
+  manterStatusAtual
+);
+
+document.getElementById(
+  'btnRegravarStatusAudio'
+)?.addEventListener(
+  'click',
+  iniciarRegravacaoStatusAudio
+);
+
 document.addEventListener(
   'DOMContentLoaded',
   async function() {
@@ -11366,8 +11763,22 @@ document.addEventListener(
       statusSelector.addEventListener(
         'change',
         function() {
+
+          if (
+            statusAudioCamposTravados
+          ) {
+
+            statusSelector.value =
+              statusOperacionalMaquina ||
+              statusSelector.value;
+
+            return;
+
+          }
+
           atualizarObrigatoriedadeAudioStatus();
-        }
+
+}
       );
     }
 
