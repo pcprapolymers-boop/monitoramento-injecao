@@ -336,6 +336,16 @@ tr:nth-child(even) td {
 
 
     <div
+      style="
+        margin:8px 0 12px;
+        color:var(--muted);
+        font-size:13px;
+      "
+    >
+      🔎 Os filtros acima são compartilhados pelo histórico de inspeções e pelo histórico de status das máquinas.
+    </div>
+
+    <div
       id="summary"
       class="summary"
     >
@@ -399,8 +409,6 @@ tr:nth-child(even) td {
 
   </div>
 
-</div>
-
 
 
 <div
@@ -458,6 +466,10 @@ tr:nth-child(even) td {
 
   </div>
 </div>
+
+</div>
+
+
 
 <script>
 
@@ -629,6 +641,24 @@ function callJsonp(
   );
 
 }
+
+
+document.getElementById('senhaAdmin').addEventListener(
+  'keydown',
+  function(evento) {
+
+    if (
+      evento.key === 'Enter'
+    ) {
+
+      evento.preventDefault();
+
+      entrarAdmin();
+
+    }
+
+  }
+);
 
 
 async function entrarAdmin() {
@@ -876,6 +906,15 @@ function limparFiltros() {
 async function carregarHistoricoStatusMaquinas(
   dataBR
 ) {
+
+  if (
+    !adminToken
+  ) {
+
+    return;
+
+  }
+
 
   const resumo =
     document.getElementById(
