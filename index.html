@@ -4117,7 +4117,7 @@ function atualizarAlarmeInspecaoUI() {
       '🔕 INSPEÇÃO EM ANDAMENTO';
 
     text.textContent =
-      'Alarme silenciado por 5 minutos após o reconhecimento.';
+      'Alarme silenciado por 5 minutos após o reconhecimento. Selecione o produto para iniciar a inspeção.';
 
     const restanteSilencio =
       (
@@ -4611,12 +4611,22 @@ function criarBotaoPararAlarme() {
   botao.onclick =
     function() {
 
+      /* 1) Para fisicamente o alarme sem esperar qualquer outra etapa. */
       pararAlarmeInspecaoContinuo();
+
+      alarmeInspecaoAtivo =
+        false;
 
       alarmeReconhecidoManualmente =
         true;
 
-      iniciarSilencioPosAlarmeSePronto();
+      /* 2) Inicia o silêncio de 5 minutos imediatamente. */
+      const silenciado =
+        iniciarSilencioPosAlarmeSePronto();
+
+      /* 3) Evita duplo clique. */
+      botao.style.display =
+        'none';
 
       const status =
         document.getElementById(
@@ -4628,7 +4638,9 @@ function criarBotaoPararAlarme() {
       ) {
 
         status.textContent =
-          '✅ Alarme reconhecido. Agora selecione o produto para iniciar a inspeção.';
+          silenciado
+            ? '✅ Alarme reconhecido. Ele ficará silencioso por 5 minutos. Agora selecione o produto para iniciar a inspeção.'
+            : '✅ Alarme reconhecido. Agora selecione o produto para iniciar a inspeção.';
 
       }
 
@@ -4643,9 +4655,15 @@ function criarBotaoPararAlarme() {
           {
             maquina:
               maquina,
-
             horario:
-              new Date().toISOString()
+              new Date().toISOString(),
+            silencioIniciado:
+              silenciado,
+            produtoSelecionado:
+              Boolean(
+                produtoAtual &&
+                produtoAtual.nome
+              )
           }
         );
 
@@ -4662,16 +4680,16 @@ function criarBotaoPararAlarme() {
   if (
     card
   ) {
-
     card.appendChild(
       botao
     );
-
   }
 
   return botao;
 
 }
+
+
 
 
 
@@ -4922,10 +4940,15 @@ function restaurarSilencioAlarmePersistido_(
 
 function iniciarSilencioPosAlarmeSePronto() {
 
+  /*
+   * Reconhecer o alarme é suficiente para interromper imediatamente
+   * o som/vibração e iniciar o silêncio de 5 minutos.
+   * O produto continua obrigatório apenas para iniciar a inspeção.
+   */
   if (
     !alarmeReconhecidoManualmente ||
-    !produtoAtual ||
-    !produtoAtual.nome
+    !maquina ||
+    !proximaInspecaoTimestamp
   ) {
     return false;
   }
@@ -4933,16 +4956,15 @@ function iniciarSilencioPosAlarmeSePronto() {
   inicioSilencioPosAlarme =
     Date.now();
 
+  const ultimaInspecaoBase =
+    proximaInspecaoTimestamp -
+    INTERVALO_INSPECAO_MS;
+
   salvarEstadoAlarmePersistido_(
     maquina,
-    (
-      proximaInspecaoTimestamp -
-      INTERVALO_INSPECAO_MS
-    ),
-    (
-      inicioSilencioPosAlarme +
+    ultimaInspecaoBase,
+    inicioSilencioPosAlarme +
       SILENCIO_POS_ALARME_MS
-    )
   );
 
   pararAlarmeInspecaoContinuo();
@@ -4950,10 +4972,23 @@ function iniciarSilencioPosAlarmeSePronto() {
   try {
     debugUploadCliente(
       'ALARME_SILENCIO_5MIN_INICIO',
-      { mediaType: 'ALARM' },
       {
-        maquina: maquina,
-        produto: produtoAtual.nome,
+        mediaType:
+          'ALARM'
+      },
+      {
+        maquina:
+          maquina,
+        produto:
+          produtoAtual &&
+          produtoAtual.nome
+            ? produtoAtual.nome
+            : '',
+        reconhecimentoSemProduto:
+          !(
+            produtoAtual &&
+            produtoAtual.nome
+          ),
         inicio:
           new Date(
             inicioSilencioPosAlarme
@@ -4961,15 +4996,20 @@ function iniciarSilencioPosAlarmeSePronto() {
         fim:
           new Date(
             inicioSilencioPosAlarme +
-            SILENCIO_POS_ALARME_MS
+              SILENCIO_POS_ALARME_MS
           ).toISOString()
       }
     );
-  } catch (erro) {}
+  }
+  catch (erro) {}
+
+  atualizarAlarmeInspecaoUI();
 
   return true;
 
 }
+
+
 
 
 function alarmeEmSilencioPosAlarme() {
@@ -4985,6 +5025,9 @@ function alarmeEmSilencioPosAlarme() {
     inicioSilencioPosAlarme +
     SILENCIO_POS_ALARME_MS
   ) {
+
+    pararAlarmeInspecaoContinuo();
+
     return true;
   }
 
