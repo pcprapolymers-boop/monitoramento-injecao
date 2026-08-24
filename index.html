@@ -4971,6 +4971,515 @@ function liberarObrigatoriedadeStatusAposSalvar() {
 }
 
 
+
+async function iniciarEnvioAudioStatusEmSegundoPlano() {
+
+  if (
+    !statusAudioBlob ||
+    !statusAudioBlob.size
+  ) {
+    throw new Error(
+      'A justificativa em áudio de 15 segundos é obrigatória.'
+    );
+  }
+
+  const uploadId =
+    criarIdUpload() +
+    '_STATUS_AUDIO';
+
+  statusAudioUploadId =
+    uploadId;
+
+  const base64 =
+    await blobParaBase64(
+      statusAudioBlob
+    );
+
+  const statusSelecionado =
+    document.getElementById(
+      'machineStatusSelector'
+    ).value;
+
+  const operadorGravado =
+    operadorStatusSelecionado;
+
+  const params =
+    new URLSearchParams();
+
+  params.set(
+    'tipo',
+    'STATUS_AUDIO'
+  );
+
+  params.set(
+    'uploadId',
+    uploadId
+  );
+
+  params.set(
+    'maquina',
+    maquina
+  );
+
+  params.set(
+    'operador',
+    operadorGravado
+  );
+
+  params.set(
+    'statusMaquina',
+    statusSelecionado
+  );
+
+  params.set(
+    'mimeType',
+    statusAudioMimeType
+  );
+
+  params.set(
+    'inicioAudio',
+    new Date().toISOString()
+  );
+
+  params.set(
+    'audioBase64',
+    base64
+  );
+
+  debugUploadCliente(
+    'STATUS_AUDIO_BACKGROUND_INICIO',
+    {
+      uploadId:
+        uploadId,
+      mediaType:
+        'STATUS_AUDIO'
+    },
+    {
+      base64Chars:
+        base64.length,
+      status:
+        statusSelecionado
+    }
+  );
+
+  /*
+   * O POST é disparado agora, mas NÃO aguardamos
+   * a resposta nem a criação do arquivo no Drive.
+   */
+  fetch(
+    URL_APPS_SCRIPT,
+    {
+      method:
+        'POST',
+
+      mode:
+        'no-cors',
+
+      cache:
+        'no-store',
+
+      credentials:
+        'omit',
+
+      headers: {
+        'Content-Type':
+          'application/x-www-form-urlencoded;charset=UTF-8'
+      },
+
+      body:
+        params.toString(),
+
+      keepalive:
+        true
+
+    }
+  )
+  .then(
+    function() {
+
+      debugUploadCliente(
+        'STATUS_AUDIO_BACKGROUND_POST_ENVIADO',
+        {
+          uploadId:
+            uploadId,
+          mediaType:
+            'STATUS_AUDIO'
+        },
+        {}
+      );
+
+    }
+  )
+  .catch(
+    function(erro) {
+
+      debugUploadCliente(
+        'STATUS_AUDIO_BACKGROUND_POST_ERRO',
+        {
+          uploadId:
+            uploadId,
+          mediaType:
+            'STATUS_AUDIO'
+        },
+        {
+          erro:
+            erro &&
+            erro.message
+              ? erro.message
+              : String(
+                  erro
+                )
+        }
+      );
+
+    }
+  );
+
+  /*
+   * Começa a consulta em background.
+   * Ela não bloqueia o fluxo da inspeção.
+   */
+  aguardarAudioStatusResultado(
+    uploadId,
+    maquina,
+    operadorGravado,
+    statusSelecionado
+  )
+  .then(
+    async function(resultado) {
+
+      debugUploadCliente(
+        'STATUS_AUDIO_BACKGROUND_OK',
+        {
+          uploadId:
+            uploadId,
+          mediaType:
+            'STATUS_AUDIO'
+        },
+        {
+          idArquivo:
+            resultado &&
+            resultado.idArquivo
+              ? resultado.idArquivo
+              : '',
+          url:
+            Boolean(
+              resultado &&
+              resultado.url
+            )
+        }
+      );
+
+      try {
+
+        /*
+         * Depois que o Drive confirmar o arquivo,
+         * substituímos o marcador PENDENTE na STATUS_MAQUINAS.
+         */
+        await vincularAudioStatusAoRegistro(
+          uploadId,
+          resultado.url ||
+            '',
+          resultado.idArquivo ||
+            ''
+        );
+
+        const msg =
+          document.getElementById(
+            'machineStatusSaveMessage'
+          );
+
+        if (
+          msg &&
+          document.visibilityState !==
+            'hidden'
+        ) {
+
+          msg.textContent =
+            '✅ Status confirmado. Justificativa gravada no Drive.';
+
+        }
+
+      }
+      catch (erroVinculo) {
+
+        debugUploadCliente(
+          'STATUS_AUDIO_VINCULO_ERRO',
+          {
+            uploadId:
+              uploadId,
+            mediaType:
+              'STATUS_AUDIO'
+          },
+          {
+            erro:
+              erroVinculo &&
+              erroVinculo.message
+                ? erroVinculo.message
+                : String(
+                    erroVinculo
+                  )
+          }
+        );
+
+      }
+
+    }
+  )
+  .catch(
+    function(erro) {
+
+      debugUploadCliente(
+        'STATUS_AUDIO_BACKGROUND_ERRO',
+        {
+          uploadId:
+            uploadId,
+          mediaType:
+            'STATUS_AUDIO'
+        },
+        {
+          erro:
+            erro &&
+            erro.message
+              ? erro.message
+              : String(
+                  erro
+                )
+        }
+      );
+
+      const msg =
+        document.getElementById(
+          'machineStatusSaveMessage'
+        );
+
+      if (
+        msg
+      ) {
+
+        msg.textContent =
+          '⚠️ Status salvo. A justificativa ainda está sendo enviada.';
+
+      }
+
+    }
+  );
+
+  return {
+    uploadId:
+      uploadId,
+
+    pendingUrl:
+      'PENDENTE_AUDIO:' +
+      uploadId,
+
+    pendingId:
+      'PENDENTE_AUDIO:' +
+      uploadId
+  };
+
+}
+
+
+function vincularAudioStatusAoRegistro(
+  uploadId,
+  audioUrl,
+  audioId
+) {
+
+  return new Promise(
+    function(
+      resolve,
+      reject
+    ) {
+
+      const callbackName =
+        'vincularStatusAudio_' +
+        Date.now() +
+        '_' +
+        Math.random()
+          .toString(36)
+          .substring(2,8);
+
+      const params =
+        new URLSearchParams();
+
+      params.set(
+        'status',
+        'machineStatusAudioLink'
+      );
+
+      params.set(
+        'uploadId',
+        uploadId
+      );
+
+      params.set(
+        'audioUrl',
+        audioUrl ||
+        ''
+      );
+
+      params.set(
+        'audioId',
+        audioId ||
+        ''
+      );
+
+      params.set(
+        'callback',
+        callbackName
+      );
+
+      params.set(
+        '_',
+        Date.now()
+      );
+
+      const script =
+        document.createElement(
+          'script'
+        );
+
+      let terminou =
+        false;
+
+      const limpar =
+        function() {
+
+          try {
+            delete window[
+              callbackName
+            ];
+          }
+          catch (erro) {}
+
+          try {
+
+            if (
+              script.parentNode
+            ) {
+
+              script.parentNode
+                .removeChild(
+                  script
+                );
+
+            }
+
+          }
+          catch (erro) {}
+
+        };
+
+      const timeout =
+        setTimeout(
+          function() {
+
+            if (
+              terminou
+            ) return;
+
+            terminou =
+              true;
+
+            limpar();
+
+            reject(
+              new Error(
+                'Tempo excedido ao vincular a justificativa ao status.'
+              )
+            );
+
+          },
+          10000
+        );
+
+      window[
+        callbackName
+      ] =
+      function(dados) {
+
+        if (
+          terminou
+        ) return;
+
+        terminou =
+          true;
+
+        clearTimeout(
+          timeout
+        );
+
+        limpar();
+
+        if (
+          dados &&
+          dados.sucesso
+        ) {
+
+          resolve(
+            dados
+          );
+
+        }
+        else {
+
+          reject(
+            new Error(
+              dados &&
+              dados.erro
+                ? dados.erro
+                : 'Não foi possível vincular o áudio ao status.'
+            )
+          );
+
+        }
+
+      };
+
+      script.src =
+        URL_APPS_SCRIPT +
+        '?' +
+        params.toString();
+
+      script.async =
+        true;
+
+      script.onerror =
+        function() {
+
+          if (
+            terminou
+          ) return;
+
+          terminou =
+            true;
+
+          clearTimeout(
+            timeout
+          );
+
+          limpar();
+
+          reject(
+            new Error(
+              'Falha de rede ao vincular o áudio ao status.'
+            )
+          );
+
+        };
+
+      document.head.appendChild(
+        script
+      );
+
+    }
+  );
+
+}
+
+
 async function salvarStatusMaquina() {
 
   const seletor =
@@ -5068,7 +5577,7 @@ async function salvarStatusMaquina() {
   }
 
   atualizarEtapa(
-    '🔎 Validando operador, status e justificativa...'
+    '🔎 Validando operador e justificativa...'
   );
 
   if (
@@ -5110,53 +5619,58 @@ async function salvarStatusMaquina() {
     let audioId =
       '';
 
+    let audioUploadId =
+      '';
+
     if (
       statusNovo !==
       'PRODUZINDO'
     ) {
 
       atualizarEtapa(
-        '🎙️ Enviando a justificativa de 15 segundos...'
+        '☁️ Iniciando envio da justificativa em segundo plano...'
       );
 
-      const resultadoAudio =
-        await enviarAudioStatusAntesDoStatus();
+      const envio =
+        await iniciarEnvioAudioStatusEmSegundoPlano();
+
+      audioUploadId =
+        envio.uploadId;
 
       audioUrl =
-        resultadoAudio.url ||
-        '';
+        envio.pendingUrl;
 
       audioId =
-        resultadoAudio.idArquivo ||
-        '';
+        envio.pendingId;
 
-      if (
-        !audioUrl ||
-        !audioId
-      ) {
-
-        throw new Error(
-          'O áudio terminou de gravar, mas o Drive não retornou o arquivo da justificativa.'
-        );
-
-      }
+      atualizarEtapa(
+        '💾 Salvando status da máquina...'
+      );
 
     }
 
-    atualizarEtapa(
-      '💾 Salvando o status da máquina...'
-    );
+    else {
 
-    const resultadoStatus =
-      await salvarStatusMaquinaNoServidor(
-        statusNovo,
-        operadorStatusSelecionado,
-        '',
-        audioUrl,
-        audioId,
-        'ALTERAR_STATUS',
-        statusSalvarOperacaoId
+      atualizarEtapa(
+        '💾 Salvando status da máquina...'
       );
+
+    }
+
+    /*
+     * O status é salvo imediatamente.
+     * Para status de parada, o áudio fica marcado como PENDENTE_AUDIO
+     * e será vinculado assim que o Drive confirmar o arquivo.
+     */
+    await salvarStatusMaquinaNoServidor(
+      statusNovo,
+      operadorStatusSelecionado,
+      '',
+      audioUrl,
+      audioId,
+      'ALTERAR_STATUS',
+      statusSalvarOperacaoId
+    );
 
     try {
 
@@ -5170,22 +5684,27 @@ async function salvarStatusMaquina() {
         },
         {
           status:
-            resultadoStatus &&
-            resultadoStatus.status
-              ? resultadoStatus.status
-              : statusNovo
+            statusNovo,
+          audioUploadId:
+            audioUploadId
         }
       );
 
     }
     catch (erro) {}
 
+    /*
+     * A partir daqui o operador está liberado.
+     * O acompanhamento do áudio continua em background.
+     */
     if (mensagem) {
+
       mensagem.textContent =
         statusNovo ===
         'PRODUZINDO'
           ? '✅ Status PRODUZINDO confirmado.'
-          : '✅ Status atualizado e justificativa gravada.';
+          : '✅ Status atualizado. A justificativa está sendo enviada em segundo plano.';
+
     }
 
   }
@@ -5236,6 +5755,8 @@ async function salvarStatusMaquina() {
   }
 
 }
+
+
 
 
 
