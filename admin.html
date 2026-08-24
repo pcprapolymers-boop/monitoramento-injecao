@@ -240,7 +240,64 @@ tr:nth-child(even) td {
 <p>
       Esta área não é liberada aos operadores.
     </p>
-<input autocomplete="current-password" id="senhaAdmin" placeholder="Senha administrativa" type="password"/>
+
+<div
+  style="
+    display:flex;
+    align-items:center;
+    width:100%;
+  "
+>
+  <input autocomplete="current-password" id="senhaAdmin" placeholder="Senha administrativa" type="password"/ style="flex:1;min-width:0;">
+  <button
+    id="btnMostrarSenhaAdmin"
+    type="button"
+    aria-label="Mostrar senha"
+    title="Mostrar senha"
+    style="
+      width:44px;
+      min-width:44px;
+      height:44px;
+      margin-left:8px;
+      border:1px solid #CDD6DE;
+      border-radius:8px;
+      background:#F4F7F9;
+      color:#1F5A7A;
+      cursor:pointer;
+      font-size:18px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:0;
+      box-shadow:none;
+    "
+  >
+    <svg
+      id="iconeMostrarSenhaAdmin"
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+    >
+      <path
+        d="M2.5 12C4.7 7.8 8.2 5.5 12 5.5C15.8 5.5 19.3 7.8 21.5 12C19.3 16.2 15.8 18.5 12 18.5C8.2 18.5 4.7 16.2 2.5 12Z"
+        stroke="#1F5A7A"
+        stroke-width="1.8"
+        stroke-linejoin="round"
+      />
+      <circle
+        cx="12"
+        cy="12"
+        r="3.2"
+        stroke="#1F5A7A"
+        stroke-width="1.8"
+      />
+    </svg>
+  </button>
+</div>
+
 <button class="btn btn-primary" onclick="entrarAdmin()">
       🔓 ENTRAR
     </button>
@@ -373,6 +430,83 @@ tr:nth-child(even) td {
 
 </div>
 <script>
+(function() {
+
+  const senha =
+    document.getElementById(
+      'senhaAdmin'
+    );
+
+  const botao =
+    document.getElementById(
+      'btnMostrarSenhaAdmin'
+    );
+
+  if (
+    !senha ||
+    !botao
+  ) {
+    return;
+  }
+
+  /* Sempre inicia oculto. */
+  senha.type =
+    'password';
+
+  botao.textContent =
+    '👁️';
+
+  botao.addEventListener(
+    'click',
+    function() {
+
+      const mostrar =
+        senha.type ===
+        'password';
+
+      senha.type =
+        mostrar
+          ? 'text'
+          : 'password';
+
+      const icone =
+        document.getElementById(
+          'iconeMostrarSenhaAdmin'
+        );
+
+      if (
+        icone
+      ) {
+
+        icone.innerHTML =
+          mostrar
+            ? '<path d="M3 3L21 21" stroke="#1F5A7A" stroke-width="1.8" stroke-linecap="round"/><path d="M4.2 8.2C2.9 9.4 2.3 10.8 2 12C4.2 16.2 7.7 18.5 12 18.5C13.7 18.5 15.3 18.1 16.7 17.4" stroke="#1F5A7A" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M8.9 5.9C9.9 5.6 10.9 5.5 12 5.5C15.8 5.5 19.3 7.8 21.5 12C20.6 13.7 19.4 15.1 18.1 16.1" stroke="#1F5A7A" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>'
+            : '<path d="M2.5 12C4.7 7.8 8.2 5.5 12 5.5C15.8 5.5 19.3 7.8 21.5 12C19.3 16.2 15.8 18.5 12 18.5C8.2 18.5 4.7 16.2 2.5 12Z" stroke="#1F5A7A" stroke-width="1.8" stroke-linejoin="round"/><circle cx="12" cy="12" r="3.2" stroke="#1F5A7A" stroke-width="1.8"/>';
+
+      }
+
+      botao.setAttribute(
+        'aria-label',
+        mostrar
+          ? 'Ocultar senha'
+          : 'Mostrar senha'
+      );
+
+      botao.setAttribute(
+        'title',
+        mostrar
+          ? 'Ocultar senha'
+          : 'Mostrar senha'
+      );
+
+      senha.focus();
+
+    }
+  );
+
+})();
+
+
 
 const URL_APPS_SCRIPT =
   'https://script.google.com/macros/s/AKfycbyyczQIADys9S5tG7G9WiR_tFiWubW4mcteLurFO_GOlrlSs9f9CWkcojnjsuG5Jgvt/exec';
