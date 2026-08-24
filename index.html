@@ -709,6 +709,20 @@
         A inspeção horária está ativa.
       </div>
 
+      <label
+        for="machineStatusOperator"
+        style="margin-top:10px;display:block;"
+      >
+        👤 Responsável pela alteração
+      </label>
+
+      <select
+        id="machineStatusOperator"
+        style="width:100%;min-height:44px;margin-bottom:8px;"
+      >
+        <option value="">Selecione o operador</option>
+      </select>
+
       <select
         id="machineStatusSelector"
         style="
@@ -731,6 +745,55 @@
         placeholder="Responsável pela alteração"
         style="width:100%;min-height:44px;margin-bottom:8px;"
       >
+
+      <div
+        id="machineStatusAudioCard"
+        style="
+          display:none;
+          margin-top:8px;
+          padding:10px;
+          border-radius:8px;
+          border:1px solid #D4DEE7;
+          background:#F8FBFD;
+        "
+      >
+        <div style="font-weight:800;margin-bottom:6px;">
+          🎙️ JUSTIFICATIVA EM ÁUDIO — 15 SEGUNDOS
+        </div>
+
+        <div
+          id="machineStatusAudioInfo"
+          style="font-size:12px;margin-bottom:8px;"
+        >
+          Para este status, o áudio é obrigatório.
+        </div>
+
+        <div
+          id="machineStatusAudioTimer"
+          style="
+            text-align:center;
+            font-size:28px;
+            font-weight:800;
+            font-variant-numeric:tabular-nums;
+            margin-bottom:8px;
+          "
+        >
+          00 / 15s
+        </div>
+
+        <button
+          id="btnGravarStatusAudio"
+          type="button"
+          style="width:100%;min-height:46px;margin-bottom:8px;"
+        >
+          🎙️ GRAVAR JUSTIFICATIVA
+        </button>
+
+        <div
+          id="machineStatusAudioMessage"
+          style="font-size:12px;font-weight:700;"
+        ></div>
+      </div>
 
       <textarea
         id="machineStatusNote"
@@ -1260,6 +1323,17 @@ let responsavelStatusMaquina =
 let observacaoStatusMaquina =
   '';
 
+
+
+let operadorStatusSelecionado = '';
+let statusAudioGravando = false;
+let statusAudioConcluido = false;
+let statusAudioBlob = null;
+let statusAudioUploadId = null;
+let statusAudioTimer = null;
+let statusAudioSegundos = 0;
+const TEMPO_AUDIO_STATUS = 15;
+let statusAudioMimeType = 'audio/webm';
 
 let ultimaInspecaoRegistrada = null;
 
@@ -3222,7 +3296,12 @@ async function selecionarMaquinaProvisoria() {
 
   carregarUltimaInspecaoMaquina();
 
+  preencherOperadoresStatus();
+
+  atualizarObrigatoriedadeAudioStatus();
+
   carregarStatusMaquina()
+
     .then(
       function() {
 
@@ -4788,16 +4867,16 @@ function carregarStatusMaquina() {
 }
 
 
-function salvarStatusMaquina() {
+async function salvarStatusMaquina() {
 
   const seletor =
     document.getElementById(
       'machineStatusSelector'
     );
 
-  const responsavel =
+  const operadorSelect =
     document.getElementById(
-      'machineStatusResponsible'
+      'machineStatusOperator'
     );
 
   const observacao =
@@ -4810,318 +4889,310 @@ function salvarStatusMaquina() {
       'machineStatusSaveMessage'
     );
 
+  const botao =
+    document.getElementById(
+      'btnSalvarMachineStatus'
+    );
+
   if (
     !maquina ||
-    !seletor
-  ) {
-
-    return;
-
-  }
+    !seletor ||
+    !operadorSelect
+  ) return;
 
   const statusNovo =
     String(
       seletor.value ||
       'PRODUZINDO'
+    ).trim().toUpperCase();
+
+  operadorStatusSelecionado =
+    String(
+      operadorSelect.value ||
+      ''
     ).trim();
 
+  if (!operadorStatusSelecionado) {
+    if (mensagem) {
+      mensagem.textContent =
+        '⚠️ Selecione o operador responsável pela alteração.';
+    }
+    return;
+  }
+
   if (
-    statusNovo !==
-    'PRODUZINDO' &&
-    !String(
-      responsavel &&
-      responsavel.value
-        ? responsavel.value
-        : ''
-    ).trim()
+    statusNovo !== 'PRODUZINDO' &&
+    !statusAudioConcluido
   ) {
+    if (mensagem) {
+      mensagem.textContent =
+        '⚠️ Grave primeiro a justificativa em áudio de 15 segundos.';
+    }
+    return;
+  }
+
+  if (botao) {
+    botao.disabled = true;
+    botao.textContent =
+      statusNovo !== 'PRODUZINDO'
+        ? '⏳ ENVIANDO JUSTIFICATIVA...'
+        : '⏳ SALVANDO STATUS...';
+  }
+
+  try {
+
+    let audioUrl = '';
+    let audioId = '';
 
     if (
-      mensagem
+      statusNovo !== 'PRODUZINDO'
     ) {
 
-      mensagem.textContent =
-        '⚠️ Informe o responsável pela parada.';
+      const resultado =
+        await enviarAudioStatusAntesDoStatus();
+
+      audioUrl =
+        resultado.url || '';
+
+      audioId =
+        resultado.idArquivo || '';
 
     }
 
-    return;
+    await salvarStatusMaquinaNoServidor(
+      statusNovo,
+      operadorStatusSelecionado,
+      String(
+        observacao &&
+        observacao.value
+          ? observacao.value
+          : ''
+      ).trim(),
+      audioUrl,
+      audioId
+    );
+
+  }
+  catch (erro) {
+
+    if (mensagem) {
+      mensagem.textContent =
+        '❌ ' +
+        (
+          erro &&
+          erro.message
+            ? erro.message
+            : String(
+                erro
+              )
+        );
+    }
+
+  }
+  finally {
+
+    if (botao) {
+      botao.disabled = false;
+      botao.textContent =
+        '💾 ATUALIZAR STATUS';
+    }
 
   }
 
-  const callbackName =
-    'salvarStatusMaquina_' +
-    Date.now() +
-    '_' +
-    Math.random()
-      .toString(36)
-      .substring(
-        2,
-        8
-      );
+}
 
-  const params =
-    new URLSearchParams();
 
-  params.set(
-    'status',
-    'machineStatusSet'
-  );
+function salvarStatusMaquinaNoServidor(
+  novoStatus,
+  operador,
+  observacao,
+  audioUrl,
+  audioId
+) {
 
-  params.set(
-    'm',
-    maquina
-  );
+  return new Promise(
+    function(
+      resolve,
+      reject
+    ) {
 
-  params.set(
-    'novoStatus',
-    statusNovo
-  );
+      const callbackName =
+        'salvarStatusMaquina_' +
+        Date.now() +
+        '_' +
+        Math.random()
+          .toString(36)
+          .substring(2,8);
 
-  params.set(
-    'responsavel',
-    String(
-      responsavel &&
-      responsavel.value
-        ? responsavel.value
-        : ''
-    ).trim()
-  );
+      const params =
+        new URLSearchParams();
 
-  params.set(
-    'observacao',
-    String(
-      observacao &&
-      observacao.value
-        ? observacao.value
-        : ''
-    ).trim()
-  );
+      params.set('status','machineStatusSet');
+      params.set('m',maquina);
+      params.set('novoStatus',novoStatus);
+      params.set('operador',operador);
+      params.set('observacao',observacao);
+      params.set('audioUrl',audioUrl || '');
+      params.set('audioId',audioId || '');
+      params.set('callback',callbackName);
+      params.set('_',Date.now());
 
-  params.set(
-    'callback',
-    callbackName
-  );
+      const script =
+        document.createElement(
+          'script'
+        );
 
-  params.set(
-    '_',
-    Date.now()
-  );
+      let terminou = false;
 
-  const script =
-    document.createElement(
-      'script'
-    );
+      const limpar =
+        function() {
 
-  let terminou =
-    false;
+          try {
+            delete window[callbackName];
+          } catch (erro) {}
 
-  const limpar =
-    function() {
+          try {
+            if (script.parentNode) {
+              script.parentNode
+                .removeChild(
+                  script
+                );
+            }
+          } catch (erro) {}
 
-      try {
+        };
 
-        delete window[
-          callbackName
-        ];
+      const timeout =
+        setTimeout(
+          function() {
 
-      }
-      catch (erro) {}
+            if (terminou) return;
 
-      try {
+            terminou = true;
+            limpar();
 
-        if (
-          script.parentNode
-        ) {
-
-          script.parentNode
-            .removeChild(
-              script
+            reject(
+              new Error(
+                'Não foi possível salvar o status da máquina.'
+              )
             );
 
-        }
+          },
+          8000
+        );
 
-      }
-      catch (erro) {}
+      window[callbackName] =
+      function(dados) {
 
-    };
+        if (terminou) return;
 
-  const timeout =
-    setTimeout(
-      function() {
-
-        if (
-          terminou
-        ) {
-
-          return;
-
-        }
-
-        terminou =
-          true;
-
+        terminou = true;
+        clearTimeout(timeout);
         limpar();
 
         if (
-          mensagem
+          dados &&
+          dados.sucesso
         ) {
 
-          mensagem.textContent =
-            '❌ Não foi possível atualizar o status da máquina.';
+          statusOperacionalMaquina =
+            dados.status ||
+            novoStatus;
+
+          inicioStatusMaquina =
+            dados.inicioStatus ||
+            new Date().toISOString();
+
+          statusAtualizadoEm =
+            dados.atualizadoEm ||
+            new Date().toISOString();
+
+          responsavelStatusMaquina =
+            dados.operador ||
+            operador;
+
+          observacaoStatusMaquina =
+            dados.observacao ||
+            observacao;
+
+          motivoParadaMaquina =
+            dados.motivo ||
+            '';
+
+          atualizarStatusMaquinaUI();
+          atualizarBloqueioStatusObrigatorio_();
+
+          const msg =
+            document.getElementById(
+              'machineStatusSaveMessage'
+            );
+
+          if (msg) {
+            msg.textContent =
+              novoStatus ===
+              'PRODUZINDO'
+                ? '✅ Status PRODUZINDO confirmado.'
+                : '✅ Status atualizado e justificativa de 15 segundos gravada.';
+          }
+
+          if (
+            novoStatus ===
+            'PRODUZINDO'
+          ) {
+            marcarInspecaoComoConcluida(
+              new Date().toISOString()
+            );
+            carregarUltimaInspecaoMaquina();
+          }
+
+          statusAudioConcluido =
+            novoStatus ===
+            'PRODUZINDO';
+
+          if (
+            novoStatus !==
+            'PRODUZINDO'
+          ) {
+            statusAudioBlob = null;
+          }
+
+          atualizarObrigatoriedadeAudioStatus();
+
+          resolve(dados);
+
+        }
+        else {
+
+          reject(
+            new Error(
+              dados &&
+              dados.erro
+                ? dados.erro
+                : 'Não foi possível salvar o status.'
+            )
+          );
 
         }
 
-      },
-      8000
-    );
+      };
 
-  window[
-    callbackName
-  ] =
-  function(
-    dados
-  ) {
+      script.src =
+        URL_APPS_SCRIPT +
+        '?' +
+        params.toString();
 
-    if (
-      terminou
-    ) {
-
-      return;
+      script.async = true;
+      document.head.appendChild(
+        script
+      );
 
     }
-
-    terminou =
-      true;
-
-    clearTimeout(
-      timeout
-    );
-
-    limpar();
-
-    if (
-      dados &&
-      dados.sucesso
-    ) {
-
-      statusOperacionalMaquina =
-        dados.status ||
-        statusNovo;
-
-      motivoParadaMaquina =
-        dados.motivo ||
-        String(
-          observacao &&
-          observacao.value
-            ? observacao.value
-            : ''
-        ).trim();
-
-      inicioStatusMaquina =
-        dados.inicioStatus ||
-        new Date()
-          .toISOString();
-
-      statusAtualizadoEm =
-        dados.inicioStatus ||
-        new Date()
-          .toISOString();
-
-      statusAtualizacaoObrigatoria =
-        false;
-
-      responsavelStatusMaquina =
-        dados.responsavel ||
-        String(
-          responsavel &&
-          responsavel.value
-            ? responsavel.value
-            : ''
-        ).trim();
-
-      observacaoStatusMaquina =
-        dados.observacao ||
-        String(
-          observacao &&
-          observacao.value
-            ? observacao.value
-            : ''
-        ).trim();
-
-      if (
-        statusOperacionalMaquina ===
-        'PRODUZINDO'
-      ) {
-
-        /*
-         * Ao voltar a produzir, começa uma nova janela.
-         */
-        marcarInspecaoComoConcluida(
-          new Date()
-            .toISOString()
-        );
-
-        carregarUltimaInspecaoMaquina();
-
-      }
-
-      atualizarStatusMaquinaUI();
-
-      atualizarBloqueioStatusObrigatorio_();
-
-      if (
-        mensagem
-      ) {
-
-        mensagem.textContent =
-          (
-            statusOperacionalMaquina ===
-            'PRODUZINDO'
-              ? '✅ Máquina voltou a produzir. O relógio foi reiniciado.'
-              : '✅ Status da máquina atualizado: ' +
-                obterLabelStatusMaquina_(
-                  statusOperacionalMaquina
-                )
-          );
-
-      }
-
-    }
-    else {
-
-      if (
-        mensagem
-      ) {
-
-        mensagem.textContent =
-          '❌ ' +
-          (
-            dados &&
-            dados.erro
-              ? dados.erro
-              : 'Não foi possível atualizar o status.'
-          );
-
-      }
-
-    }
-
-  };
-
-  script.src =
-    URL_APPS_SCRIPT +
-    '?' +
-    params.toString();
-
-  script.async =
-    true;
-
-  document.head.appendChild(
-    script
   );
 
 }
+
+
+
 
 
 
@@ -5534,6 +5605,645 @@ function iniciarRelogioStatusObrigatorio() {
 }
 
 
+
+function preencherOperadoresStatus() {
+
+  const select =
+    document.getElementById(
+      'machineStatusOperator'
+    );
+
+  if (!select) return;
+
+  const atual =
+    operadorStatusSelecionado ||
+    '';
+
+  select.innerHTML =
+    '<option value="">Selecione o operador</option>';
+
+  (Array.isArray(operadores)
+    ? operadores
+    : []
+  ).forEach(
+    function(nome) {
+
+      const option =
+        document.createElement(
+          'option'
+        );
+
+      option.value = nome;
+      option.textContent = nome;
+
+      select.appendChild(
+        option
+      );
+
+    }
+  );
+
+  select.value =
+    atual;
+
+}
+
+
+function atualizarObrigatoriedadeAudioStatus() {
+
+  const seletor =
+    document.getElementById(
+      'machineStatusSelector'
+    );
+
+  const card =
+    document.getElementById(
+      'machineStatusAudioCard'
+    );
+
+  const info =
+    document.getElementById(
+      'machineStatusAudioInfo'
+    );
+
+  const botaoSalvar =
+    document.getElementById(
+      'btnSalvarMachineStatus'
+    );
+
+  if (!seletor) return;
+
+  const status =
+    String(
+      seletor.value ||
+      'PRODUZINDO'
+    ).trim().toUpperCase();
+
+  const precisaAudio =
+    status !==
+    'PRODUZINDO';
+
+  if (card) {
+    card.style.display =
+      precisaAudio
+        ? 'block'
+        : 'none';
+  }
+
+  if (info) {
+    info.textContent =
+      precisaAudio
+        ? '⚠️ Este status exige uma justificativa de áudio de exatamente 15 segundos.'
+        : 'Produzindo: áudio de justificativa não é necessário.';
+  }
+
+  if (precisaAudio) {
+    statusAudioConcluido = false;
+    statusAudioBlob = null;
+  }
+  else {
+    statusAudioConcluido = true;
+  }
+
+  if (botaoSalvar) {
+    botaoSalvar.disabled =
+      precisaAudio
+        ? !statusAudioConcluido
+        : false;
+  }
+
+  atualizarStatusAudioUI();
+
+}
+
+
+function atualizarStatusAudioUI() {
+
+  const timer =
+    document.getElementById(
+      'machineStatusAudioTimer'
+    );
+
+  const btnGravar =
+    document.getElementById(
+      'btnGravarStatusAudio'
+    );
+
+  const btnParar =
+    document.getElementById(
+      'btnPararStatusAudio'
+    );
+
+  const mensagem =
+    document.getElementById(
+      'machineStatusAudioMessage'
+    );
+
+  if (timer) {
+    timer.textContent =
+      String(
+        Math.min(
+          TEMPO_AUDIO_STATUS,
+          statusAudioSegundos
+        )
+      ).padStart(
+        2,'0'
+      ) +
+      ' / 15s';
+  }
+
+  if (btnGravar) {
+    btnGravar.disabled =
+      statusAudioGravando;
+  }
+
+  if (btnParar) {
+    btnParar.classList.toggle(
+      'hidden',
+      !statusAudioGravando
+    );
+    btnParar.textContent =
+      '⏱️ AGUARDE ' +
+      Math.max(
+        0,
+        TEMPO_AUDIO_STATUS -
+        statusAudioSegundos
+      ) +
+      's';
+  }
+
+  if (mensagem) {
+    mensagem.textContent =
+      statusAudioGravando
+        ? '🔴 Gravando justificativa...'
+        : (
+            statusAudioConcluido
+              ? '✅ Áudio de justificativa pronto.'
+              : '⚠️ Áudio de 15 segundos obrigatório.'
+          );
+  }
+
+}
+
+
+async function gravarAudioStatus() {
+
+  if (
+    statusAudioGravando
+  ) return;
+
+  try {
+
+    const stream =
+      await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: false,
+          noiseSuppression: true,
+          autoGainControl: true,
+          channelCount: 1,
+          sampleRate: 48000,
+          sampleSize: 16
+        }
+      });
+
+    const mime =
+      escolherMimeAudio();
+
+    const opcoes = {};
+
+    if (mime) {
+      opcoes.mimeType =
+        mime;
+    }
+
+    opcoes.audioBitsPerSecond =
+      128000;
+
+    const recorder =
+      new MediaRecorder(
+        stream,
+        opcoes
+      );
+
+    const partes = [];
+
+    statusAudioGravando = true;
+    statusAudioConcluido = false;
+    statusAudioSegundos = 0;
+    statusAudioMimeType =
+      recorder.mimeType ||
+      mime ||
+      'audio/webm';
+
+    atualizarStatusAudioUI();
+
+    try {
+      debugUploadCliente(
+        'STATUS_AUDIO_GRAVACAO_INICIO',
+        { mediaType: 'STATUS_AUDIO' },
+        {
+          mimeType: statusAudioMimeType,
+          duracaoMax: TEMPO_AUDIO_STATUS
+        }
+      );
+    } catch (erro) {}
+
+    recorder.ondataavailable =
+      function(evento) {
+        if (
+          evento.data &&
+          evento.data.size
+        ) {
+          partes.push(
+            evento.data
+          );
+        }
+      };
+
+    recorder.onstop =
+      async function() {
+
+        if (statusAudioTimer) {
+          clearInterval(
+            statusAudioTimer
+          );
+          statusAudioTimer = null;
+        }
+
+        try {
+          stream
+            .getTracks()
+            .forEach(
+              function(track) {
+                track.stop();
+              }
+            );
+        } catch (erro) {}
+
+        statusAudioGravando =
+          false;
+
+        statusAudioSegundos =
+          TEMPO_AUDIO_STATUS;
+
+        statusAudioBlob =
+          new Blob(
+            partes,
+            {
+              type:
+                statusAudioMimeType
+            }
+          );
+
+        statusAudioConcluido =
+          Boolean(
+            statusAudioBlob.size
+          );
+
+        atualizarStatusAudioUI();
+
+        try {
+          debugUploadCliente(
+            'STATUS_AUDIO_GRAVACAO_FIM',
+            { mediaType: 'STATUS_AUDIO' },
+            { bytes: statusAudioBlob.size }
+          );
+        } catch (erro) {}
+
+        const botaoSalvar =
+          document.getElementById(
+            'btnSalvarMachineStatus'
+          );
+
+        const statusSelecionado =
+          String(
+            document.getElementById(
+              'machineStatusSelector'
+            ).value ||
+            'PRODUZINDO'
+          ).trim().toUpperCase();
+
+        if (botaoSalvar) {
+          botaoSalvar.disabled =
+            statusSelecionado !== 'PRODUZINDO' &&
+            !statusAudioConcluido;
+        }
+
+      };
+
+    recorder.start();
+
+    statusAudioTimer =
+      setInterval(
+        function() {
+
+          statusAudioSegundos++;
+
+          atualizarStatusAudioUI();
+
+          if (
+            statusAudioSegundos >=
+            TEMPO_AUDIO_STATUS
+          ) {
+
+            try {
+              recorder.stop();
+            } catch (erro) {}
+
+          }
+
+        },
+        1000
+      );
+
+  }
+  catch (erro) {
+
+    statusAudioGravando = false;
+    statusAudioConcluido = false;
+
+    mostrarMensagem(
+      '❌ Não foi possível iniciar o áudio de justificativa.',
+      'error'
+    );
+
+    atualizarStatusAudioUI();
+
+  }
+
+}
+
+
+async function enviarAudioStatusAntesDoStatus() {
+
+  if (
+    !statusAudioBlob ||
+    !statusAudioBlob.size
+  ) {
+    throw new Error(
+      'A justificativa em áudio de 15 segundos é obrigatória.'
+    );
+  }
+
+  const uploadId =
+    criarIdUpload() +
+    '_STATUS_AUDIO';
+
+  statusAudioUploadId =
+    uploadId;
+
+  const base64 =
+    await blobParaBase64(
+      statusAudioBlob
+    );
+
+  const params =
+    new URLSearchParams();
+
+  params.set('tipo','STATUS_AUDIO');
+  params.set('uploadId',uploadId);
+  params.set('maquina',maquina);
+  params.set('operador',operadorStatusSelecionado);
+  params.set(
+    'statusMaquina',
+    document.getElementById(
+      'machineStatusSelector'
+    ).value
+  );
+  params.set(
+    'mimeType',
+    statusAudioMimeType
+  );
+  params.set(
+    'inicioAudio',
+    new Date().toISOString()
+  );
+  params.set(
+    'audioBase64',
+    base64
+  );
+
+  debugUploadCliente(
+    'STATUS_AUDIO_POST_INICIO',
+    {
+      uploadId: uploadId,
+      mediaType: 'STATUS_AUDIO'
+    },
+    {
+      base64Chars:
+        base64.length
+    }
+  );
+
+  await fetch(
+    URL_APPS_SCRIPT,
+    {
+      method: 'POST',
+      mode: 'no-cors',
+      cache: 'no-store',
+      credentials: 'omit',
+      headers: {
+        'Content-Type':
+          'application/x-www-form-urlencoded;charset=UTF-8'
+      },
+      body:
+        params.toString()
+    }
+  );
+
+  debugUploadCliente(
+    'STATUS_AUDIO_POST_ENVIADO',
+    {
+      uploadId: uploadId,
+      mediaType: 'STATUS_AUDIO'
+    },
+    {}
+  );
+
+  return aguardarAudioStatusResultado(
+    uploadId
+  );
+
+}
+
+
+function aguardarAudioStatusResultado(
+  uploadId
+) {
+
+  return new Promise(
+    function(
+      resolve,
+      reject
+    ) {
+
+      let tentativas = 0;
+
+      const consultar =
+        function() {
+
+          tentativas++;
+
+          const callbackName =
+            'statusAudio_' +
+            Date.now() +
+            '_' +
+            Math.random()
+              .toString(36)
+              .substring(
+                2,
+                8
+              );
+
+          const script =
+            document.createElement(
+              'script'
+            );
+
+          let finalizado = false;
+
+          const limpar =
+            function() {
+
+              try {
+                delete window[
+                  callbackName
+                ];
+              } catch (erro) {}
+
+              try {
+                if (
+                  script.parentNode
+                ) {
+                  script.parentNode
+                    .removeChild(
+                      script
+                    );
+                }
+              } catch (erro) {}
+
+            };
+
+          const timeout =
+            setTimeout(
+              function() {
+
+                if (finalizado) return;
+
+                finalizado = true;
+                limpar();
+
+                if (
+                  tentativas >=
+                  15
+                ) {
+
+                  reject(
+                    new Error(
+                      'Timeout ao aguardar gravação da justificativa em áudio.'
+                    )
+                  );
+
+                }
+                else {
+
+                  setTimeout(
+                    consultar,
+                    1000
+                  );
+
+                }
+
+              },
+              3000
+            );
+
+          window[
+            callbackName
+          ] =
+          function(
+            dados
+          ) {
+
+            if (finalizado) return;
+
+            finalizado = true;
+            clearTimeout(timeout);
+            limpar();
+
+            if (
+              dados &&
+              dados.sucesso &&
+              dados.pronto
+            ) {
+
+              resolve(dados);
+
+            }
+            else if (
+              dados &&
+              dados.erro
+            ) {
+
+              reject(
+                new Error(
+                  dados.erro
+                )
+              );
+
+            }
+            else if (
+              tentativas >= 15
+            ) {
+
+              reject(
+                new Error(
+                  'A justificativa não foi localizada no Drive.'
+                )
+              );
+
+            }
+            else {
+
+              setTimeout(
+                consultar,
+                1000
+              );
+
+            }
+
+          };
+
+          script.src =
+            URL_APPS_SCRIPT +
+            '?status=statusAudio' +
+            '&uploadId=' +
+            encodeURIComponent(
+              uploadId
+            ) +
+            '&callback=' +
+            encodeURIComponent(
+              callbackName
+            ) +
+            '&_=' +
+            Date.now();
+
+          script.async = true;
+
+          document.head.appendChild(
+            script
+          );
+
+        };
+
+      consultar();
+
+    }
+  );
+
+}
+
+
 async function carregarDados() {
 
   /*
@@ -5716,6 +6426,9 @@ async function carregarDados() {
 
     preencherSelecoes();
 
+    preencherOperadoresStatus();
+
+    atualizarObrigatoriedadeAudioStatus();
 
     verificarFormulario();
 
@@ -10316,6 +11029,48 @@ document.addEventListener(
         salvarStatusMaquina
       );
 
+    }
+
+
+    const statusSelector =
+      document.getElementById(
+        'machineStatusSelector'
+      );
+
+    const statusOperator =
+      document.getElementById(
+        'machineStatusOperator'
+      );
+
+    const statusAudioButton =
+      document.getElementById(
+        'btnGravarStatusAudio'
+      );
+
+    if (statusSelector) {
+      statusSelector.addEventListener(
+        'change',
+        function() {
+          atualizarObrigatoriedadeAudioStatus();
+        }
+      );
+    }
+
+    if (statusOperator) {
+      statusOperator.addEventListener(
+        'change',
+        function() {
+          operadorStatusSelecionado =
+            statusOperator.value;
+        }
+      );
+    }
+
+    if (statusAudioButton) {
+      statusAudioButton.addEventListener(
+        'click',
+        gravarAudioStatus
+      );
     }
 
     /*
