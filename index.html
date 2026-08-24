@@ -4877,11 +4877,49 @@ async function salvarStatusMaquina() {
       'btnSalvarMachineStatus'
     );
 
+  try {
+    debugUploadCliente(
+      'STATUS_BOTAO_CLICADO',
+      {
+        mediaType:
+          'STATUS'
+      },
+      {
+        maquina:
+          maquina,
+        status:
+          seletor
+            ? seletor.value
+            : '',
+        operador:
+          operadorSelect
+            ? operadorSelect.value
+            : '',
+        audioConcluido:
+          Boolean(
+            statusAudioConcluido
+          ),
+        audioBytes:
+          statusAudioBlob
+            ? statusAudioBlob.size
+            : 0
+      }
+    );
+  }
+  catch (debugErro) {}
+
+
   if (
     !maquina ||
     !seletor ||
     !operadorSelect
-  ) return;
+  ) {
+
+    throw new Error(
+      'Dados da máquina, operador ou status não estão disponíveis.'
+    );
+
+  }
 
   const statusNovo =
     String(
@@ -4902,6 +4940,34 @@ async function salvarStatusMaquina() {
     }
     return;
   }
+
+  try {
+    debugUploadCliente(
+      'STATUS_VALIDACAO_CLIENTE',
+      {
+        mediaType:
+          'STATUS'
+      },
+      {
+        maquina:
+          maquina,
+        operador:
+          operadorStatusSelecionado,
+        status:
+          statusNovo,
+        audioConcluido:
+          Boolean(
+            statusAudioConcluido
+          ),
+        audioBytes:
+          statusAudioBlob
+            ? statusAudioBlob.size
+            : 0
+      }
+    );
+  }
+  catch (debugErro) {}
+
 
   if (
     statusNovo !== 'PRODUZINDO' &&
@@ -4931,8 +4997,59 @@ async function salvarStatusMaquina() {
       statusNovo !== 'PRODUZINDO'
     ) {
 
+      try {
+        debugUploadCliente(
+          'STATUS_AUDIO_UPLOAD_INICIO',
+          {
+            mediaType:
+              'STATUS_AUDIO'
+          },
+          {
+            maquina:
+              maquina,
+            operador:
+              operadorStatusSelecionado,
+            status:
+              statusNovo,
+            audioBytes:
+              statusAudioBlob
+                ? statusAudioBlob.size
+                : 0
+          }
+        );
+      }
+      catch (debugErro) {}
+
+
       const resultado =
         await enviarAudioStatusAntesDoStatus();
+
+
+      try {
+        debugUploadCliente(
+          'STATUS_AUDIO_UPLOAD_OK',
+          {
+            uploadId:
+              statusAudioUploadId,
+            mediaType:
+              'STATUS_AUDIO'
+          },
+          {
+            url:
+              Boolean(
+                resultado &&
+                resultado.url
+              ),
+            idArquivo:
+              resultado &&
+              resultado.idArquivo
+                ? resultado.idArquivo
+                : ''
+          }
+        );
+      }
+      catch (debugErro) {}
+
 
       audioUrl =
         resultado.url || '';
@@ -4941,6 +5058,33 @@ async function salvarStatusMaquina() {
         resultado.idArquivo || '';
 
     }
+
+    try {
+      debugUploadCliente(
+        'STATUS_SAVE_SERVIDOR_INICIO',
+        {
+          mediaType:
+            'STATUS'
+        },
+        {
+          maquina:
+            maquina,
+          operador:
+            operadorStatusSelecionado,
+          status:
+            statusNovo,
+          possuiAudioUrl:
+            Boolean(
+              audioUrl
+            ),
+          audioId:
+            audioId ||
+            ''
+        }
+      );
+    }
+    catch (debugErro) {}
+
 
     await salvarStatusMaquinaNoServidor(
       statusNovo,
@@ -4952,6 +5096,27 @@ async function salvarStatusMaquina() {
 
   }
   catch (erro) {
+
+    try {
+      debugUploadCliente(
+        'STATUS_SAVE_ERRO',
+        {
+          mediaType:
+            'STATUS'
+        },
+        {
+          erro:
+            erro &&
+            erro.message
+              ? erro.message
+              : String(
+                  erro
+                )
+        }
+      );
+    }
+    catch (debugErro) {}
+
 
     if (mensagem) {
       mensagem.textContent =
@@ -5902,9 +6067,39 @@ async function gravarAudioStatus() {
           ).trim().toUpperCase();
 
         if (botaoSalvar) {
+
           botaoSalvar.disabled =
-            statusSelecionado !== 'PRODUZINDO' &&
+            statusSelecionado !==
+              'PRODUZINDO' &&
             !statusAudioConcluido;
+
+          try {
+            debugUploadCliente(
+              'STATUS_AUDIO_BOTAO_ATUALIZADO',
+              {
+                mediaType:
+                  'STATUS_AUDIO'
+              },
+              {
+                status:
+                  statusSelecionado,
+                audioConcluido:
+                  Boolean(
+                    statusAudioConcluido
+                  ),
+                audioBytes:
+                  statusAudioBlob
+                    ? statusAudioBlob.size
+                    : 0,
+                disabled:
+                  Boolean(
+                    botaoSalvar.disabled
+                  )
+              }
+            );
+          }
+          catch (debugErro) {}
+
         }
 
       };
@@ -11006,6 +11201,22 @@ document.addEventListener(
         'click',
         salvarStatusMaquina
       );
+
+      try {
+        debugUploadCliente(
+          'STATUS_BOTAO_LIGADO',
+          {
+            mediaType:
+              'STATUS'
+          },
+          {
+            id:
+              'btnSaveMachineStatus'
+          }
+        );
+      }
+      catch (debugErro) {}
+
 
     }
 
