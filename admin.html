@@ -225,6 +225,58 @@ tr:nth-child(even) td {
     max-width: 70%;
   }
 }
+
+/* V4.8 — alinhamento da autenticação */
+.campo-senha-admin {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.campo-senha-admin .input-senha-admin {
+  flex: 1 1 auto !important;
+  width: auto !important;
+  min-width: 0 !important;
+  height: 44px !important;
+  min-height: 44px !important;
+  max-height: 44px !important;
+  box-sizing: border-box !important;
+  margin: 0 !important;
+}
+
+.campo-senha-admin .btn-icone-senha-admin {
+  flex: 0 0 40px;
+  width: 40px !important;
+  min-width: 40px !important;
+  max-width: 40px !important;
+  height: 44px !important;
+  min-height: 44px !important;
+  max-height: 44px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  box-sizing: border-box !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  align-self: stretch !important;
+  line-height: 1 !important;
+}
+
+.campo-senha-admin .btn-icone-senha-admin svg {
+  display: block;
+  width: 19px;
+  height: 19px;
+  margin: 0;
+  flex: 0 0 auto;
+}
+
+.campo-senha-admin .btn-icone-senha-admin:focus-visible {
+  outline: 2px solid #1F5A7A;
+  outline-offset: 2px;
+}
+
 </style>
 </head>
 <body>
@@ -241,14 +293,8 @@ tr:nth-child(even) td {
       Esta área não é liberada aos operadores.
     </p>
 
-<div
-  style="
-    display:flex;
-    align-items:center;
-    width:100%;
-  "
->
-  <input autocomplete="current-password" id="senhaAdmin" placeholder="Senha administrativa" type="password"/ style="flex:1;min-width:0;">
+<div class="campo-senha-admin">
+  <input autocomplete="current-password" id="senhaAdmin" placeholder="Senha administrativa" type="password"/ style="flex:1;min-width:0;" class="input-senha-admin">
   <button
     id="btnMostrarSenhaAdmin"
     type="button"
@@ -271,7 +317,7 @@ tr:nth-child(even) td {
       padding:0;
       box-shadow:none;
     "
-  >
+   class="btn-icone-senha-admin">
     <svg
       id="iconeMostrarSenhaAdmin"
       width="20"
