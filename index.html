@@ -3363,6 +3363,36 @@ function carregarUltimaInspecaoMaquina() {
     }
     catch (erro) {}
 
+    try {
+
+      debugUploadCliente(
+        'ALARME_ULTIMA_INSPECAO_RESPOSTA',
+        {
+          mediaType:
+            'ALARM',
+
+          uploadId:
+            ''
+        },
+        {
+          sucesso:
+            Boolean(
+              dados &&
+              dados.sucesso
+            ),
+
+          ultimaInspecao:
+            dados &&
+            dados.ultimaInspecao
+              ? dados.ultimaInspecao
+              : null
+        }
+      );
+
+    }
+    catch (debugErro) {}
+
+
     if (
       dados &&
       dados.sucesso &&
