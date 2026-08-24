@@ -454,6 +454,7 @@
   z-index:9997;
   inset:0;
   background:rgba(0,0,0,.35);
+  pointer-events:none;
 }
 
 #machineStatusCard.status-obrigatorio {
@@ -472,6 +473,11 @@
 #machineStatusCard.status-obrigatorio {
   position: relative;
   z-index: 9999 !important;
+}
+
+#machineSelectionCard {
+  position:relative;
+  z-index:10000 !important;
 }
 </style>
 
@@ -5156,6 +5162,51 @@ function minutosAteFimParadaSemanal_() {
 
 
 function atualizarBloqueioStatusObrigatorio_() {
+
+  /*
+   * Sem máquina selecionada, não existe cobrança de status.
+   * A prioridade é permitir a escolha da máquina.
+   */
+  if (
+    !maquina
+  ) {
+
+    statusAtualizacaoObrigatoria =
+      false;
+
+    const bannerInicial =
+      document.getElementById(
+        'statusMandatoryBanner'
+      );
+
+    const overlayInicial =
+      document.getElementById(
+        'statusMandatoryOverlay'
+      );
+
+    if (
+      bannerInicial
+    ) {
+
+      bannerInicial.style.display =
+        'none';
+
+    }
+
+    if (
+      overlayInicial
+    ) {
+
+      overlayInicial.style.display =
+        'none';
+
+    }
+
+    return;
+
+  }
+
+
 
   const banner =
     document.getElementById(
