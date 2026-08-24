@@ -3224,6 +3224,11 @@ function atualizarAlarmeInspecaoUI() {
       'inspectionAlarmCountdown'
     );
 
+  const botaoParar =
+    document.getElementById(
+      'btnPararAlarmeInspecao'
+    );
+
   if (
     !card ||
     !title ||
@@ -3240,6 +3245,13 @@ function atualizarAlarmeInspecaoUI() {
     card.style.display =
       'none';
 
+    if (
+      botaoParar
+    ) {
+      botaoParar.style.display =
+        'none';
+    }
+
     return;
 
   }
@@ -3252,6 +3264,15 @@ function atualizarAlarmeInspecaoUI() {
 
     card.style.display =
       'none';
+
+    if (
+      botaoParar
+    ) {
+      botaoParar.style.display =
+        'none';
+    }
+
+    pararAlarmeInspecaoContinuo();
 
     return;
 
@@ -3374,32 +3395,12 @@ function atualizarAlarmeInspecaoUI() {
 }
 
 
-function emitirAlarmeInspecao() {
+let contextoAlarmeInspecao = null;
+let intervaloSomAlarmeInspecao = null;
+let osciladoresAlarmeInspecao = [];
+let alarmeAudioLiberado = false;
 
-  try {
-
-    if (
-      navigator.vibrate
-    ) {
-
-      navigator.vibrate([
-        500,
-        250,
-        500,
-        250,
-        800
-      ]);
-
-    }
-
-  }
-  catch (erro) {}
-
-
-  /*
-   * Som é best-effort: navegadores móveis podem bloquear
-   * áudio iniciado fora de uma interação do usuário.
-   */
+function garantirAudioAlarmeLiberado() {
 
   try {
 
@@ -3407,72 +3408,93 @@ function emitirAlarmeInspecao() {
       window.AudioContext ||
       window.webkitAudioContext;
 
-    if (
-      !AudioContextClass
-    ) {
-      return;
+    if (!AudioContextClass) {
+      return false;
     }
 
-    const contexto =
-      new AudioContextClass();
+    if (
+      !contextoAlarmeInspecao ||
+      contextoAlarmeInspecao.state === 'closed'
+    ) {
+
+      contextoAlarmeInspecao =
+        new AudioContextClass();
+
+    }
+
+    if (
+      contextoAlarmeInspecao.state === 'suspended'
+    ) {
+
+      contextoAlarmeInspecao
+        .resume()
+        .catch(function(){});
+
+    }
+
+    alarmeAudioLiberado = true;
+    return true;
+
+  }
+  catch (erro) {
+
+    alarmeAudioLiberado = false;
+    return false;
+
+  }
+
+}
+
+function tocarAlarmeInspecaoAlto() {
+
+  if (
+    !garantirAudioAlarmeLiberado()
+  ) {
+    return;
+  }
+
+  try {
 
     const agora =
-      contexto.currentTime;
+      contextoAlarmeInspecao.currentTime;
 
-    [0, 0.35, 0.7].forEach(
-      function(
-        deslocamento
-      ) {
+    const ganho =
+      contextoAlarmeInspecao.createGain();
+
+    ganho.gain.setValueAtTime(
+      0.95,
+      agora
+    );
+
+    ganho.connect(
+      contextoAlarmeInspecao.destination
+    );
+
+    [880, 1046.5, 1318.5].forEach(
+      function(frequencia) {
 
         const oscilador =
-          contexto.createOscillator();
-
-        const ganho =
-          contexto.createGain();
+          contextoAlarmeInspecao.createOscillator();
 
         oscilador.type =
-          'sine';
+          'square';
 
-        oscilador.frequency.value =
-          880;
-
-        ganho.gain.setValueAtTime(
-          0.0001,
-          agora +
-          deslocamento
-        );
-
-        ganho.gain.exponentialRampToValueAtTime(
-          0.12,
-          agora +
-          deslocamento +
-          0.02
-        );
-
-        ganho.gain.exponentialRampToValueAtTime(
-          0.0001,
-          agora +
-          deslocamento +
-          0.18
+        oscilador.frequency.setValueAtTime(
+          frequencia,
+          agora
         );
 
         oscilador.connect(
           ganho
         );
 
-        ganho.connect(
-          contexto.destination
-        );
-
-        oscilador.start(
-          agora +
-          deslocamento
-        );
-
+        oscilador.start(agora);
         oscilador.stop(
-          agora +
-          deslocamento +
-          0.2
+          agora + 0.30
+        );
+
+        osciladoresAlarmeInspecao.push(
+          oscilador
         );
 
       }
@@ -3482,17 +3504,239 @@ function emitirAlarmeInspecao() {
       function() {
 
         try {
-          contexto.close();
+          ganho.disconnect();
         }
         catch (erro) {}
 
       },
-      1500
+      500
     );
 
   }
   catch (erro) {}
+
 }
+
+function pararAlarmeInspecaoContinuo() {
+
+  alarmeInspecaoAtivo = false;
+
+  if (
+    intervaloSomAlarmeInspecao
+  ) {
+
+    clearInterval(
+      intervaloSomAlarmeInspecao
+    );
+
+    intervaloSomAlarmeInspecao = null;
+
+  }
+
+  try {
+
+    if (
+      navigator.vibrate
+    ) {
+      navigator.vibrate(0);
+    }
+
+  }
+  catch (erro) {}
+
+  osciladoresAlarmeInspecao.forEach(
+    function(oscilador) {
+
+      try {
+        oscilador.stop();
+      }
+      catch (erro) {}
+
+    }
+  );
+
+  osciladoresAlarmeInspecao = [];
+
+}
+
+function iniciarAlarmeInspecaoContinuo() {
+
+  if (
+    intervaloSomAlarmeInspecao
+  ) {
+    return;
+  }
+
+  garantirAudioAlarmeLiberado();
+
+  function repetir() {
+
+    if (
+      !alarmeInspecaoAtivo
+    ) {
+
+      pararAlarmeInspecaoContinuo();
+      return;
+
+    }
+
+    tocarAlarmeInspecaoAlto();
+
+    try {
+
+      if (
+        navigator.vibrate
+      ) {
+
+        navigator.vibrate([
+          1200,
+          300,
+          1200,
+          300,
+          1200,
+          1000
+        ]);
+
+      }
+
+    }
+    catch (erro) {}
+
+  }
+
+  repetir();
+
+  intervaloSomAlarmeInspecao =
+    setInterval(
+      repetir,
+      2500
+    );
+
+}
+
+function criarBotaoPararAlarme() {
+
+  let botao =
+    document.getElementById(
+      'btnPararAlarmeInspecao'
+    );
+
+  if (
+    botao
+  ) {
+    return botao;
+  }
+
+  botao =
+    document.createElement(
+      'button'
+    );
+
+  botao.id =
+    'btnPararAlarmeInspecao';
+
+  botao.type =
+    'button';
+
+  botao.textContent =
+    '🔕 RECONHECER E PARAR ALARME';
+
+  botao.style.cssText =
+    [
+      'width:100%',
+      'min-height:56px',
+      'margin-top:10px',
+      'font-size:17px',
+      'font-weight:800',
+      'background:#C62828',
+      'color:#fff',
+      'border:0',
+      'border-radius:10px',
+      'padding:12px'
+    ].join(';');
+
+  botao.onclick =
+    function() {
+
+      pararAlarmeInspecaoContinuo();
+
+      const status =
+        document.getElementById(
+          'inspectionAlarmCountdown'
+        );
+
+      if (
+        status
+      ) {
+
+        status.textContent =
+          'ALARME RECONHECIDO';
+
+      }
+
+      try {
+
+        debugUploadCliente(
+          'ALARME_INSPECAO_RECONHECIDO',
+          {
+            mediaType:
+              'ALARM'
+          },
+          {
+            maquina:
+              maquina,
+
+            horario:
+              new Date().toISOString()
+          }
+        );
+
+      }
+      catch (erro) {}
+
+    };
+
+  const card =
+    document.getElementById(
+      'inspectionAlarmCard'
+    );
+
+  if (
+    card
+  ) {
+
+    card.appendChild(
+      botao
+    );
+
+  }
+
+  return botao;
+
+}
+
+function emitirAlarmeInspecao() {
+
+  criarBotaoPararAlarme();
+
+  const botao =
+    document.getElementById(
+      'btnPararAlarmeInspecao'
+    );
+
+  if (
+    botao
+  ) {
+
+    botao.style.display =
+      'block';
+
+  }
+
+  iniciarAlarmeInspecaoContinuo();
+
+}
+
 
 
 function carregarUltimaInspecaoMaquina() {
@@ -5934,6 +6178,9 @@ function escolherMimeType() {
    ===================================================== */
 
 function iniciarGravacao() {
+  pararAlarmeInspecaoContinuo();
+
+
 
   partesVideo =
     [];
@@ -9303,6 +9550,30 @@ window.addEventListener(
 /* =====================================================
    INICIALIZAÇÃO DO SISTEMA
    ===================================================== */
+
+
+let audioAlarmUnlockInstalled = false;
+
+document.addEventListener(
+  'click',
+  function() {
+
+    if (
+      audioAlarmUnlockInstalled
+    ) {
+      return;
+    }
+
+    audioAlarmUnlockInstalled = true;
+
+    garantirAudioAlarmeLiberado();
+
+  },
+  {
+    once: true
+  }
+);
+
 
 document.addEventListener(
   'DOMContentLoaded',
