@@ -742,7 +742,7 @@
       <input
         id="machineStatusResponsible"
         type="text"
-        placeholder="Responsável pela alteração"
+        
         style="width:100%;min-height:44px;margin-bottom:8px;"
       >
 
@@ -794,15 +794,7 @@
           style="font-size:12px;font-weight:700;"
         ></div>
       </div>
-
-      <textarea
-        id="machineStatusNote"
-        placeholder="Observação / motivo"
-        rows="3"
-        style="width:100%;margin-bottom:8px;"
-      ></textarea>
-
-      <button
+<button
         id="btnSaveMachineStatus"
         type="button"
         style="
@@ -4880,9 +4872,7 @@ async function salvarStatusMaquina() {
     );
 
   const observacao =
-    document.getElementById(
-      'machineStatusNote'
-    );
+    '';
 
   const mensagem =
     document.getElementById(
@@ -4962,12 +4952,7 @@ async function salvarStatusMaquina() {
     await salvarStatusMaquinaNoServidor(
       statusNovo,
       operadorStatusSelecionado,
-      String(
-        observacao &&
-        observacao.value
-          ? observacao.value
-          : ''
-      ).trim(),
+      '',
       audioUrl,
       audioId
     );
