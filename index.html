@@ -1459,13 +1459,16 @@ const NOME_DB_VIDEO =
   'RAPolymersMonitoramentoVideo';
 
 const VERSAO_DB_VIDEO =
-  2;
+  3;
 
 const STORE_JOBS =
   'jobs';
 
 const STORE_CHUNKS =
   'chunks';
+
+const STORE_STATUS_OUTBOX =
+  'statusOutbox';
 
 const TAMANHO_CHUNK =
   512 * 1024;
@@ -1575,6 +1578,48 @@ function abrirBancoVideo() {
               'Não foi possível abrir o armazenamento local.'
             )
           );
+
+          if (
+            !db.objectStoreNames.contains(
+              STORE_STATUS_OUTBOX
+            )
+          ) {
+
+            const statusOutbox =
+              db.createObjectStore(
+                STORE_STATUS_OUTBOX,
+                {
+                  keyPath:
+                    'operacaoId'
+                }
+              );
+
+            statusOutbox.createIndex(
+              'createdAt',
+              'createdAt',
+              {
+                unique:false
+              }
+            );
+
+            statusOutbox.createIndex(
+              'nextAttemptAt',
+              'nextAttemptAt',
+              {
+                unique:false
+              }
+            );
+
+            statusOutbox.createIndex(
+              'status',
+              'status',
+              {
+                unique:false
+              }
+            );
+
+          }
+
         };
 
     }
@@ -2492,6 +2537,437 @@ function ativarDebugLocalSeSolicitado() {
 
 }
 
+
+
+async function salvarStatusOutboxLocal(
+  item
+) {
+
+  const db =
+    await abrirBancoVideo();
+
+  return new Promise(
+    function(resolve,reject) {
+
+      const tx =
+        db.transaction(
+          STORE_STATUS_OUTBOX,
+          'readwrite'
+        );
+
+      tx.objectStore(
+        STORE_STATUS_OUTBOX
+      ).put(
+        item
+      );
+
+      tx.oncomplete =
+        function() {
+          db.close();
+          resolve();
+        };
+
+      tx.onerror =
+        function() {
+          db.close();
+          reject(
+            tx.error ||
+            new Error(
+              'Não foi possível proteger a atualização de status no aparelho.'
+            )
+          );
+        };
+
+    }
+  );
+
+}
+
+
+async function listarStatusOutboxLocais() {
+
+  const db =
+    await abrirBancoVideo();
+
+  return new Promise(
+    function(resolve,reject) {
+
+      const tx =
+        db.transaction(
+          STORE_STATUS_OUTBOX,
+          'readonly'
+        );
+
+      const req =
+        tx.objectStore(
+          STORE_STATUS_OUTBOX
+        ).getAll();
+
+      req.onsuccess =
+        function() {
+
+          const itens =
+            (req.result || [])
+              .filter(
+                function(item) {
+
+                  return (
+                    item &&
+                    item.status !==
+                      'completed'
+                  );
+
+                }
+              )
+              .sort(
+                function(a,b) {
+
+                  return (
+                    Number(
+                      a.createdAt ||
+                      0
+                    ) -
+                    Number(
+                      b.createdAt ||
+                      0
+                    )
+                  );
+
+                }
+              );
+
+          db.close();
+
+          resolve(
+            itens
+          );
+
+        };
+
+      req.onerror =
+        function() {
+
+          db.close();
+
+          reject(
+            req.error ||
+            new Error(
+              'Não foi possível consultar a fila de status.'
+            )
+          );
+
+        };
+
+    }
+  );
+
+}
+
+
+async function removerStatusOutboxLocal(
+  operacaoId
+) {
+
+  const db =
+    await abrirBancoVideo();
+
+  return new Promise(
+    function(resolve,reject) {
+
+      const tx =
+        db.transaction(
+          STORE_STATUS_OUTBOX,
+          'readwrite'
+        );
+
+      tx.objectStore(
+        STORE_STATUS_OUTBOX
+      ).delete(
+        operacaoId
+      );
+
+      tx.oncomplete =
+        function() {
+          db.close();
+          resolve();
+        };
+
+      tx.onerror =
+        function() {
+          db.close();
+          reject(
+            tx.error ||
+            new Error(
+              'Não foi possível remover a atualização de status da fila.'
+            )
+          );
+        };
+
+    }
+  );
+
+}
+
+
+async function processarFilaStatus() {
+
+  if (
+    navigator.onLine === false
+  ) {
+    return;
+  }
+
+  if (
+    window.__processandoFilaStatus
+  ) {
+    return;
+  }
+
+  window.__processandoFilaStatus =
+    true;
+
+  try {
+
+    const itens =
+      await listarStatusOutboxLocais();
+
+    for (
+      const item of itens
+    ) {
+
+      if (
+        item.nextAttemptAt &&
+        Date.now() <
+          Number(
+            item.nextAttemptAt
+          )
+      ) {
+        continue;
+      }
+
+      item.status =
+        'sending';
+
+      item.attempts =
+        Number(
+          item.attempts ||
+          0
+        ) + 1;
+
+      item.updatedAt =
+        Date.now();
+
+      await salvarStatusOutboxLocal(
+        item
+      );
+
+      const params =
+        new URLSearchParams();
+
+      params.set(
+        'tipo',
+        'STATUS_SET'
+      );
+
+      params.set(
+        'm',
+        item.maquina
+      );
+
+      params.set(
+        'novoStatus',
+        item.novoStatus
+      );
+
+      params.set(
+        'operador',
+        item.operador
+      );
+
+      params.set(
+        'observacao',
+        item.observacao ||
+        ''
+      );
+
+      params.set(
+        'audioUrl',
+        item.audioUrl ||
+        ''
+      );
+
+      params.set(
+        'audioId',
+        item.audioId ||
+        ''
+      );
+
+      params.set(
+        'acao',
+        item.acao ||
+        'ALTERAR_STATUS'
+      );
+
+      params.set(
+        'operacaoId',
+        item.operacaoId
+      );
+
+      try {
+
+        await fetch(
+          URL_APPS_SCRIPT,
+          {
+            method:
+              'POST',
+            mode:
+              'no-cors',
+            cache:
+              'no-store',
+            credentials:
+              'omit',
+            headers: {
+              'Content-Type':
+                'application/x-www-form-urlencoded;charset=UTF-8'
+            },
+            body:
+              params.toString(),
+            keepalive:
+              true
+          }
+        );
+
+        /*
+         * no-cors não permite ler a resposta.
+         * O registro sai da outbox depois do envio.
+         * O Apps Script é responsável por registrar debug.
+         */
+        await removerStatusOutboxLocal(
+          item.operacaoId
+        );
+
+        debugUploadCliente(
+          'STATUS_OUTBOX_ENVIADO',
+          {
+            uploadId:
+              item.operacaoId,
+            mediaType:
+              'STATUS'
+          },
+          {
+            tentativa:
+              item.attempts,
+            status:
+              item.novoStatus
+          }
+        );
+
+      }
+      catch (erro) {
+
+        item.status =
+          'queued';
+
+        item.nextAttemptAt =
+          Date.now() +
+          Math.min(
+            60000,
+            Math.max(
+              3000,
+              item.attempts *
+                5000
+            )
+          );
+
+        await salvarStatusOutboxLocal(
+          item
+        );
+
+        debugUploadCliente(
+          'STATUS_OUTBOX_ERRO',
+          {
+            uploadId:
+              item.operacaoId,
+            mediaType:
+              'STATUS'
+          },
+          {
+            tentativa:
+              item.attempts,
+            erro:
+              erro &&
+              erro.message
+                ? erro.message
+                : String(
+                    erro
+                  )
+          }
+        );
+
+        /*
+         * Não bloqueamos as demais tarefas da interface.
+         * A fila tentará novamente depois.
+         */
+        break;
+
+      }
+
+    }
+
+  }
+  catch (erro) {
+
+    debugUploadCliente(
+      'STATUS_OUTBOX_PROCESSAMENTO_ERRO',
+      {
+        mediaType:
+          'STATUS'
+      },
+      {
+        erro:
+          erro &&
+          erro.message
+            ? erro.message
+            : String(
+                erro
+              )
+      }
+    );
+
+  }
+  finally {
+
+    window.__processandoFilaStatus =
+      false;
+
+  }
+
+}
+
+
+function iniciarFilaStatusPeriodica() {
+
+  if (
+    window.__statusOutboxInterval
+  ) {
+
+    clearInterval(
+      window.__statusOutboxInterval
+    );
+
+  }
+
+  window.__statusOutboxInterval =
+    setInterval(
+      function() {
+
+        processarFilaStatus();
+
+      },
+      10000
+    );
+
+}
 
 async function processarFilaUploads() {
 
@@ -5532,7 +6008,7 @@ function vincularAudioStatusAoRegistro(
 
 
 
-function salvarStatusMaquinaEmSegundoPlano(
+async function salvarStatusMaquinaEmSegundoPlano(
   novoStatus,
   operador,
   observacao,
@@ -5542,61 +6018,64 @@ function salvarStatusMaquinaEmSegundoPlano(
   operacaoId
 ) {
 
-  const params =
-    new URLSearchParams();
+  const item = {
 
-  params.set(
-    'tipo',
-    'STATUS_SET'
-  );
+    operacaoId:
+      operacaoId,
 
-  params.set(
-    'm',
-    maquina
-  );
+    maquina:
+      maquina,
 
-  params.set(
-    'novoStatus',
-    novoStatus
-  );
+    novoStatus:
+      novoStatus,
 
-  params.set(
-    'operador',
-    operador
-  );
+    operador:
+      operador,
 
-  params.set(
-    'observacao',
-    observacao ||
-    ''
-  );
+    observacao:
+      observacao ||
+      '',
 
-  params.set(
-    'audioUrl',
-    audioUrl ||
-    ''
-  );
+    audioUrl:
+      audioUrl ||
+      '',
 
-  params.set(
-    'audioId',
-    audioId ||
-    ''
-  );
+    audioId:
+      audioId ||
+      '',
 
-  params.set(
-    'acao',
-    acao ||
-    'ALTERAR_STATUS'
-  );
+    acao:
+      acao ||
+      'ALTERAR_STATUS',
 
-  params.set(
-    'operacaoId',
-    operacaoId ||
-    ''
+    status:
+      'queued',
+
+    attempts:
+      0,
+
+    nextAttemptAt:
+      0,
+
+    createdAt:
+      Date.now(),
+
+    updatedAt:
+      Date.now()
+
+  };
+
+  /*
+   * Primeiro protegemos a alteração localmente.
+   * Isso é rápido e garante que uma falha de internet
+   * não faça o operador perder a mudança.
+   */
+  await salvarStatusOutboxLocal(
+    item
   );
 
   debugUploadCliente(
-    'STATUS_POST_BACKGROUND_INICIO',
+    'STATUS_OUTBOX_GRAVADO_LOCAL',
     {
       uploadId:
         operacaoId,
@@ -5605,80 +6084,14 @@ function salvarStatusMaquinaEmSegundoPlano(
     },
     {
       status:
-        novoStatus,
-      operador:
-        operador
+        novoStatus
     }
   );
 
-  return fetch(
-    URL_APPS_SCRIPT,
-    {
-      method:
-        'POST',
-
-      mode:
-        'no-cors',
-
-      cache:
-        'no-store',
-
-      credentials:
-        'omit',
-
-      headers: {
-        'Content-Type':
-          'application/x-www-form-urlencoded;charset=UTF-8'
-      },
-
-      body:
-        params.toString(),
-
-      keepalive:
-        true
-
-    }
-  )
-  .then(
-    function() {
-
-      debugUploadCliente(
-        'STATUS_POST_BACKGROUND_ENVIADO',
-        {
-          uploadId:
-            operacaoId,
-          mediaType:
-            'STATUS'
-        },
-        {}
-      );
-
-    }
-  )
-  .catch(
-    function(erro) {
-
-      debugUploadCliente(
-        'STATUS_POST_BACKGROUND_ERRO',
-        {
-          uploadId:
-            operacaoId,
-          mediaType:
-            'STATUS'
-        },
-        {
-          erro:
-            erro &&
-            erro.message
-              ? erro.message
-              : String(
-                  erro
-                )
-        }
-      );
-
-    }
-  );
+  /*
+   * Tenta enviar imediatamente, mas não aguarda.
+   */
+  processarFilaStatus();
 
 }
 
@@ -5980,10 +6393,19 @@ async function salvarStatusMaquina() {
      * Confirmação assíncrona após o servidor ter tido
      * tempo para processar o POST.
      */
-    verificarStatusSalvoEmSegundoPlano(
-      statusNovo,
-      operacaoId
-    );
+    if (
+      new URLSearchParams(
+        window.location.search
+      ).get('debug') ===
+      '1'
+    ) {
+
+      verificarStatusSalvoEmSegundoPlano(
+        statusNovo,
+        operacaoId
+      );
+
+    }
 
   }
   catch (erro) {
@@ -8064,20 +8486,10 @@ function operadorSelecionadoUnico() {
 
 async function carregarDados() {
 
-  /*
-   * Máquina:
-   *   somente da URL (?m=M1). Não consulta/valida CAD_MAQUINAS.
-   *
-   * Operador e Produto:
-   *   obrigatoriamente carregados da planilha via Apps Script.
-   */
-
   atualizarSeletorMaquina();
-
 
   maquinaValida =
     !!maquina;
-
 
   if (!maquinaValida) {
 
@@ -8094,18 +8506,39 @@ async function carregarDados() {
 
   }
 
+  /*
+   * Começamos as três consultas independentes em paralelo.
+   */
+  const dadosCache =
+    lerCacheCadastrosLocal();
 
-  mostrarMensagem(
-    '🔄 Carregando operadores e produtos da planilha...',
-    'warning'
-  );
+  const cadastroPromise =
+    dadosCache
+      ? Promise.resolve(
+          dadosCache
+        )
+      : carregarDadosRemotos();
 
+  const ultimaPromise =
+    Promise.resolve()
+      .then(
+        function() {
+          return carregarUltimaInspecaoMaquina();
+        }
+      );
+
+  const statusPromise =
+    Promise.resolve()
+      .then(
+        function() {
+          return carregarStatusMaquina();
+        }
+      );
 
   try {
 
     const dados =
-      await carregarDadosRemotos();
-
+      await cadastroPromise;
 
     if (
       !dados ||
@@ -8121,7 +8554,6 @@ async function carregarDados() {
 
     }
 
-
     operadores =
       Array.isArray(
         dados.operadores
@@ -8129,30 +8561,23 @@ async function carregarDados() {
         ? dados.operadores
             .map(
               function(item) {
-
-                return (
-                  typeof item ===
+                return typeof item ===
                   'string'
                     ? item
                     : (
                         item.nome ||
                         ''
-                      )
-                );
-
+                      );
               }
             )
             .filter(
               function(nome) {
-
                 return Boolean(
                   nome
                 );
-
               }
             )
         : [];
-
 
     produtos =
       Array.isArray(
@@ -8170,25 +8595,21 @@ async function carregarDados() {
                   return {
                     nome:
                       item,
-
                     ciclo:
                       0
                   };
 
                 }
 
-
                 return {
                   nome:
                     item.nome ||
                     '',
-
                   ciclo:
                     Number(
                       item.ciclo ||
                       0
                     ),
-
                   codigoInterno:
                     item.codigoInterno ||
                     ''
@@ -8198,15 +8619,12 @@ async function carregarDados() {
             )
             .filter(
               function(item) {
-
                 return Boolean(
                   item.nome
                 );
-
               }
             )
         : [];
-
 
     TEMPO_MAX_AUDIO =
       Math.max(
@@ -8217,84 +8635,115 @@ async function carregarDados() {
         )
       );
 
-
     if (
-      operadores.length ===
-      0
+      operadores.length === 0 ||
+      produtos.length === 0
     ) {
 
       throw new Error(
-        'Nenhum operador ativo foi retornado pela planilha.'
+        'Cadastros de operadores ou produtos vazios.'
       );
 
     }
-
-
-    if (
-      produtos.length ===
-      0
-    ) {
-
-      throw new Error(
-        'Nenhum produto ativo foi retornado pela planilha.'
-      );
-
-    }
-
 
     preencherSelecoes();
-
     preencherOperadoresStatus();
-
     atualizarObrigatoriedadeAudioStatus();
-
     verificarFormulario();
 
-
     mostrarMensagem(
-      '✅ Máquina M-' +
-      maquina.substring(1) +
-      ' selecionada. Operadores e produtos carregados.',
+      '✅ Pronto. Operadores e produtos disponíveis.',
       'success'
     );
 
-  
-    carregarUltimaInspecaoMaquina();
+    /*
+     * Se veio do cache, atualiza a planilha em background.
+     */
+    if (
+      dadosCache
+    ) {
 
-    iniciarRelogioAlarmeInspecao();
+      carregarDadosRemotos()
+        .then(
+          function(atualizados) {
 
-    carregarStatusMaquina();
-}
+            if (
+              atualizados &&
+              atualizados.sucesso
+            ) {
+
+              salvarCacheCadastrosLocal(
+                atualizados
+              );
+
+            }
+
+          }
+        )
+        .catch(
+          function() {}
+        );
+
+    }
+    else {
+
+      salvarCacheCadastrosLocal(
+        dados
+      );
+
+    }
+
+    /*
+     * As consultas de status/última inspeção já começaram
+     * em paralelo e podem terminar independentemente.
+     */
+    await Promise.allSettled
+      ? Promise.allSettled(
+          [
+            ultimaPromise,
+            statusPromise
+          ]
+        )
+      : Promise.all(
+          [
+            ultimaPromise,
+            statusPromise
+          ]
+        );
+
+  }
   catch (erro) {
 
-    console.error(
-      '[CADASTROS_PLANILHA]',
-      erro
-    );
+    /*
+     * Se cache estiver disponível, ele é usado mesmo se a
+     * planilha falhar.
+     */
+    const fallback =
+      dadosCache;
 
+    if (
+      fallback
+    ) {
 
-    operadores =
-      [];
+      preencherSelecoes();
 
+      mostrarMensagem(
+        '⚡ Cadastros locais carregados. Atualização da planilha será tentada em segundo plano.',
+        'warning'
+      );
 
-    produtos =
-      [];
+      return;
 
+    }
+
+    operadores = [];
+    produtos = [];
 
     preencherSelecoes();
-
-
     verificarFormulario();
 
-
     mostrarMensagem(
-      '❌ Não foi possível carregar Operadores e Produtos da planilha: ' +
-      (
-        erro &&
-        erro.message
-          ? erro.message
-          : 'erro de comunicação'
-      ),
+      '❌ Não foi possível carregar Operadores e Produtos.',
       'error'
     );
 
@@ -8411,6 +8860,86 @@ function preencherSelecoes() {
 
     }
   );
+
+}
+
+
+
+const CACHE_CADASTROS_KEY =
+  'ra_polymers_cadastros_v1';
+
+const CACHE_CADASTROS_TTL_MS =
+  30 * 60 * 1000;
+
+
+function lerCacheCadastrosLocal() {
+
+  try {
+
+    const bruto =
+      localStorage.getItem(
+        CACHE_CADASTROS_KEY
+      );
+
+    if (!bruto) {
+      return null;
+    }
+
+    const cache =
+      JSON.parse(
+        bruto
+      );
+
+    if (
+      !cache ||
+      !cache.dados ||
+      !cache.salvoEm
+    ) {
+      return null;
+    }
+
+    if (
+      Date.now() -
+      Number(
+        cache.salvoEm
+      ) >
+      CACHE_CADASTROS_TTL_MS
+    ) {
+      return null;
+    }
+
+    return cache.dados;
+
+  }
+  catch (erro) {
+
+    return null;
+
+  }
+
+}
+
+
+function salvarCacheCadastrosLocal(
+  dados
+) {
+
+  try {
+
+    localStorage.setItem(
+      CACHE_CADASTROS_KEY,
+      JSON.stringify(
+        {
+          salvoEm:
+            Date.now(),
+          dados:
+            dados
+        }
+      )
+    );
+
+  }
+  catch (erro) {}
 
 }
 
@@ -8935,6 +9464,41 @@ function produtoSelecionado() {
 /* =====================================================
    CONFORMIDADE
    ===================================================== */
+
+
+function prepararCameraAntecipadamente() {
+
+  if (
+    cameraStream ||
+    !navigator.mediaDevices ||
+    !navigator.mediaDevices.getUserMedia
+  ) {
+    return;
+  }
+
+  /*
+   * Tentativa oportunista. Se o navegador bloquear por política
+   * de gesto/permissão, o fluxo normal continua sem erro visível.
+   */
+  iniciarCamera()
+    .then(
+      function() {
+        debugUploadCliente(
+          'CAMERA_PRE_AQUECIDA',
+          {
+            mediaType:
+              'CAMERA'
+          },
+          {}
+        );
+      }
+    )
+    .catch(
+      function() {}
+    );
+
+}
+
 
 function selecionarConformidade(
   valor
@@ -13532,6 +14096,12 @@ document.addEventListener(
     }
 
     inicializarFilaUploads();
+
+    iniciarFilaStatusPeriodica();
+
+    processarFilaStatus();
+
+
 
   }
 );
