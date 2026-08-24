@@ -3802,7 +3802,9 @@ async function selecionarMaquinaProvisoria() {
   statusAudioCamposTravados =
     false;
 
-  pararSilencioPosAlarme();
+  pararSilencioPosAlarme(
+    true
+  );
 
   carregarUltimaInspecaoMaquina();
 
@@ -4207,6 +4209,27 @@ function atualizarAlarmeInspecaoUI() {
       proximaInspecaoTimestamp || 0
     ) -
     Date.now();
+
+  try {
+
+    debugUploadCliente(
+      'ALARME_ESTADO_PERSISTENTE_AVALIADO',
+      {
+        mediaType:
+          'ALARM'
+      },
+      {
+        maquina:
+          maquina,
+        proximaInspecao:
+          proximaInspecaoTimestamp,
+        silencioAtivo:
+          alarmeEmSilencioPosAlarme()
+      }
+    );
+
+  }
+  catch (erro) {}
 
   if (restante > 0) {
 
@@ -4651,6 +4674,252 @@ function criarBotaoPararAlarme() {
 }
 
 
+
+const CHAVE_ESTADO_ALARME_PERSISTENTE =
+  'ra_polymers_alarm_state_v1';
+
+
+function lerEstadoAlarmePersistido_(
+  maquinaChave
+) {
+
+  try {
+
+    if (
+      !maquinaChave
+    ) {
+      return null;
+    }
+
+    const bruto =
+      localStorage.getItem(
+        CHAVE_ESTADO_ALARME_PERSISTENTE +
+        '_' +
+        maquinaChave
+    );
+
+    if (
+      !bruto
+    ) {
+      return null;
+    }
+
+    const estado =
+      JSON.parse(
+        bruto
+      );
+
+    if (
+      !estado ||
+      !estado.ultimaInspecaoMs ||
+      !estado.silencioAteMs
+    ) {
+      return null;
+    }
+
+    return estado;
+
+  }
+  catch (erro) {
+
+    return null;
+
+  }
+
+}
+
+
+function salvarEstadoAlarmePersistido_(
+  maquinaChave,
+  ultimaInspecaoMs,
+  silencioAteMs
+) {
+
+  try {
+
+    if (
+      !maquinaChave ||
+      !ultimaInspecaoMs ||
+      !silencioAteMs
+    ) {
+      return;
+    }
+
+    localStorage.setItem(
+      CHAVE_ESTADO_ALARME_PERSISTENTE +
+      '_' +
+      maquinaChave,
+      JSON.stringify(
+        {
+          maquina:
+            maquinaChave,
+
+          ultimaInspecaoMs:
+            Number(
+              ultimaInspecaoMs
+            ),
+
+          silencioAteMs:
+            Number(
+              silencioAteMs
+            ),
+
+          salvoEm:
+            Date.now()
+        }
+      )
+    );
+
+  }
+  catch (erro) {
+
+    try {
+
+      debugUploadCliente(
+        'ALARME_PERSISTENCIA_LOCAL_ERRO',
+        {
+          mediaType:
+            'ALARM'
+        },
+        {
+          maquina:
+            maquinaChave,
+          erro:
+            erro &&
+            erro.message
+              ? erro.message
+              : String(
+                  erro
+                )
+        }
+      );
+
+    }
+    catch (debugErro) {}
+
+  }
+
+}
+
+
+function apagarEstadoAlarmePersistido_(
+  maquinaChave
+) {
+
+  try {
+
+    if (
+      !maquinaChave
+    ) {
+      return;
+    }
+
+    localStorage.removeItem(
+      CHAVE_ESTADO_ALARME_PERSISTENTE +
+      '_' +
+      maquinaChave
+    );
+
+  }
+  catch (erro) {}
+
+}
+
+
+function restaurarSilencioAlarmePersistido_(
+  maquinaChave,
+  ultimaInspecaoMs
+) {
+
+  const estado =
+    lerEstadoAlarmePersistido_(
+      maquinaChave
+    );
+
+  if (
+    !estado
+  ) {
+    return false;
+  }
+
+  /*
+   * O servidor é a fonte de verdade.
+   * Só restauramos o silêncio se a última inspeção
+   * for exatamente a mesma que gerou o reconhecimento.
+   */
+  if (
+    Number(
+      estado.ultimaInspecaoMs
+    ) !==
+    Number(
+      ultimaInspecaoMs
+    )
+  ) {
+
+    apagarEstadoAlarmePersistido_(
+      maquinaChave
+    );
+
+    return false;
+
+  }
+
+  if (
+    Date.now() >=
+    Number(
+      estado.silencioAteMs
+    )
+  ) {
+
+    apagarEstadoAlarmePersistido_(
+      maquinaChave
+    );
+
+    return false;
+
+  }
+
+  inicioSilencioPosAlarme =
+    Number(
+      estado.silencioAteMs
+    ) -
+    SILENCIO_POS_ALARME_MS;
+
+  alarmeReconhecidoManualmente =
+    true;
+
+  try {
+
+    debugUploadCliente(
+      'ALARME_SILENCIO_RESTAURADO',
+      {
+        mediaType:
+          'ALARM'
+      },
+      {
+        maquina:
+          maquinaChave,
+
+        ultimaInspecao:
+          new Date(
+            ultimaInspecaoMs
+          ).toISOString(),
+
+        silencioAte:
+          new Date(
+            estado.silencioAteMs
+          ).toISOString()
+      }
+    );
+
+  }
+  catch (erro) {}
+
+  return true;
+
+}
+
+
 function iniciarSilencioPosAlarmeSePronto() {
 
   if (
@@ -4663,6 +4932,18 @@ function iniciarSilencioPosAlarmeSePronto() {
 
   inicioSilencioPosAlarme =
     Date.now();
+
+  salvarEstadoAlarmePersistido_(
+    maquina,
+    (
+      proximaInspecaoTimestamp -
+      INTERVALO_INSPECAO_MS
+    ),
+    (
+      inicioSilencioPosAlarme +
+      SILENCIO_POS_ALARME_MS
+    )
+  );
 
   pararAlarmeInspecaoContinuo();
 
@@ -4713,6 +4994,10 @@ function alarmeEmSilencioPosAlarme() {
   alarmeReconhecidoManualmente =
     false;
 
+  apagarEstadoAlarmePersistido_(
+    maquina
+  );
+
   try {
     debugUploadCliente(
       'ALARME_SILENCIO_5MIN_FIM',
@@ -4726,13 +5011,25 @@ function alarmeEmSilencioPosAlarme() {
 }
 
 
-function pararSilencioPosAlarme() {
+function pararSilencioPosAlarme(
+  manterPersistencia
+) {
 
   inicioSilencioPosAlarme =
     null;
 
   alarmeReconhecidoManualmente =
     false;
+
+  if (
+    !manterPersistencia
+  ) {
+
+    apagarEstadoAlarmePersistido_(
+      maquina
+    );
+
+  }
 
 }
 
@@ -4904,6 +5201,11 @@ function carregarUltimaInspecaoMaquina() {
           data.getTime() +
           INTERVALO_INSPECAO_MS;
 
+        restaurarSilencioAlarmePersistido_(
+          maquina,
+          data.getTime()
+        );
+
       }
 
     }
@@ -4911,6 +5213,10 @@ function carregarUltimaInspecaoMaquina() {
 
       ultimaInspecaoRegistrada = null;
       proximaInspecaoTimestamp = null;
+
+      apagarEstadoAlarmePersistido_(
+        maquina
+      );
 
     }
 
@@ -5033,6 +5339,16 @@ function marcarInspecaoComoConcluida(
 
   alarmeInspecaoAtivo = false;
   alarmeAtrasoMinutos = 0;
+
+  apagarEstadoAlarmePersistido_(
+    maquina
+  );
+
+  inicioSilencioPosAlarme =
+    null;
+
+  alarmeReconhecidoManualmente =
+    false;
 
   atualizarAlarmeInspecaoUI();
 }
