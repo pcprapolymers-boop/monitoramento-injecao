@@ -4852,6 +4852,78 @@ function carregarStatusMaquina() {
 }
 
 
+
+function liberarObrigatoriedadeStatusAposSalvar() {
+
+  /*
+   * O servidor confirmou a alteração do status.
+   * A faixa vermelha e o destaque devem desaparecer
+   * imediatamente, inclusive para status de parada.
+   */
+  statusAtualizacaoObrigatoria =
+    false;
+
+  const banner =
+    document.getElementById(
+      'statusMandatoryBanner'
+    );
+
+  const overlay =
+    document.getElementById(
+      'statusMandatoryOverlay'
+    );
+
+  const card =
+    document.getElementById(
+      'machineStatusCard'
+    );
+
+  if (
+    banner
+  ) {
+    banner.style.display =
+      'none';
+  }
+
+  if (
+    overlay
+  ) {
+    overlay.style.display =
+      'none';
+  }
+
+  if (
+    card
+  ) {
+    card.classList.remove(
+      'status-obrigatorio'
+    );
+  }
+
+  try {
+
+    debugUploadCliente(
+      'STATUS_BLOQUEIO_LIBERADO_APOS_SALVAR',
+      {
+        mediaType:
+          'STATUS'
+      },
+      {
+        maquina:
+          maquina,
+        status:
+          statusOperacionalMaquina,
+        statusAtualizadoEm:
+          statusAtualizadoEm
+      }
+    );
+
+  }
+  catch (erro) {}
+
+}
+
+
 async function salvarStatusMaquina() {
 
   const seletor =
@@ -5263,12 +5335,42 @@ function salvarStatusMaquinaNoServidor(
             '';
 
           atualizarStatusMaquinaUI();
+
+          /*
+           * Para qualquer status salvo com sucesso
+           * (inclusive QUEBRA/MANUTENÇÃO/PARADA),
+           * a confirmação horária acaba de ser realizada.
+           */
+          liberarObrigatoriedadeStatusAposSalvar();
+
           atualizarBloqueioStatusObrigatorio_();
 
           const msg =
             document.getElementById(
               'machineStatusSaveMessage'
             );
+
+          try {
+
+            debugUploadCliente(
+              'STATUS_SAVE_SERVIDOR_OK',
+              {
+                mediaType:
+                  'STATUS'
+              },
+              {
+                maquina:
+                  maquina,
+                status:
+                  novoStatus,
+                atualizadoEm:
+                  statusAtualizadoEm
+              }
+            );
+
+          }
+          catch (debugErro) {}
+
 
           if (msg) {
             msg.textContent =
@@ -5639,6 +5741,30 @@ function atualizarBloqueioStatusObrigatorio_() {
       INTERVALO_STATUS_OBRIGATORIO_MS;
 
   }
+
+  try {
+
+    debugUploadCliente(
+      'STATUS_BLOQUEIO_ESTADO',
+      {
+        mediaType:
+          'STATUS'
+      },
+      {
+        maquina:
+          maquina,
+        obrigatorio:
+          Boolean(
+            statusAtualizacaoObrigatoria
+          ),
+        statusAtualizadoEm:
+          statusAtualizadoEm
+      }
+    );
+
+  }
+  catch (debugErro) {}
+
 
   if (
     statusAtualizacaoObrigatoria
