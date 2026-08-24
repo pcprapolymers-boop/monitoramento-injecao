@@ -1,17 +1,10 @@
 <!DOCTYPE html>
+
 <html lang="pt-BR">
-
 <head>
-
-<meta charset="UTF-8">
-
-<meta
-  name="viewport"
-  content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"
->
-
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" name="viewport"/>
 <title>Área Administrativa - Monitoramento de Qualidade</title>
-
 <style>
 
 :root {
@@ -208,269 +201,177 @@ tr:nth-child(even) td {
   }
 }
 
+
+/* V4.2 — identidade visual RA Polymers */
+.admin-logo {
+  display: block;
+  width: 180px;
+  max-width: 62%;
+  height: auto;
+  margin: 0 auto 12px;
+}
+
+/* O histórico de status pertence à área autenticada. */
+#statusHistoryPanel {
+  width: 100%;
+  box-sizing: border-box;
+  margin-left: auto !important;
+  margin-right: auto !important;
+}
+
+@media (max-width: 760px) {
+  .admin-logo {
+    width: 160px;
+    max-width: 70%;
+  }
+}
 </style>
-
 </head>
-
 <body>
-
 <div class="container">
-
-  <div class="header">
-
-    <h1>🔐 Área Administrativa</h1>
-
-    <p>
+<div class="header"><img alt="RA Polymers" class="admin-logo" src="assets/ra-polymers-logo.jpg"/>
+<h1>🔐 Área Administrativa</h1>
+<p>
       Monitoramento de Qualidade — histórico restrito ao administrador.
     </p>
-
-  </div>
-
-
-  <div
-    id="loginCard"
-    class="card login"
-  >
-
-    <h2>Autenticação</h2>
-
-    <p>
+</div>
+<div class="card login" id="loginCard">
+<h2>Autenticação</h2>
+<p>
       Esta área não é liberada aos operadores.
     </p>
-
-    <input
-      id="senhaAdmin"
-      type="password"
-      placeholder="Senha administrativa"
-      autocomplete="current-password"
-    >
-
-    <button
-      class="btn btn-primary"
-      onclick="entrarAdmin()"
-    >
+<input autocomplete="current-password" id="senhaAdmin" placeholder="Senha administrativa" type="password"/>
+<button class="btn btn-primary" onclick="entrarAdmin()">
       🔓 ENTRAR
     </button>
-
-    <div
-      id="loginMessage"
-      class="message hidden"
-    ></div>
-
-  </div>
-
-
-  <div
-    id="painelAdmin"
-    class="card hidden"
-  >
-
-    <h2>📊 Histórico de Inspeções</h2>
-
-    <div class="filters">
-
-      <input
-        id="data"
-        type="date"
-        aria-label="Data"
-      >
-
-      <select id="maquina">
-        <option value="">Todas as máquinas</option>
-        <option value="M1">M-1</option>
-        <option value="M2">M-2</option>
-        <option value="M3">M-3</option>
-        <option value="M4">M-4</option>
-        <option value="M5">M-5</option>
-        <option value="M6">M-6</option>
-      </select>
-
-      <select id="operador">
-        <option value="">Todos os operadores</option>
-      </select>
-
-      <select id="produto">
-        <option value="">Todos os produtos</option>
-      </select>
-
-      <select id="conforme">
-        <option value="">Todos os resultados</option>
-        <option value="SIM">Conformes</option>
-        <option value="NÃO">Não conformes</option>
-      </select>
-
-        <label>
+<div class="message hidden" id="loginMessage"></div>
+</div>
+<div class="card hidden" id="painelAdmin">
+<h2>📊 Histórico de Inspeções</h2>
+<div class="filters">
+<input aria-label="Data" id="data" type="date"/>
+<select id="maquina">
+<option value="">Todas as máquinas</option>
+<option value="M1">M-1</option>
+<option value="M2">M-2</option>
+<option value="M3">M-3</option>
+<option value="M4">M-4</option>
+<option value="M5">M-5</option>
+<option value="M6">M-6</option>
+</select>
+<select id="operador">
+<option value="">Todos os operadores</option>
+</select>
+<select id="produto">
+<option value="">Todos os produtos</option>
+</select>
+<select id="conforme">
+<option value="">Todos os resultados</option>
+<option value="SIM">Conformes</option>
+<option value="NÃO">Não conformes</option>
+</select>
+<label>
           Status da máquina
           <select id="statusMaquina">
-            <option value="">Todos</option>
-            <option value="PRODUZINDO">🟢 Produzindo</option>
-            <option value="PARADA_PROGRAMADA">🟡 Parada programada</option>
-            <option value="QUEBRA">🔴 Quebra</option>
-            <option value="MANUTENCAO">🔧 Manutenção</option>
-            <option value="FALTA_MATERIAL">📦 Falta de material</option>
-            <option value="OUTROS">⚪ Outros</option>
-          </select>
-        </label>
-
-
-    </div>
-
-
-    <div class="actions">
-
-      <button
-        class="btn btn-primary"
-        onclick="carregarHistorico()"
-      >
+<option value="">Todos</option>
+<option value="PRODUZINDO">🟢 Produzindo</option>
+<option value="PARADA_PROGRAMADA">🟡 Parada programada</option>
+<option value="QUEBRA">🔴 Quebra</option>
+<option value="MANUTENCAO">🔧 Manutenção</option>
+<option value="FALTA_MATERIAL">📦 Falta de material</option>
+<option value="OUTROS">⚪ Outros</option>
+</select>
+</label>
+</div>
+<div class="actions">
+<button class="btn btn-primary" onclick="carregarHistorico()">
         🔎 FILTRAR
       </button>
-
-      <button
-        class="btn btn-secondary"
-        onclick="limparFiltros()"
-      >
+<button class="btn btn-secondary" onclick="limparFiltros()">
         ♻️ LIMPAR
       </button>
-
-    </div>
-
-
-    <div
-      style="
+</div>
+<div style="
         margin:8px 0 12px;
         color:var(--muted);
         font-size:13px;
-      "
-    >
+      ">
       🔎 Os filtros acima são compartilhados pelo histórico de inspeções e pelo histórico de status das máquinas.
     </div>
-
-    <div
-      id="summary"
-      class="summary"
-    >
+<div class="summary" id="summary">
       Nenhuma consulta realizada.
     </div>
-
-    <div
-      style="
+<div style="
         margin:8px 0 12px;
         color:var(--muted);
         font-size:13px;
-      "
-    >
+      ">
       🎙️ Quando houver áudio associado à inspeção, o botão
       <strong>OUVIR</strong> abre a gravação armazenada no Google Drive.
     </div>
-
-
-    <div class="table-wrap">
-
-      <table>
-
-        <thead>
-
-          <tr>
-
-            <th>Data/Hora</th>
-            <th>Máquina</th>
-            <th>Operador</th>
-            <th>Produto</th>
-            <th>Ciclo</th>
-            <th>Duração</th>
-            <th>Resultado</th>
-            <th>Turno</th>
-            <th>Vídeo</th>
-            <th>Áudio</th>
-
-          </tr>
-
-        </thead>
-
-        <tbody id="tabela">
-
-          <tr>
-
-            <td
-              colspan="10"
-              style="text-align:center;padding:20px;"
-            >
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th>Data/Hora</th>
+<th>Máquina</th>
+<th>Operador</th>
+<th>Produto</th>
+<th>Ciclo</th>
+<th>Duração</th>
+<th>Resultado</th>
+<th>Turno</th>
+<th>Vídeo</th>
+<th>Áudio</th>
+</tr>
+</thead>
+<tbody id="tabela">
+<tr>
+<td colspan="10" style="text-align:center;padding:20px;">
               Faça uma consulta.
 
             </td>
-
-          </tr>
-
-        </tbody>
-
-      </table>
-
-    </div>
-
-  </div>
-
-
-
-<div
-  id="statusHistoryPanel"
-  style="margin-top:20px;"
->
-  <div
-    style="
+</tr>
+</tbody>
+</table>
+</div>
+<div class="card" id="statusHistoryPanel" style="margin-top:20px;">
+<div style="
       font-size:18px;
       font-weight:800;
       margin-bottom:6px;
-    "
-  >
+    ">
     🏭 HISTÓRICO DE STATUS DAS MÁQUINAS
   </div>
-
-  <div
-    id="statusHistorySummary"
-    class="summary"
-  >
+<div class="summary" id="statusHistorySummary">
     Nenhuma consulta realizada.
   </div>
-
-  <div class="table-wrap">
-
-    <table>
-
-      <thead>
-        <tr>
-          <th>Data/Hora</th>
-          <th>Máquina</th>
-          <th>Status</th>
-          <th>Operador</th>
-          <th>Motivo</th>
-          <th>Observação</th>
-          <th>Áudio</th>
-          <th>Atualizado em</th>
-        </tr>
-      </thead>
-
-      <tbody
-        id="statusHistoricoTabela"
-      >
-        <tr>
-          <td
-            colspan="8"
-            style="text-align:center;padding:20px;"
-          >
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th>Data/Hora</th>
+<th>Máquina</th>
+<th>Status</th>
+<th>Operador</th>
+<th>Motivo</th>
+<th>Observação</th>
+<th>Áudio</th>
+<th>Atualizado em</th>
+</tr>
+</thead>
+<tbody id="statusHistoricoTabela">
+<tr>
+<td colspan="8" style="text-align:center;padding:20px;">
             Faça uma consulta.
           </td>
-        </tr>
-      </tbody>
-
-    </table>
-
-  </div>
+</tr>
+</tbody>
+</table>
 </div>
+</div></div>
 
 </div>
-
-
-
 <script>
 
 const URL_APPS_SCRIPT =
@@ -642,8 +543,9 @@ function callJsonp(
 
 }
 
-
-document.getElementById('senhaAdmin').addEventListener(
+document.getElementById(
+  'senhaAdmin'
+).addEventListener(
   'keydown',
   function(evento) {
 
@@ -906,6 +808,16 @@ function limparFiltros() {
 async function carregarHistoricoStatusMaquinas(
   dataBR
 ) {
+
+  if (
+    !adminToken
+  ) {
+
+    return;
+
+  }
+
+
 
   if (
     !adminToken
@@ -1486,7 +1398,5 @@ function escapeHtml(
 }
 
 </script>
-
 </body>
-
 </html>
