@@ -372,6 +372,25 @@
   font-weight: 600;
 }
 
+
+#inspectionAlarmCard.alarm-due {
+  border-color: #E3A008 !important;
+  background: #FFF9E6;
+  display: block !important;
+}
+
+#inspectionAlarmCard.alarm-overdue {
+  border-color: #C62828 !important;
+  background: #FFF0F0;
+  display: block !important;
+  animation: alarmPulse 1.2s infinite;
+}
+
+@keyframes alarmPulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.01); }
+}
+
 </style>
 
 </head>
@@ -520,6 +539,33 @@
         pela identificação automática via NFC.
       </div>
 
+    </div>
+
+
+
+    <!-- ALARME DE INSPEÇÃO HORÁRIA -->
+    <div
+      id="inspectionAlarmCard"
+      class="card"
+      style="
+        display:none;
+        margin-top:12px;
+        border:2px solid #D4DEE7;
+        text-align:center;
+      "
+    >
+      <div
+        id="inspectionAlarmTitle"
+        style="font-size:20px;font-weight:700;margin-bottom:6px;"
+      >⏱️ Próxima inspeção</div>
+      <div
+        id="inspectionAlarmText"
+        style="font-size:15px;margin-bottom:8px;"
+      >--</div>
+      <div
+        id="inspectionAlarmCountdown"
+        style="font-size:28px;font-weight:700;font-variant-numeric:tabular-nums;"
+      >--</div>
     </div>
 
 
@@ -935,6 +981,19 @@ let maquina =
   )
   .trim()
   .toUpperCase();
+
+let ultimaInspecaoRegistrada = null;
+let proximaInspecaoTimestamp = null;
+let alarmeInspecaoInterval = null;
+let alarmeInspecaoAtivo = false;
+let alarmeAtrasoMinutos = 0;
+
+const INTERVALO_INSPECAO_MS =
+  60 * 60 * 1000;
+
+const TOLERANCIA_ALARME_MS =
+  10 * 60 * 1000;
+
 
 /*
  * Modo provisório de seleção de máquina.
@@ -2848,6 +2907,19 @@ async function selecionarMaquinaProvisoria() {
     true;
 
 
+  ultimaInspecaoRegistrada =
+    null;
+
+  proximaInspecaoTimestamp =
+    null;
+
+  alarmeInspecaoAtivo =
+    false;
+
+  carregarUltimaInspecaoMaquina();
+
+
+
   /*
    * Limpa as escolhas anteriores para evitar
    * carregar operador/produto de uma máquina anterior.
@@ -2890,6 +2962,564 @@ async function selecionarMaquinaProvisoria() {
    */
   await carregarDados();
 
+}
+
+
+
+function formatarTempoAlarme(ms) {
+  const totalSegundos =
+    Math.max(
+      0,
+      Math.ceil(
+        Math.abs(
+          ms
+        ) / 1000
+      )
+    );
+
+  const horas =
+    Math.floor(
+      totalSegundos / 3600
+    );
+
+  const minutos =
+    Math.floor(
+      (
+        totalSegundos % 3600
+      ) / 60
+    );
+
+  const segundos =
+    totalSegundos % 60;
+
+  return (
+    String(horas).padStart(2, '0') +
+    ':' +
+    String(minutos).padStart(2, '0') +
+    ':' +
+    String(segundos).padStart(2, '0')
+  );
+}
+
+
+function atualizarAlarmeInspecaoUI() {
+
+  const card =
+    document.getElementById(
+      'inspectionAlarmCard'
+    );
+
+  const title =
+    document.getElementById(
+      'inspectionAlarmTitle'
+    );
+
+  const text =
+    document.getElementById(
+      'inspectionAlarmText'
+    );
+
+  const countdown =
+    document.getElementById(
+      'inspectionAlarmCountdown'
+    );
+
+  if (
+    !card ||
+    !title ||
+    !text ||
+    !countdown
+  ) {
+    return;
+  }
+
+  if (!maquina) {
+    card.style.display = 'none';
+    return;
+  }
+
+  if (!ultimaInspecaoRegistrada) {
+
+    card.style.display = 'block';
+    card.classList.remove(
+      'alarm-due',
+      'alarm-overdue'
+    );
+
+    title.textContent =
+      '🔔 INSPEÇÃO HORÁRIA';
+
+    text.textContent =
+      'Ainda não há uma inspeção concluída para esta máquina.';
+
+    countdown.textContent =
+      'FAZER INSPEÇÃO';
+
+    return;
+  }
+
+  const restante =
+    (
+      proximaInspecaoTimestamp || 0
+    ) -
+    Date.now();
+
+  if (restante > 0) {
+
+    card.style.display = 'block';
+    card.classList.remove(
+      'alarm-due',
+      'alarm-overdue'
+    );
+
+    title.textContent =
+      '⏱️ PRÓXIMA INSPEÇÃO';
+
+    text.textContent =
+      'M-' +
+      maquina.substring(1) +
+      ' · última: ' +
+      ultimaInspecaoRegistrada;
+
+    countdown.textContent =
+      formatarTempoAlarme(
+        restante
+      );
+
+    return;
+  }
+
+  alarmeInspecaoAtivo = true;
+
+  const atraso =
+    Math.max(
+      0,
+      Date.now() -
+      proximaInspecaoTimestamp
+    );
+
+  alarmeAtrasoMinutos =
+    Math.floor(
+      atraso /
+      60000
+    );
+
+  if (
+    atraso <=
+    TOLERANCIA_ALARME_MS
+  ) {
+
+    card.style.display = 'block';
+    card.classList.remove(
+      'alarm-overdue'
+    );
+    card.classList.add(
+      'alarm-due'
+    );
+
+    title.textContent =
+      '🔔 INSPEÇÃO HORÁRIA DEVIDA';
+
+    text.textContent =
+      'Está na hora de realizar a inspeção da M-' +
+      maquina.substring(1) +
+      '.';
+
+    countdown.textContent =
+      'AGORA';
+
+  }
+  else {
+
+    card.style.display = 'block';
+    card.classList.remove(
+      'alarm-due'
+    );
+    card.classList.add(
+      'alarm-overdue'
+    );
+
+    title.textContent =
+      '🚨 INSPEÇÃO ATRASADA';
+
+    text.textContent =
+      'M-' +
+      maquina.substring(1) +
+      ' está atrasada há ' +
+      alarmeAtrasoMinutos +
+      ' minuto(s).';
+
+    countdown.textContent =
+      'ATRASADA';
+  }
+}
+
+
+function emitirAlarmeInspecao() {
+
+  try {
+
+    if (
+      navigator.vibrate
+    ) {
+
+      navigator.vibrate([
+        500,
+        250,
+        500,
+        250,
+        800
+      ]);
+
+    }
+
+  }
+  catch (erro) {}
+
+
+  /*
+   * Som é best-effort: navegadores móveis podem bloquear
+   * áudio iniciado fora de uma interação do usuário.
+   */
+
+  try {
+
+    const AudioContextClass =
+      window.AudioContext ||
+      window.webkitAudioContext;
+
+    if (
+      !AudioContextClass
+    ) {
+      return;
+    }
+
+    const contexto =
+      new AudioContextClass();
+
+    const agora =
+      contexto.currentTime;
+
+    [0, 0.35, 0.7].forEach(
+      function(
+        deslocamento
+      ) {
+
+        const oscilador =
+          contexto.createOscillator();
+
+        const ganho =
+          contexto.createGain();
+
+        oscilador.type =
+          'sine';
+
+        oscilador.frequency.value =
+          880;
+
+        ganho.gain.setValueAtTime(
+          0.0001,
+          agora +
+          deslocamento
+        );
+
+        ganho.gain.exponentialRampToValueAtTime(
+          0.12,
+          agora +
+          deslocamento +
+          0.02
+        );
+
+        ganho.gain.exponentialRampToValueAtTime(
+          0.0001,
+          agora +
+          deslocamento +
+          0.18
+        );
+
+        oscilador.connect(
+          ganho
+        );
+
+        ganho.connect(
+          contexto.destination
+        );
+
+        oscilador.start(
+          agora +
+          deslocamento
+        );
+
+        oscilador.stop(
+          agora +
+          deslocamento +
+          0.2
+        );
+
+      }
+    );
+
+    setTimeout(
+      function() {
+
+        try {
+          contexto.close();
+        }
+        catch (erro) {}
+
+      },
+      1500
+    );
+
+  }
+  catch (erro) {}
+}
+
+
+function carregarUltimaInspecaoMaquina() {
+
+  /*
+   * Nesta primeira versão usamos um endpoint público somente
+   * para leitura da última inspeção, sem expor o histórico completo.
+   */
+
+  if (!maquina) {
+    ultimaInspecaoRegistrada = null;
+    proximaInspecaoTimestamp = null;
+    atualizarAlarmeInspecaoUI();
+    return;
+  }
+
+  const callbackName =
+    'ultimaInspecao_' +
+    Date.now() +
+    '_' +
+    Math.random()
+      .toString(36)
+      .substring(
+        2,
+        8
+      );
+
+  const script =
+    document.createElement(
+      'script'
+    );
+
+  const timeout =
+    setTimeout(
+      function() {
+
+        try {
+          delete window[
+            callbackName
+          ];
+        }
+        catch (erro) {}
+
+        try {
+          if (
+            script.parentNode
+          ) {
+            script.parentNode.removeChild(
+              script
+            );
+          }
+        }
+        catch (erro) {}
+
+        atualizarAlarmeInspecaoUI();
+
+      },
+      8000
+    );
+
+  window[
+    callbackName
+  ] =
+  function(
+    dados
+  ) {
+
+    clearTimeout(
+      timeout
+    );
+
+    try {
+      delete window[
+        callbackName
+      ];
+    }
+    catch (erro) {}
+
+    try {
+      if (
+        script.parentNode
+      ) {
+        script.parentNode.removeChild(
+          script
+        );
+      }
+    }
+    catch (erro) {}
+
+    if (
+      dados &&
+      dados.sucesso &&
+      dados.ultimaInspecao
+    ) {
+
+      const data =
+        new Date(
+          dados.ultimaInspecao
+        );
+
+      if (
+        !isNaN(
+          data.getTime()
+        )
+      ) {
+
+        ultimaInspecaoRegistrada =
+          data.toLocaleString(
+            'pt-BR'
+          );
+
+        proximaInspecaoTimestamp =
+          data.getTime() +
+          INTERVALO_INSPECAO_MS;
+
+      }
+
+    }
+    else {
+
+      ultimaInspecaoRegistrada = null;
+      proximaInspecaoTimestamp = null;
+
+    }
+
+    atualizarAlarmeInspecaoUI();
+
+  };
+
+  script.src =
+    URL_APPS_SCRIPT +
+    '?status=ultimaInspecao' +
+    '&m=' +
+    encodeURIComponent(
+      maquina
+    ) +
+    '&callback=' +
+    encodeURIComponent(
+      callbackName
+    ) +
+    '&_=' +
+    Date.now();
+
+  script.async = true;
+
+  document.head.appendChild(
+    script
+  );
+}
+
+
+function iniciarRelogioAlarmeInspecao() {
+
+  if (
+    alarmeInspecaoInterval
+  ) {
+    clearInterval(
+      alarmeInspecaoInterval
+    );
+  }
+
+  alarmeInspecaoInterval =
+    setInterval(
+      function() {
+
+        const antes =
+          alarmeInspecaoAtivo;
+
+        atualizarAlarmeInspecaoUI();
+
+        if (
+          !antes &&
+          alarmeInspecaoAtivo
+        ) {
+
+          try {
+
+            if (
+              typeof debugUploadCliente ===
+              'function'
+            ) {
+
+              debugUploadCliente(
+                'ALARME_INSPECAO_DISPARADO',
+                {
+                  uploadId:
+                    '',
+                  mediaType:
+                    'ALARM'
+                },
+                {
+                  maquina:
+                    maquina,
+                  proximaInspecao:
+                    proximaInspecaoTimestamp,
+                  atrasoMinutos:
+                    alarmeAtrasoMinutos
+                }
+              );
+
+            }
+
+          }
+          catch (erro) {}
+
+          emitirAlarmeInspecao();
+        }
+
+      },
+      1000
+    );
+}
+
+
+function marcarInspecaoComoConcluida(
+  instanteISO
+) {
+
+  const data =
+    instanteISO
+      ? new Date(
+          instanteISO
+        )
+      : new Date();
+
+  if (
+    isNaN(
+      data.getTime()
+    )
+  ) {
+    return;
+  }
+
+  ultimaInspecaoRegistrada =
+    data.toLocaleString(
+      'pt-BR'
+    );
+
+  proximaInspecaoTimestamp =
+    data.getTime() +
+    INTERVALO_INSPECAO_MS;
+
+  alarmeInspecaoAtivo = false;
+  alarmeAtrasoMinutos = 0;
+
+  atualizarAlarmeInspecaoUI();
 }
 
 
@@ -3086,7 +3716,11 @@ async function carregarDados() {
       'success'
     );
 
-  }
+  
+    carregarUltimaInspecaoMaquina();
+
+    iniciarRelogioAlarmeInspecao();
+}
   catch (erro) {
 
     console.error(
@@ -4617,6 +5251,11 @@ function iniciarGravacao() {
         .remove(
           'hidden'
         );
+
+
+      marcarInspecaoComoConcluida(
+        inicioGravacao.toISOString()
+      );
 
 
       configurarPainelAudio();
