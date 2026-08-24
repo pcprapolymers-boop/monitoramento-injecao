@@ -609,7 +609,17 @@
           margin-bottom:8px;
         "
       >
-        🏭 SELECIONE A MÁQUINA
+        1️⃣ 🏭 SELECIONE A MÁQUINA
+      </div>
+
+      <div
+        style="
+          margin-bottom:8px;
+          font-size:13px;
+          color:#536777;
+        "
+      >
+        Primeiro selecione a máquina. Depois confirme o status operacional.
       </div>
 
       <label for="machineSelector">
@@ -650,6 +660,7 @@
       id="machineStatusCard"
       class="card status-produzindo"
       style="
+        display:none;
         margin-top:12px;
       "
     >
@@ -670,7 +681,7 @@
             font-weight:800;
           "
         >
-          🏭 STATUS DA MÁQUINA
+          2️⃣ 🏭 STATUS DA MÁQUINA
         </div>
 
         <span
@@ -3158,6 +3169,18 @@ async function selecionarMaquinaProvisoria() {
 
     preencherSelecoes();
 
+    const cardStatus =
+      document.getElementById(
+        'machineStatusCard'
+      );
+
+    if (
+      cardStatus
+    ) {
+      cardStatus.style.display =
+        'none';
+    }
+
     atualizarSeletorMaquina();
 
     verificarFormulario();
@@ -3194,7 +3217,11 @@ async function selecionarMaquinaProvisoria() {
   carregarStatusMaquina()
     .then(
       function() {
+
+        atualizarStatusMaquinaUI();
+
         atualizarBloqueioStatusObrigatorio_();
+
       }
     );
 
@@ -4285,6 +4312,20 @@ function atualizarStatusMaquinaUI() {
   ) {
     return;
   }
+
+  if (
+    !maquina
+  ) {
+
+    card.style.display =
+      'none';
+
+    return;
+
+  }
+
+  card.style.display =
+    'block';
 
   const classe =
     obterClasseStatusMaquina_(
