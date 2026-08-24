@@ -391,6 +391,45 @@
   50% { transform: scale(1.01); }
 }
 
+
+/* V12.32 — status operacional da máquina */
+#machineStatusCard {
+  border: 2px solid #D4DEE7;
+}
+
+#machineStatusCard.status-produzindo {
+  border-color: #2E7D32;
+  background: #F1FAF2;
+}
+
+#machineStatusCard.status-parada {
+  border-color: #D4A017;
+  background: #FFF9E6;
+}
+
+#machineStatusCard.status-quebra {
+  border-color: #C62828;
+  background: #FFF0F0;
+}
+
+#machineStatusCard.status-manutencao {
+  border-color: #6A1B9A;
+  background: #F8F0FC;
+}
+
+#machineStatusCard.status-material {
+  border-color: #1565C0;
+  background: #F1F7FD;
+}
+
+.machine-status-badge {
+  display: inline-block;
+  padding: 5px 10px;
+  border-radius: 14px;
+  font-size: 13px;
+  font-weight: 800;
+}
+
 </style>
 
 </head>
@@ -541,6 +580,107 @@
 
     </div>
 
+
+
+
+    <!-- STATUS OPERACIONAL DA MÁQUINA -->
+    <div
+      id="machineStatusCard"
+      class="card status-produzindo"
+      style="
+        margin-top:12px;
+      "
+    >
+
+      <div
+        style="
+          display:flex;
+          align-items:center;
+          justify-content:space-between;
+          gap:10px;
+          margin-bottom:8px;
+        "
+      >
+
+        <div
+          style="
+            font-size:18px;
+            font-weight:800;
+          "
+        >
+          🏭 STATUS DA MÁQUINA
+        </div>
+
+        <span
+          id="machineStatusBadge"
+          class="machine-status-badge"
+        >
+          🟢 PRODUZINDO
+        </span>
+
+      </div>
+
+      <div
+        id="machineStatusInfo"
+        style="
+          font-size:13px;
+          margin-bottom:10px;
+        "
+      >
+        A inspeção horária está ativa.
+      </div>
+
+      <select
+        id="machineStatusSelector"
+        style="
+          width:100%;
+          min-height:44px;
+          margin-bottom:8px;
+        "
+      >
+        <option value="PRODUZINDO">🟢 PRODUZINDO</option>
+        <option value="PARADA_PROGRAMADA">🟡 PARADA PROGRAMADA</option>
+        <option value="QUEBRA">🔴 QUEBRA</option>
+        <option value="MANUTENCAO">🔧 MANUTENÇÃO</option>
+        <option value="FALTA_MATERIAL">📦 FALTA DE MATERIAL</option>
+        <option value="OUTROS">⚪ OUTROS</option>
+      </select>
+
+      <input
+        id="machineStatusResponsible"
+        type="text"
+        placeholder="Responsável pela alteração"
+        style="width:100%;min-height:44px;margin-bottom:8px;"
+      >
+
+      <textarea
+        id="machineStatusNote"
+        placeholder="Observação / motivo"
+        rows="3"
+        style="width:100%;margin-bottom:8px;"
+      ></textarea>
+
+      <button
+        id="btnSaveMachineStatus"
+        type="button"
+        style="
+          width:100%;
+          min-height:44px;
+        "
+      >
+        💾 ATUALIZAR STATUS
+      </button>
+
+      <div
+        id="machineStatusSaveMessage"
+        style="
+          margin-top:8px;
+          font-size:12px;
+          font-weight:700;
+        "
+      ></div>
+
+    </div>
 
 
     <!-- ALARME DE INSPEÇÃO HORÁRIA -->
@@ -1012,6 +1152,22 @@ let maquina =
   )
   .trim()
   .toUpperCase();
+
+let statusOperacionalMaquina =
+  'PRODUZINDO';
+
+let motivoParadaMaquina =
+  '';
+
+let inicioStatusMaquina =
+  null;
+
+let responsavelStatusMaquina =
+  '';
+
+let observacaoStatusMaquina =
+  '';
+
 
 let ultimaInspecaoRegistrada = null;
 
@@ -2960,6 +3116,8 @@ async function selecionarMaquinaProvisoria() {
 
   carregarUltimaInspecaoMaquina();
 
+  carregarStatusMaquina();
+
 
 
   /*
@@ -3075,9 +3233,28 @@ function atualizarAlarmeInspecaoUI() {
     return;
   }
 
-  if (!maquina) {
-    card.style.display = 'none';
+  if (
+    !maquina
+  ) {
+
+    card.style.display =
+      'none';
+
     return;
+
+  }
+
+
+  if (
+    statusOperacionalMaquina !==
+    'PRODUZINDO'
+  ) {
+
+    card.style.display =
+      'none';
+
+    return;
+
   }
 
   if (!ultimaInspecaoRegistrada) {
@@ -3691,6 +3868,719 @@ function ativarModuloTesteAlarme() {
 }
 
 
+
+function obterClasseStatusMaquina_(
+  status
+) {
+
+  switch (
+    status
+  ) {
+
+    case 'QUEBRA':
+      return 'status-quebra';
+
+    case 'MANUTENCAO':
+      return 'status-manutencao';
+
+    case 'FALTA_MATERIAL':
+      return 'status-material';
+
+    case 'PARADA_PROGRAMADA':
+    case 'OUTROS':
+      return 'status-parada';
+
+    default:
+      return 'status-produzindo';
+
+  }
+
+}
+
+
+function obterLabelStatusMaquina_(
+  status
+) {
+
+  switch (
+    status
+  ) {
+
+    case 'QUEBRA':
+      return '🔴 QUEBRA';
+
+    case 'MANUTENCAO':
+      return '🔧 MANUTENÇÃO';
+
+    case 'FALTA_MATERIAL':
+      return '📦 FALTA DE MATERIAL';
+
+    case 'PARADA_PROGRAMADA':
+      return '🟡 PARADA PROGRAMADA';
+
+    case 'OUTROS':
+      return '⚪ OUTROS';
+
+    default:
+      return '🟢 PRODUZINDO';
+
+  }
+
+}
+
+
+function atualizarStatusMaquinaUI() {
+
+  const card =
+    document.getElementById(
+      'machineStatusCard'
+    );
+
+  const badge =
+    document.getElementById(
+      'machineStatusBadge'
+    );
+
+  const info =
+    document.getElementById(
+      'machineStatusInfo'
+    );
+
+  const seletor =
+    document.getElementById(
+      'machineStatusSelector'
+    );
+
+  if (
+    !card ||
+    !badge ||
+    !info ||
+    !seletor
+  ) {
+    return;
+  }
+
+  const classe =
+    obterClasseStatusMaquina_(
+      statusOperacionalMaquina
+    );
+
+  card.className =
+    'card ' +
+    classe;
+
+  badge.textContent =
+    obterLabelStatusMaquina_(
+      statusOperacionalMaquina
+    );
+
+  seletor.value =
+    statusOperacionalMaquina ||
+    'PRODUZINDO';
+
+  if (
+    statusOperacionalMaquina ===
+    'PRODUZINDO'
+  ) {
+
+    info.textContent =
+      '✅ A máquina está produzindo. O alarme horário está ativo.';
+
+  }
+  else {
+
+    const inicio =
+      inicioStatusMaquina
+        ? new Date(
+            inicioStatusMaquina
+          )
+        : null;
+
+    info.textContent =
+      '⏸️ Inspeção horária suspensa' +
+      (
+        inicio &&
+        !isNaN(
+          inicio.getTime()
+        )
+          ? ' desde ' +
+            inicio.toLocaleString(
+              'pt-BR'
+            )
+          : ''
+      ) +
+      (
+        motivoParadaMaquina
+          ? ' · ' +
+            motivoParadaMaquina
+          : ''
+      );
+
+  }
+
+  /*
+   * Quando a máquina está parada, não deve haver alarme
+   * para o operador.
+   */
+  if (
+    statusOperacionalMaquina !==
+    'PRODUZINDO'
+  ) {
+
+    const alarmCard =
+      document.getElementById(
+        'inspectionAlarmCard'
+      );
+
+    if (
+      alarmCard
+    ) {
+
+      alarmCard.style.display =
+        'none';
+
+    }
+
+  }
+
+}
+
+
+function carregarStatusMaquina() {
+
+  return new Promise(
+    function(
+      resolve
+    ) {
+
+      if (
+        !maquina
+      ) {
+
+        resolve(
+          null
+        );
+
+        return;
+
+      }
+
+      const callbackName =
+        'statusMaquina_' +
+        Date.now() +
+        '_' +
+        Math.random()
+          .toString(36)
+          .substring(
+            2,
+            8
+          );
+
+      const script =
+        document.createElement(
+          'script'
+        );
+
+      let terminou =
+        false;
+
+      const limpar =
+        function() {
+
+          try {
+
+            delete window[
+              callbackName
+            ];
+
+          }
+          catch (erro) {}
+
+          try {
+
+            if (
+              script.parentNode
+            ) {
+
+              script.parentNode
+                .removeChild(
+                  script
+                );
+
+            }
+
+          }
+          catch (erro) {}
+
+        };
+
+      const timeout =
+        setTimeout(
+          function() {
+
+            if (
+              terminou
+            ) {
+
+              return;
+
+            }
+
+            terminou =
+              true;
+
+            limpar();
+
+            atualizarStatusMaquinaUI();
+
+            resolve(
+              null
+            );
+
+          },
+          8000
+        );
+
+      window[
+        callbackName
+      ] =
+      function(
+        dados
+      ) {
+
+        if (
+          terminou
+        ) {
+
+          return;
+
+        }
+
+        terminou =
+          true;
+
+        clearTimeout(
+          timeout
+        );
+
+        limpar();
+
+        if (
+          dados &&
+          dados.sucesso
+        ) {
+
+          statusOperacionalMaquina =
+            dados.status ||
+            'PRODUZINDO';
+
+          motivoParadaMaquina =
+            dados.motivo ||
+            '';
+
+          inicioStatusMaquina =
+            dados.inicioStatus ||
+            null;
+
+          responsavelStatusMaquina =
+            dados.responsavel ||
+            '';
+
+          observacaoStatusMaquina =
+            dados.observacao ||
+            '';
+
+          const responsavel =
+            document.getElementById(
+              'machineStatusResponsible'
+            );
+
+          const observacao =
+            document.getElementById(
+              'machineStatusNote'
+            );
+
+          if (
+            responsavel
+          ) {
+
+            responsavel.value =
+              responsavelStatusMaquina;
+
+          }
+
+          if (
+            observacao
+          ) {
+
+            observacao.value =
+              observacaoStatusMaquina;
+
+          }
+
+          atualizarStatusMaquinaUI();
+
+        }
+
+        resolve(
+          dados
+        );
+
+      };
+
+      script.src =
+        URL_APPS_SCRIPT +
+        '?status=machineStatus' +
+        '&m=' +
+        encodeURIComponent(
+          maquina
+        ) +
+        '&callback=' +
+        encodeURIComponent(
+          callbackName
+        ) +
+        '&_=' +
+        Date.now();
+
+      script.async =
+        true;
+
+      document.head.appendChild(
+        script
+      );
+
+    }
+  );
+
+}
+
+
+function salvarStatusMaquina() {
+
+  const seletor =
+    document.getElementById(
+      'machineStatusSelector'
+    );
+
+  const responsavel =
+    document.getElementById(
+      'machineStatusResponsible'
+    );
+
+  const observacao =
+    document.getElementById(
+      'machineStatusNote'
+    );
+
+  const mensagem =
+    document.getElementById(
+      'machineStatusSaveMessage'
+    );
+
+  if (
+    !maquina ||
+    !seletor
+  ) {
+
+    return;
+
+  }
+
+  const statusNovo =
+    String(
+      seletor.value ||
+      'PRODUZINDO'
+    ).trim();
+
+  if (
+    statusNovo !==
+    'PRODUZINDO' &&
+    !String(
+      responsavel &&
+      responsavel.value
+        ? responsavel.value
+        : ''
+    ).trim()
+  ) {
+
+    if (
+      mensagem
+    ) {
+
+      mensagem.textContent =
+        '⚠️ Informe o responsável pela parada.';
+
+    }
+
+    return;
+
+  }
+
+  const callbackName =
+    'salvarStatusMaquina_' +
+    Date.now() +
+    '_' +
+    Math.random()
+      .toString(36)
+      .substring(
+        2,
+        8
+      );
+
+  const params =
+    new URLSearchParams();
+
+  params.set(
+    'status',
+    'machineStatusSet'
+  );
+
+  params.set(
+    'm',
+    maquina
+  );
+
+  params.set(
+    'novoStatus',
+    statusNovo
+  );
+
+  params.set(
+    'responsavel',
+    String(
+      responsavel &&
+      responsavel.value
+        ? responsavel.value
+        : ''
+    ).trim()
+  );
+
+  params.set(
+    'observacao',
+    String(
+      observacao &&
+      observacao.value
+        ? observacao.value
+        : ''
+    ).trim()
+  );
+
+  params.set(
+    'callback',
+    callbackName
+  );
+
+  params.set(
+    '_',
+    Date.now()
+  );
+
+  const script =
+    document.createElement(
+      'script'
+    );
+
+  let terminou =
+    false;
+
+  const limpar =
+    function() {
+
+      try {
+
+        delete window[
+          callbackName
+        ];
+
+      }
+      catch (erro) {}
+
+      try {
+
+        if (
+          script.parentNode
+        ) {
+
+          script.parentNode
+            .removeChild(
+              script
+            );
+
+        }
+
+      }
+      catch (erro) {}
+
+    };
+
+  const timeout =
+    setTimeout(
+      function() {
+
+        if (
+          terminou
+        ) {
+
+          return;
+
+        }
+
+        terminou =
+          true;
+
+        limpar();
+
+        if (
+          mensagem
+        ) {
+
+          mensagem.textContent =
+            '❌ Não foi possível atualizar o status da máquina.';
+
+        }
+
+      },
+      8000
+    );
+
+  window[
+    callbackName
+  ] =
+  function(
+    dados
+  ) {
+
+    if (
+      terminou
+    ) {
+
+      return;
+
+    }
+
+    terminou =
+      true;
+
+    clearTimeout(
+      timeout
+    );
+
+    limpar();
+
+    if (
+      dados &&
+      dados.sucesso
+    ) {
+
+      statusOperacionalMaquina =
+        dados.status ||
+        statusNovo;
+
+      motivoParadaMaquina =
+        dados.motivo ||
+        String(
+          observacao &&
+          observacao.value
+            ? observacao.value
+            : ''
+        ).trim();
+
+      inicioStatusMaquina =
+        dados.inicioStatus ||
+        new Date()
+          .toISOString();
+
+      responsavelStatusMaquina =
+        dados.responsavel ||
+        String(
+          responsavel &&
+          responsavel.value
+            ? responsavel.value
+            : ''
+        ).trim();
+
+      observacaoStatusMaquina =
+        dados.observacao ||
+        String(
+          observacao &&
+          observacao.value
+            ? observacao.value
+            : ''
+        ).trim();
+
+      if (
+        statusOperacionalMaquina ===
+        'PRODUZINDO'
+      ) {
+
+        /*
+         * Ao voltar a produzir, começa uma nova janela.
+         */
+        marcarInspecaoComoConcluida(
+          new Date()
+            .toISOString()
+        );
+
+        carregarUltimaInspecaoMaquina();
+
+      }
+
+      atualizarStatusMaquinaUI();
+
+      if (
+        mensagem
+      ) {
+
+        mensagem.textContent =
+          (
+            statusOperacionalMaquina ===
+            'PRODUZINDO'
+              ? '✅ Máquina voltou a produzir. O relógio foi reiniciado.'
+              : '✅ Status da máquina atualizado: ' +
+                obterLabelStatusMaquina_(
+                  statusOperacionalMaquina
+                )
+          );
+
+      }
+
+    }
+    else {
+
+      if (
+        mensagem
+      ) {
+
+        mensagem.textContent =
+          '❌ ' +
+          (
+            dados &&
+            dados.erro
+              ? dados.erro
+              : 'Não foi possível atualizar o status.'
+          );
+
+      }
+
+    }
+
+  };
+
+  script.src =
+    URL_APPS_SCRIPT +
+    '?' +
+    params.toString();
+
+  script.async =
+    true;
+
+  document.head.appendChild(
+    script
+  );
+
+}
+
+
 async function carregarDados() {
 
   /*
@@ -3888,6 +4778,8 @@ async function carregarDados() {
     carregarUltimaInspecaoMaquina();
 
     iniciarRelogioAlarmeInspecao();
+
+    carregarStatusMaquina();
 }
   catch (erro) {
 
@@ -8421,6 +9313,22 @@ document.addEventListener(
     ativarDebugLocalSeSolicitado();
 
     ativarModuloTesteAlarme();
+
+    const btnStatus =
+      document.getElementById(
+        'btnSaveMachineStatus'
+      );
+
+    if (
+      btnStatus
+    ) {
+
+      btnStatus.addEventListener(
+        'click',
+        salvarStatusMaquina
+      );
+
+    }
 
     /*
      * Se vier ?m=M1, mantém compatibilidade.
