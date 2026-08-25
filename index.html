@@ -1404,6 +1404,10 @@ let statusAudioCamposTravados = false;
 
 let statusObrigatorioTimer =
   null;
+let intervaloSomAlarmeStatus = null;
+let osciladoresAlarmeStatus = [];
+let alarmeStatusAtivo = false;
+
 
 const INTERVALO_STATUS_OBRIGATORIO_MS =
   60 * 60 * 1000;
@@ -1521,6 +1525,10 @@ let audioBlob = null;
 let audioGravando = false;
 let audioConcluido = false;
 let audioPulado = false;
+let inspecaoVideoConcluido = false;
+let inspecaoConcluidaNesteCiclo = false;
+let inspecaoSuspensa = false;
+let inspecaoPendenteInicial = false;
 let audioTimer = null;
 let audioSegundos = 0;
 let TEMPO_MAX_AUDIO = 30;
@@ -3832,12 +3840,28 @@ function atualizarPainelPendenciasAntesDaMaquina(
   card.style.display =
     'block';
 
+  const title =
+    document.getElementById(
+      'preMachineAlarmTitle'
+    );
+
+  if (title) {
+
+    title.textContent =
+      '🚨 ' +
+      pendencias.length +
+      (
+        pendencias.length === 1
+          ? ' INSPEÇÃO PENDENTE'
+          : ' INSPEÇÕES PENDENTES'
+      );
+
+  }
+
   text.textContent =
     pendencias.length === 1
-      ? 'Existe 1 máquina com inspeção horária pendente. Selecione-a na lista abaixo para iniciar o atendimento.'
-      : 'Existem ' +
-        pendencias.length +
-        ' máquinas com inspeção horária pendente. Selecione uma delas na lista abaixo para iniciar o atendimento.';
+      ? 'Máquina pendente: confira abaixo qual máquina precisa de atendimento.'
+      : 'Máquinas pendentes: confira abaixo quais máquinas precisam de atendimento.';
 
   list.innerHTML =
     pendencias
@@ -3879,6 +3903,8 @@ function atualizarPainelPendenciasAntesDaMaquina(
 
 }
 
+
+let pendenciasGlobaisTimer = null;
 
 function consultarPendenciasAntesDaMaquina() {
 
@@ -4016,7 +4042,18 @@ function consultarPendenciasAntesDaMaquina() {
 }
 
 
+
+function limparDependentesAoTrocarMaquina_() {
+
+  limparTodosOsDadosNovaInspecao();
+
+}
+
+
 async function selecionarMaquinaProvisoria() {
+
+  const maquinaAnterior =
+    maquina;
 
   const seletor =
     document.getElementById(
@@ -4089,14 +4126,34 @@ async function selecionarMaquinaProvisoria() {
   }
 
 
+  if (
+    maquinaAnterior !==
+    novaMaquina
+  ) {
+
+    limparDependentesAoTrocarMaquina_();
+
+  }
+
   maquina =
     novaMaquina;
-
-  iniciarRelogioAlarmeInspecao();
 
   maquinaValida =
     true;
 
+  const seletorRestaurado =
+    document.getElementById(
+      'machineSelector'
+    );
+
+  if (
+    seletorRestaurado
+  ) {
+    seletorRestaurado.value =
+      novaMaquina;
+  }
+
+  iniciarRelogioAlarmeInspecao();
 
   ultimaInspecaoRegistrada =
     null;
@@ -4321,65 +4378,17 @@ function atualizarAlarmeInspecaoUI() {
     return;
   }
 
-  /*
-   * Durante vídeo/áudio, o alarme fica completamente silencioso
-   * e não ocupa a tela. Ao terminar a gravação, a função é
-   * chamada novamente e recalcula o prazo normalmente.
-   */
   if (
     gravacaoAtivaBloqueiaAlarme()
   ) {
 
-    card.style.display =
-      'none';
+    card.style.display = 'none';
 
-    if (
-      botaoParar
-    ) {
-
-      botaoParar.style.display =
-        'none';
-
+    if (botaoParar) {
+      botaoParar.style.display = 'none';
     }
 
     pararAlarmeInspecaoContinuo();
-
-    try {
-
-      debugUploadCliente(
-        'ALARME_BLOQUEADO_GRAVACAO',
-        {
-          mediaType:
-            'ALARM'
-        },
-        {
-          maquina:
-            maquina,
-          video:
-            Boolean(
-              typeof mediaRecorder !==
-                'undefined' &&
-              mediaRecorder &&
-              mediaRecorder.state ===
-                'recording'
-            ),
-          audio:
-            Boolean(
-              typeof audioGravando !==
-                'undefined' &&
-              audioGravando
-            ),
-          statusAudio:
-            Boolean(
-              typeof statusAudioGravando !==
-                'undefined' &&
-              statusAudioGravando
-            )
-        }
-      );
-
-    }
-    catch (erro) {}
 
     return;
 
@@ -4389,39 +4398,21 @@ function atualizarAlarmeInspecaoUI() {
     !maquina
   ) {
 
-    if (
-      instruction
-    ) {
-      instruction.style.display =
-        'none';
-    }
+    card.style.display = 'none';
 
-    card.style.display =
-      'none';
-
-    if (
-      botaoParar
-    ) {
-      botaoParar.style.display =
-        'none';
+    if (botaoParar) {
+      botaoParar.style.display = 'none';
     }
 
     return;
 
   }
 
-
   if (
     alarmeEmSilencioPosAlarme()
   ) {
 
-    card.style.display =
-      'block';
-
-    card.classList.remove(
-      'alarm-due',
-      'alarm-overdue'
-    );
+    card.style.display = 'block';
 
     title.textContent =
       '🔕 INSPEÇÃO EM ANDAMENTO';
@@ -4429,26 +4420,20 @@ function atualizarAlarmeInspecaoUI() {
     text.textContent =
       'Alarme silenciado por 5 minutos após o reconhecimento. Selecione o produto para iniciar a inspeção.';
 
-    const restanteSilencio =
-      (
-        inicioSilencioPosAlarme +
-        SILENCIO_POS_ALARME_MS
-      ) -
-      Date.now();
-
     countdown.textContent =
       formatarTempoAlarme(
         Math.max(
           0,
-          restanteSilencio
+          (
+            inicioSilencioPosAlarme +
+            SILENCIO_POS_ALARME_MS
+          ) -
+          Date.now()
         )
       );
 
-    if (
-      botaoParar
-    ) {
-      botaoParar.style.display =
-        'none';
+    if (botaoParar) {
+      botaoParar.style.display = 'none';
     }
 
     pararAlarmeInspecaoContinuo();
@@ -4457,28 +4442,17 @@ function atualizarAlarmeInspecaoUI() {
 
   }
 
-
   if (
     fabricaParadaSemanal_() ||
+    inspecaoSuspensa ||
     statusOperacionalMaquina !==
       'PRODUZINDO'
   ) {
 
-    if (
-      instruction
-    ) {
-      instruction.style.display =
-        'none';
-    }
+    card.style.display = 'none';
 
-    card.style.display =
-      'none';
-
-    if (
-      botaoParar
-    ) {
-      botaoParar.style.display =
-        'none';
+    if (botaoParar) {
+      botaoParar.style.display = 'none';
     }
 
     pararAlarmeInspecaoContinuo();
@@ -4487,90 +4461,61 @@ function atualizarAlarmeInspecaoUI() {
 
   }
 
-  if (!ultimaInspecaoRegistrada) {
+  if (
+    !proximaInspecaoTimestamp
+  ) {
 
-    if (
-      instruction
-    ) {
-      instruction.style.display =
-        'none';
+    card.style.display = 'none';
+
+    if (botaoParar) {
+      botaoParar.style.display = 'none';
     }
 
-    card.style.display = 'block';
-    card.classList.remove(
-      'alarm-due',
-      'alarm-overdue'
-    );
-
-    title.textContent =
-      '🔔 INSPEÇÃO HORÁRIA';
-
-    text.textContent =
-      'Ainda não há uma inspeção concluída para esta máquina.';
-
-    countdown.textContent =
-      'FAZER INSPEÇÃO';
-
     return;
+
   }
 
   const restante =
-    (
-      proximaInspecaoTimestamp || 0
-    ) -
+    proximaInspecaoTimestamp -
     Date.now();
 
-  try {
-
-    debugUploadCliente(
-      'ALARME_ESTADO_PERSISTENTE_AVALIADO',
-      {
-        mediaType:
-          'ALARM'
-      },
-      {
-        maquina:
-          maquina,
-        proximaInspecao:
-          proximaInspecaoTimestamp,
-        silencioAtivo:
-          alarmeEmSilencioPosAlarme()
-      }
-    );
-
-  }
-  catch (erro) {}
-
-  if (restante > 0) {
-
-    if (
-      instruction
-    ) {
-      instruction.style.display =
-        'none';
-    }
+  if (
+    restante > 0
+  ) {
 
     card.style.display = 'block';
+
     card.classList.remove(
       'alarm-due',
       'alarm-overdue'
     );
 
     title.textContent =
-      '⏱️ PRÓXIMA INSPEÇÃO';
+      inspecaoPendenteInicial
+        ? '⏱️ PRIMEIRA INSPEÇÃO'
+        : '⏱️ PRÓXIMA INSPEÇÃO';
 
     text.textContent =
-      'M-' +
-      maquina.substring(1) +
-      ' · última: ' +
-      ultimaInspecaoRegistrada;
+      inspecaoPendenteInicial
+        ? 'Primeira inspeção desta máquina.'
+        : (
+            ultimaInspecaoRegistrada
+              ? 'Última inspeção: ' +
+                ultimaInspecaoRegistrada
+              : 'Inspeção horária programada.'
+          );
 
     countdown.textContent =
       formatarTempoAlarme(
         restante
       );
 
+    if (botaoParar) {
+      botaoParar.style.display = 'none';
+    }
+
     return;
+
   }
 
   alarmeInspecaoAtivo = true;
@@ -4588,33 +4533,30 @@ function atualizarAlarmeInspecaoUI() {
       60000
     );
 
+  card.style.display = 'block';
+
   if (
     atraso <=
     TOLERANCIA_ALARME_MS
   ) {
 
-    if (
-      instruction
-    ) {
-      instruction.style.display =
-        'block';
-    }
-
-    card.style.display = 'block';
     card.classList.remove(
       'alarm-overdue'
     );
+
     card.classList.add(
       'alarm-due'
     );
 
     title.textContent =
-      '🔔 INSPEÇÃO HORÁRIA DEVIDA';
+      inspecaoPendenteInicial
+        ? '🔔 PRIMEIRA INSPEÇÃO DEVIDA'
+        : '🔔 INSPEÇÃO HORÁRIA DEVIDA';
 
     text.textContent =
-      'Está na hora de realizar a inspeção da M-' +
-      maquina.substring(1) +
-      '.';
+      inspecaoPendenteInicial
+        ? 'A primeira inspeção desta máquina está devida.'
+        : 'Está na hora de realizar a inspeção da máquina.';
 
     countdown.textContent =
       'AGORA';
@@ -4622,17 +4564,10 @@ function atualizarAlarmeInspecaoUI() {
   }
   else {
 
-    if (
-      instruction
-    ) {
-      instruction.style.display =
-        'block';
-    }
-
-    card.style.display = 'block';
     card.classList.remove(
       'alarm-due'
     );
+
     card.classList.add(
       'alarm-overdue'
     );
@@ -4641,16 +4576,17 @@ function atualizarAlarmeInspecaoUI() {
       '🚨 INSPEÇÃO ATRASADA';
 
     text.textContent =
-      'M-' +
-      maquina.substring(1) +
-      ' está atrasada há ' +
+      'A inspeção está atrasada há ' +
       alarmeAtrasoMinutos +
       ' minuto(s).';
 
     countdown.textContent =
       'ATRASADA';
+
   }
+
 }
+
 
 
 let contextoAlarmeInspecao = null;
@@ -5413,16 +5349,17 @@ function emitirAlarmeInspecao() {
 
 function carregarUltimaInspecaoMaquina() {
 
-  /*
-   * Nesta primeira versão usamos um endpoint público somente
-   * para leitura da última inspeção, sem expor o histórico completo.
-   */
-
   if (!maquina) {
+
     ultimaInspecaoRegistrada = null;
     proximaInspecaoTimestamp = null;
+    inspecaoSuspensa = false;
+    inspecaoPendenteInicial = false;
+
     atualizarAlarmeInspecaoUI();
+
     return;
+
   }
 
   const callbackName =
@@ -5431,37 +5368,26 @@ function carregarUltimaInspecaoMaquina() {
     '_' +
     Math.random()
       .toString(36)
-      .substring(
-        2,
-        8
-      );
+      .substring(2,8);
 
   const script =
-    document.createElement(
-      'script'
-    );
+    document.createElement('script');
 
   const timeout =
     setTimeout(
       function() {
 
         try {
-          delete window[
-            callbackName
-          ];
-        }
-        catch (erro) {}
+          delete window[callbackName];
+        } catch (erro) {}
 
         try {
-          if (
-            script.parentNode
-          ) {
+          if (script.parentNode) {
             script.parentNode.removeChild(
               script
             );
           }
-        }
-        catch (erro) {}
+        } catch (erro) {}
 
         atualizarAlarmeInspecaoUI();
 
@@ -5469,107 +5395,125 @@ function carregarUltimaInspecaoMaquina() {
       4000
     );
 
-  window[
-    callbackName
-  ] =
-  function(
-    dados
-  ) {
+  window[callbackName] =
+  function(dados) {
 
-    clearTimeout(
-      timeout
-    );
+    clearTimeout(timeout);
 
     try {
-      delete window[
-        callbackName
-      ];
-    }
-    catch (erro) {}
+      delete window[callbackName];
+    } catch (erro) {}
 
     try {
-      if (
-        script.parentNode
-      ) {
+      if (script.parentNode) {
         script.parentNode.removeChild(
           script
         );
       }
-    }
-    catch (erro) {}
-
-    try {
-
-      debugUploadCliente(
-        'ALARME_ULTIMA_INSPECAO_RESPOSTA',
-        {
-          mediaType:
-            'ALARM',
-
-          uploadId:
-            ''
-        },
-        {
-          sucesso:
-            Boolean(
-              dados &&
-              dados.sucesso
-            ),
-
-          ultimaInspecao:
-            dados &&
-            dados.ultimaInspecao
-              ? dados.ultimaInspecao
-              : null
-        }
-      );
-
-    }
-    catch (debugErro) {}
-
+    } catch (erro) {}
 
     if (
       dados &&
-      dados.sucesso &&
-      dados.ultimaInspecao
+      dados.sucesso
     ) {
 
-      const data =
-        new Date(
-          dados.ultimaInspecao
+      ultimaInspecaoRegistrada =
+        dados.ultimaInspecao
+          ? new Date(
+              dados.ultimaInspecao
+            ).toLocaleString(
+              'pt-BR'
+            )
+          : null;
+
+      proximaInspecaoTimestamp =
+        dados.proximaInspecao
+          ? new Date(
+              dados.proximaInspecao
+            ).getTime()
+          : null;
+
+      inspecaoSuspensa =
+        Boolean(
+          dados.inspecaoSuspensa
+        );
+
+      inspecaoPendenteInicial =
+        Boolean(
+          dados.pendenteInicial
         );
 
       if (
-        !isNaN(
-          data.getTime()
-        )
+        dados.statusAtual
       ) {
 
-        ultimaInspecaoRegistrada =
-          data.toLocaleString(
-            'pt-BR'
-          );
+        statusOperacionalMaquina =
+          String(
+            dados.statusAtual
+          ).trim().toUpperCase();
 
-        proximaInspecaoTimestamp =
-          data.getTime() +
-          INTERVALO_INSPECAO_MS;
+      }
 
-        restaurarSilencioAlarmePersistido_(
-          maquina,
-          data.getTime()
+      if (inspecaoSuspensa) {
+
+        proximaInspecaoTimestamp = null;
+
+        apagarEstadoAlarmePersistido_(
+          maquina
         );
 
       }
+      else if (
+        dados.ultimaInspecao
+      ) {
+
+        const data =
+          new Date(
+            dados.ultimaInspecao
+          );
+
+        if (!isNaN(data.getTime())) {
+
+          restaurarSilencioAlarmePersistido_(
+            maquina,
+            data.getTime()
+          );
+
+        }
+
+      }
+
+      try {
+        debugUploadCliente(
+          'ALARME_ULTIMA_INSPECAO_RESPOSTA',
+          {
+            mediaType:'ALARM',
+            uploadId:''
+          },
+          {
+            ultimaInspecao:
+              dados.ultimaInspecao || null,
+            proximaInspecao:
+              dados.proximaInspecao || null,
+            baseInspecao:
+              dados.baseInspecao || null,
+            statusAtual:
+              dados.statusAtual || '',
+            inspecaoSuspensa:
+              inspecaoSuspensa,
+            pendenteInicial:
+              inspecaoPendenteInicial
+          }
+        );
+      } catch (debugErro) {}
 
     }
     else {
 
       ultimaInspecaoRegistrada = null;
       proximaInspecaoTimestamp = null;
-
-      apagarEstadoAlarmePersistido_(
-        maquina
-      );
+      inspecaoSuspensa = false;
+      inspecaoPendenteInicial = false;
 
     }
 
@@ -5596,7 +5540,10 @@ function carregarUltimaInspecaoMaquina() {
   document.head.appendChild(
     script
   );
+
 }
+
+
 
 
 function iniciarRelogioAlarmeInspecao() {
@@ -5693,6 +5640,67 @@ function iniciarRelogioAlarmeInspecao() {
 }
 
 
+
+function tentarConcluirInspecao_() {
+
+  const statusAtual =
+    String(
+      statusOperacionalMaquina ||
+      ''
+    ).trim().toUpperCase();
+
+  const conformeAtual =
+    String(
+      conformidade ||
+      ''
+    ).trim().toUpperCase();
+
+  if (
+    inspecaoConcluidaNesteCiclo
+  ) {
+    return true;
+  }
+
+  if (
+    statusAtual !==
+    'PRODUZINDO'
+  ) {
+    return false;
+  }
+
+  if (
+    !inspecaoVideoConcluido
+  ) {
+    return false;
+  }
+
+  if (
+    conformeAtual ===
+      'NÃO' &&
+    !audioConcluido
+  ) {
+    return false;
+  }
+
+  if (
+    conformeAtual !== 'SIM' &&
+    conformeAtual !== 'NÃO'
+  ) {
+    return false;
+  }
+
+  inspecaoConcluidaNesteCiclo =
+    true;
+
+  marcarInspecaoComoConcluida(
+    new Date().toISOString()
+  );
+
+  return true;
+
+}
+
+
 function marcarInspecaoComoConcluida(
   instanteISO
 ) {
@@ -5721,8 +5729,17 @@ function marcarInspecaoComoConcluida(
     data.getTime() +
     INTERVALO_INSPECAO_MS;
 
-  alarmeInspecaoAtivo = false;
-  alarmeAtrasoMinutos = 0;
+  inspecaoSuspensa =
+    false;
+
+  inspecaoPendenteInicial =
+    false;
+
+  alarmeInspecaoAtivo =
+    false;
+
+  alarmeAtrasoMinutos =
+    0;
 
   apagarEstadoAlarmePersistido_(
     maquina
@@ -5734,8 +5751,33 @@ function marcarInspecaoComoConcluida(
   alarmeReconhecidoManualmente =
     false;
 
+  pararAlarmeInspecaoContinuo();
+
   atualizarAlarmeInspecaoUI();
+
+  try {
+    consultarPendenciasAntesDaMaquina();
+  } catch (erro) {}
+
+  try {
+    debugUploadCliente(
+      'INSPECAO_CONCLUIDA',
+      {
+        mediaType:'INSPECAO'
+      },
+      {
+        maquina:maquina,
+        status:statusOperacionalMaquina,
+        conformidade:conformidade,
+        video:inspecaoVideoConcluido,
+        audio:audioConcluido
+      }
+    );
+  } catch (erro) {}
+
 }
+
+
 
 
 
@@ -7165,14 +7207,43 @@ async function salvarStatusMaquina() {
     ) {
 
       /*
-       * Ao voltar a produzir, reinicia o relógio da inspeção
-       * imediatamente, sem esperar a confirmação do servidor.
+       * Retorno à produção encerra a suspensão,
+       * mas NÃO conclui a inspeção.
        */
-      marcarInspecaoComoConcluida(
-        new Date().toISOString()
-      );
+      carregarUltimaInspecaoMaquina();
 
     }
+    else {
+
+      /*
+       * Durante parada/quebra/manutenção/falta de material,
+       * a inspeção horária fica suspensa.
+       */
+      proximaInspecaoTimestamp =
+        null;
+
+      inspecaoSuspensa =
+        true;
+
+      inspecaoVideoConcluido =
+        false;
+
+      inspecaoConcluidaNesteCiclo =
+        false;
+
+      alarmeInspecaoAtivo =
+        false;
+
+      pararAlarmeInspecaoContinuo();
+
+      atualizarAlarmeInspecaoUI();
+
+    }
+
+    try {
+      consultarPendenciasAntesDaMaquina();
+    }
+    catch (erro) {}
 
     if (mensagem) {
 
@@ -7500,11 +7571,33 @@ function salvarStatusMaquinaNoServidor(
             novoStatus ===
             'PRODUZINDO'
           ) {
-            marcarInspecaoComoConcluida(
-              new Date().toISOString()
-            );
+
             carregarUltimaInspecaoMaquina();
+
           }
+          else {
+
+            proximaInspecaoTimestamp =
+              null;
+
+            inspecaoSuspensa =
+              true;
+
+            inspecaoVideoConcluido =
+              false;
+
+            inspecaoConcluidaNesteCiclo =
+              false;
+
+            pararAlarmeInspecaoContinuo();
+            atualizarAlarmeInspecaoUI();
+
+          }
+
+          try {
+            consultarPendenciasAntesDaMaquina();
+          }
+          catch (erro) {}
 
           statusAudioConcluido =
             novoStatus ===
@@ -7787,12 +7880,200 @@ function minutosAteFimParadaSemanal_() {
 }
 
 
+
+function tocarAlarmeStatusAlto() {
+
+  if (
+    !garantirAudioAlarmeLiberado()
+  ) {
+    return;
+  }
+
+  try {
+
+    const agora =
+      contextoAlarmeInspecao
+        .currentTime;
+
+    const ganho =
+      contextoAlarmeInspecao
+        .createGain();
+
+    ganho.gain.setValueAtTime(
+      0.95,
+      agora
+    );
+
+    ganho.connect(
+      contextoAlarmeInspecao
+        .destination
+    );
+
+    [660, 880, 1174.66]
+      .forEach(
+        function(frequencia) {
+
+          const oscilador =
+            contextoAlarmeInspecao
+              .createOscillator();
+
+          oscilador.type =
+            'square';
+
+          oscilador.frequency
+            .setValueAtTime(
+              frequencia,
+              agora
+            );
+
+          oscilador.connect(
+            ganho
+          );
+
+          oscilador.start(
+            agora
+          );
+
+          oscilador.stop(
+            agora +
+            0.30
+          );
+
+          osciladoresAlarmeStatus
+            .push(
+              oscilador
+            );
+
+        }
+      );
+
+    setTimeout(
+      function() {
+        try {
+          ganho.disconnect();
+        } catch (erro) {}
+      },
+      500
+    );
+
+  }
+  catch (erro) {}
+
+}
+
+
+function iniciarAlarmeStatusContinuo() {
+
+  alarmeStatusAtivo =
+    true;
+
+  garantirAudioAlarmeLiberado();
+
+  if (
+    intervaloSomAlarmeStatus
+  ) {
+    return;
+  }
+
+  function repetir() {
+
+    if (
+      !alarmeStatusAtivo
+    ) {
+      pararAlarmeStatusContinuo();
+      return;
+    }
+
+    if (
+      gravacaoAtivaBloqueiaAlarme()
+    ) {
+      return;
+    }
+
+    tocarAlarmeStatusAlto();
+
+    try {
+
+      if (
+        navigator.vibrate
+      ) {
+
+        navigator.vibrate([
+          900,
+          250,
+          900,
+          250,
+          900,
+          1000
+        ]);
+
+      }
+
+    }
+    catch (erro) {}
+
+  }
+
+  repetir();
+
+  intervaloSomAlarmeStatus =
+    setInterval(
+      repetir,
+      2500
+    );
+
+}
+
+
+function pararAlarmeStatusContinuo() {
+
+  alarmeStatusAtivo =
+    false;
+
+  if (
+    intervaloSomAlarmeStatus
+  ) {
+
+    clearInterval(
+      intervaloSomAlarmeStatus
+    );
+
+    intervaloSomAlarmeStatus =
+      null;
+
+  }
+
+  try {
+
+    if (
+      navigator.vibrate
+    ) {
+      navigator.vibrate(0);
+    }
+
+  }
+  catch (erro) {}
+
+  osciladoresAlarmeStatus
+    .forEach(
+      function(oscilador) {
+
+        try {
+          oscilador.stop();
+        }
+        catch (erro) {}
+
+      }
+    );
+
+  osciladoresAlarmeStatus =
+    [];
+
+}
+
+
 function atualizarBloqueioStatusObrigatorio_() {
 
-  /*
-   * Sem máquina selecionada, não existe cobrança de status.
-   * A prioridade é permitir a escolha da máquina.
-   */
   if (
     !maquina
   ) {
@@ -7800,39 +8081,23 @@ function atualizarBloqueioStatusObrigatorio_() {
     statusAtualizacaoObrigatoria =
       false;
 
-    const bannerInicial =
+    const banner =
       document.getElementById(
         'statusMandatoryBanner'
       );
 
-    const overlayInicial =
+    const overlay =
       document.getElementById(
         'statusMandatoryOverlay'
       );
 
-    if (
-      bannerInicial
-    ) {
+    if (banner) banner.style.display='none';
+    if (overlay) overlay.style.display='none';
 
-      bannerInicial.style.display =
-        'none';
-
-    }
-
-    if (
-      overlayInicial
-    ) {
-
-      overlayInicial.style.display =
-        'none';
-
-    }
+    pararAlarmeStatusContinuo();
 
     return;
-
   }
-
-
 
   const banner =
     document.getElementById(
@@ -7849,9 +8114,6 @@ function atualizarBloqueioStatusObrigatorio_() {
       'statusMandatoryBannerText'
     );
 
-  /*
-   * Parada semanal: nada de alarme nem cobrança de status.
-   */
   if (
     fabricaParadaSemanal_()
   ) {
@@ -7859,24 +8121,12 @@ function atualizarBloqueioStatusObrigatorio_() {
     statusAtualizacaoObrigatoria =
       false;
 
-    if (
-      banner
-    ) {
-      banner.style.display =
-        'none';
-    }
+    if (banner) banner.style.display='none';
+    if (overlay) overlay.style.display='none';
 
-    if (
-      overlay
-    ) {
-      overlay.style.display =
-        'none';
-    }
-
-    pararAlarmeInspecaoContinuo();
+    pararAlarmeStatusContinuo();
 
     return;
-
   }
 
   if (
@@ -7919,61 +8169,29 @@ function atualizarBloqueioStatusObrigatorio_() {
 
   }
 
-  try {
-
-    debugUploadCliente(
-      'STATUS_BLOQUEIO_ESTADO',
-      {
-        mediaType:
-          'STATUS'
-      },
-      {
-        maquina:
-          maquina,
-        obrigatorio:
-          Boolean(
-            statusAtualizacaoObrigatoria
-          ),
-        statusAtualizadoEm:
-          statusAtualizadoEm
-      }
-    );
-
-  }
-  catch (debugErro) {}
-
-
   if (
     statusAtualizacaoObrigatoria
   ) {
 
-    if (
-      banner
-    ) {
-      banner.style.display =
-        'block';
+    if (banner) {
+      banner.style.display='block';
     }
 
-    if (
-      bannerText
-    ) {
+    if (bannerText) {
 
       bannerText.textContent =
-        'Confirme o status atual de M-' +
+        '🔊 CONFIRMAÇÃO OBRIGATÓRIA DO STATUS DE M-' +
         (
           maquina
             ? maquina.substring(1)
             : ''
         ) +
-        ' para continuar.';
+        ' — o alarme continuará tocando até confirmar o status.';
 
     }
 
-    if (
-      overlay
-    ) {
-      overlay.style.display =
-        'block';
+    if (overlay) {
+      overlay.style.display='block';
     }
 
     const card =
@@ -7981,49 +8199,44 @@ function atualizarBloqueioStatusObrigatorio_() {
         'machineStatusCard'
       );
 
-    if (
-      card
-    ) {
+    if (card) {
       card.classList.add(
         'status-obrigatorio'
       );
     }
 
-    pararAlarmeInspecaoContinuo();
+    if (
+      gravacaoAtivaBloqueiaAlarme()
+    ) {
+      pararAlarmeStatusContinuo();
+    }
+    else {
+      iniciarAlarmeStatusContinuo();
+    }
 
   }
   else {
 
-    if (
-      banner
-    ) {
-      banner.style.display =
-        'none';
-    }
-
-    if (
-      overlay
-    ) {
-      overlay.style.display =
-        'none';
-    }
+    if (banner) banner.style.display='none';
+    if (overlay) overlay.style.display='none';
 
     const card =
       document.getElementById(
         'machineStatusCard'
       );
 
-    if (
-      card
-    ) {
+    if (card) {
       card.classList.remove(
         'status-obrigatorio'
       );
     }
 
+    pararAlarmeStatusContinuo();
+
   }
 
 }
+
 
 
 function iniciarRelogioStatusObrigatorio() {
@@ -9123,6 +9336,31 @@ function manterStatusAtual() {
 
   statusOperacionalMaquina =
     statusAtual;
+
+  if (
+    statusAtual ===
+    'PRODUZINDO'
+  ) {
+
+    carregarUltimaInspecaoMaquina();
+
+  }
+  else {
+
+    proximaInspecaoTimestamp =
+      null;
+
+    inspecaoSuspensa =
+      true;
+
+    pararAlarmeInspecaoContinuo();
+
+  }
+
+  try {
+    consultarPendenciasAntesDaMaquina();
+  }
+  catch (erro) {}
 
   statusAtualizadoEm =
     new Date().toISOString();
@@ -11404,6 +11642,12 @@ function iniciarGravacao() {
   gravacaoUploadId =
     criarIdUpload();
 
+  inspecaoVideoConcluido =
+    false;
+
+  inspecaoConcluidaNesteCiclo =
+    false;
+
   /*
    * Só agora, depois de 3 → 2 → 1, escondemos a preparação.
    */
@@ -11773,10 +12017,10 @@ function iniciarGravacao() {
         );
 
 
-      marcarInspecaoComoConcluida(
-        inicioGravacao.toISOString()
-      );
+      inspecaoVideoConcluido =
+        !gravacaoPersistenciaFalhou;
 
+      tentarConcluirInspecao_();
 
       configurarPainelAudio();
 
@@ -12426,6 +12670,8 @@ async function iniciarGravacaoAudio() {
 
         audioConcluido = true;
 
+        tentarConcluirInspecao_();
+
         const btnGravar =
           document.getElementById('btnGravarAudio');
 
@@ -12611,6 +12857,8 @@ function continuarSemAudio() {
   audioPulado = true;
   audioConcluido = true;
 
+  tentarConcluirInspecao_();
+
   const status =
     document.getElementById(
       'audioStatus'
@@ -12660,6 +12908,8 @@ async function gravarNovamente() {
   audioRecorder = null;
   audioConcluido = false;
   audioPulado = false;
+  inspecaoVideoConcluido = false;
+  inspecaoConcluidaNesteCiclo = false;
   audioBlob = null;
 
   if (
@@ -14626,6 +14876,12 @@ function limparTodosOsDadosNovaInspecao() {
   audioPulado =
     false;
 
+  inspecaoVideoConcluido =
+    false;
+
+  inspecaoConcluidaNesteCiclo =
+    false;
+
   audioGravando =
     false;
 
@@ -14730,6 +14986,12 @@ function limparTodosOsDadosNovaInspecao() {
 
   statusAudioMimeType =
     'audio/webm';
+
+  inspecaoSuspensa =
+    false;
+
+  inspecaoPendenteInicial =
+    false;
 
   motivoParadaMaquina =
     '';
@@ -15355,6 +15617,12 @@ document.addEventListener(
 
     atualizarSeletorMaquina();
     consultarPendenciasAntesDaMaquina();
+    pendenciasGlobaisTimer =
+      setInterval(
+        consultarPendenciasAntesDaMaquina,
+        30000
+      );
+
 
 
     ativarDebugLocalSeSolicitado();
