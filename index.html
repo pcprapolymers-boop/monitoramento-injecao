@@ -515,6 +515,14 @@
   }
 }
 
+
+/* V13.9 — contagem sempre visível durante a preparação */
+#countdown {
+  display:block !important;
+  visibility:visible !important;
+  opacity:1 !important;
+}
+
 </style>
 
 </head>
@@ -11054,15 +11062,9 @@ async function iniciarCamera() {
     await camera.play();
 
 
-    document
-      .getElementById(
-        'preparationBlock'
-      )
-      .classList
-      .add(
-        'hidden'
-      );
-
+    /*
+     * Mantém o preparationBlock visível durante a contagem.
+     */
     iniciarContagemPreparacao();
 
     return true;
@@ -11141,16 +11143,44 @@ async function iniciarCamera() {
 
 function iniciarContagemPreparacao() {
 
+  const preparation =
+    document.getElementById(
+      'preparationBlock'
+    );
+
+  if (
+    preparation
+  ) {
+
+    preparation.classList.remove(
+      'hidden'
+    );
+
+    preparation.style.display =
+      'block';
+
+  }
+
   let contador =
     3;
 
 
-  document
-    .getElementById(
+  const countdownEl =
+    document.getElementById(
       'countdown'
-    )
-    .textContent =
-    contador;
+    );
+
+  if (
+    countdownEl
+  ) {
+
+    countdownEl.textContent =
+      contador;
+
+    countdownEl.style.display =
+      'block';
+
+  }
 
 
   countdownInterval =
@@ -11160,12 +11190,14 @@ function iniciarContagemPreparacao() {
         contador--;
 
 
-        document
-          .getElementById(
-            'countdown'
-          )
-          .textContent =
-          contador;
+        if (
+          countdownEl
+        ) {
+
+          countdownEl.textContent =
+            contador;
+
+        }
 
 
         if (
@@ -11371,6 +11403,18 @@ function iniciarGravacao() {
 
   gravacaoUploadId =
     criarIdUpload();
+
+  /*
+   * Só agora, depois de 3 → 2 → 1, escondemos a preparação.
+   */
+  document
+    .getElementById(
+      'preparationBlock'
+    )
+    .classList
+    .add(
+      'hidden'
+    );
 
   document
     .getElementById(
