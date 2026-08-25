@@ -356,6 +356,23 @@ tr:nth-child(even) td {
   transform: none !important;
 }
 
+
+/* V5.0 — botão atualizar lançamentos */
+#btnAtualizarLancamentos {
+  min-width: 220px;
+}
+
+#btnAtualizarLancamentos:disabled {
+  opacity: .65;
+  cursor: wait;
+}
+
+@media (max-width: 900px) {
+  #btnAtualizarLancamentos {
+    min-width: 0;
+  }
+}
+
 </style>
 </head>
 <body>
@@ -478,6 +495,15 @@ tr:nth-child(even) td {
 <button class="btn btn-secondary" onclick="limparFiltros()">
         ♻️ LIMPAR
       </button>
+<button
+  class="btn btn-secondary"
+  id="btnAtualizarLancamentos"
+  type="button"
+  onclick="atualizarLancamentos()"
+  title="Atualizar os lançamentos sem recarregar a página"
+>
+        🔄 ATUALIZAR LANÇAMENTOS
+      </button>
 </div>
 <div style="
         margin:8px 0 12px;
@@ -489,6 +515,15 @@ tr:nth-child(even) td {
 <div class="summary" id="summary">
       Nenhuma consulta realizada.
     </div>
+<div
+  id="ultimaAtualizacaoLancamentos"
+  style="
+    margin:4px 0 10px;
+    color:var(--muted);
+    font-size:12px;
+  "
+>
+</div>
 <div style="
         margin:8px 0 12px;
         color:var(--muted);
@@ -1358,6 +1393,142 @@ async function carregarHistoricoStatusMaquinas(
 }
 
 
+
+async function atualizarLancamentos() {
+
+  if (
+    !adminToken
+  ) {
+
+    return;
+
+  }
+
+  const botao =
+    document.getElementById(
+      'btnAtualizarLancamentos'
+    );
+
+  const resumo =
+    document.getElementById(
+      'summary'
+    );
+
+  const ultima =
+    document.getElementById(
+      'ultimaAtualizacaoLancamentos'
+    );
+
+  const textoOriginal =
+    botao
+      ? botao.textContent
+      : '';
+
+  if (
+    botao
+  ) {
+
+    botao.disabled =
+      true;
+
+    botao.textContent =
+      '⏳ ATUALIZANDO...';
+
+  }
+
+  if (
+    ultima
+  ) {
+
+    ultima.textContent =
+      '🔄 Atualizando lançamentos...';
+
+  }
+
+  try {
+
+    /*
+     * Reutiliza exatamente os filtros que já estão
+     * preenchidos na tela. Não há reload da página.
+     */
+    await carregarHistorico();
+
+    const agora =
+      new Date();
+
+    const hora =
+      agora.toLocaleTimeString(
+        'pt-BR',
+        {
+          hour:
+            '2-digit',
+          minute:
+            '2-digit',
+          second:
+            '2-digit'
+        }
+      );
+
+    if (
+      ultima
+    ) {
+
+      ultima.textContent =
+        '✅ Última atualização: ' +
+        hora;
+
+    }
+
+  }
+  catch (erro) {
+
+    if (
+      ultima
+    ) {
+
+      ultima.textContent =
+        '⚠️ Falha ao atualizar os lançamentos.';
+
+    }
+
+    if (
+      resumo
+    ) {
+
+      resumo.textContent =
+        '⚠️ ' +
+        (
+          erro &&
+          erro.message
+            ? erro.message
+            : String(
+                erro
+              )
+        );
+
+    }
+
+  }
+  finally {
+
+    if (
+      botao
+    ) {
+
+      botao.disabled =
+        false;
+
+      botao.textContent =
+        textoOriginal ||
+        '🔄 ATUALIZAR LANÇAMENTOS';
+
+    }
+
+  }
+
+}
+
+
 async function carregarHistorico() {
 
   if (!adminToken) {
@@ -1509,6 +1680,33 @@ async function carregarHistorico() {
         registros.length
       ) +
       ' encontrado(s).';
+
+
+    const ultimaAtualizacao =
+      document.getElementById(
+        'ultimaAtualizacaoLancamentos'
+      );
+
+    if (
+      ultimaAtualizacao
+    ) {
+
+      ultimaAtualizacao.textContent =
+        '✅ Última atualização: ' +
+        new Date()
+          .toLocaleTimeString(
+            'pt-BR',
+            {
+              hour:
+                '2-digit',
+              minute:
+                '2-digit',
+              second:
+                '2-digit'
+            }
+          );
+
+    }
 
 
     const tabela =
