@@ -10549,6 +10549,25 @@ async function prepararInspecao() {
   const cameraPronta =
     await iniciarCamera();
 
+  const cameraBlock =
+    document.getElementById(
+      'cameraBlock'
+    );
+
+  if (
+    cameraPronta &&
+    cameraBlock
+  ) {
+
+    cameraBlock.classList.remove(
+      'hidden'
+    );
+
+    cameraBlock.style.display =
+      'block';
+
+  }
+
   if (
     !cameraPronta
   ) {
@@ -10947,6 +10966,28 @@ async function iniciarCamera() {
       cameraStream;
 
     /*
+     * O preview estava dentro de #cameraBlock.hidden.
+     * Agora ele é mostrado assim que a câmera entregar o stream.
+     */
+    const cameraBlock =
+      document.getElementById(
+        'cameraBlock'
+      );
+
+    if (
+      cameraBlock
+    ) {
+
+      cameraBlock.classList.remove(
+        'hidden'
+      );
+
+      cameraBlock.style.display =
+        'block';
+
+    }
+
+    /*
      * Nunca aplicamos transformações, escala ou zoom via CSS.
      */
     camera.style.transform =
@@ -11012,18 +11053,6 @@ async function iniciarCamera() {
 
     await camera.play();
 
-    if (
-      cameraStream
-        .getAudioTracks()
-        .length ===
-        0
-    ) {
-
-      throw new Error(
-        'O aparelho não disponibilizou o microfone.'
-      );
-
-    }
 
     document
       .getElementById(
@@ -11143,6 +11172,62 @@ function iniciarContagemPreparacao() {
           contador <= 0
         ) {
 
+          const camera =
+            document.getElementById(
+              'cameraPreview'
+            );
+
+          const cameraPronta =
+            Boolean(
+              cameraStream &&
+              camera &&
+              camera.videoWidth > 0 &&
+              camera.videoHeight > 0
+            );
+
+          if (
+            !cameraPronta
+          ) {
+
+            clearInterval(
+              countdownInterval
+            );
+
+            countdownInterval =
+              null;
+
+            mostrarMensagem(
+              '❌ A câmera não está pronta. A gravação foi cancelada para evitar um vídeo sem imagem.',
+              'error'
+            );
+
+            try {
+              debugUploadCliente(
+                'VIDEO_CONTAGEM_CANCELADA_CAMERA',
+                {
+                  mediaType:
+                    'VIDEO'
+                },
+                {
+                  videoWidth:
+                    camera
+                      ? camera.videoWidth
+                      : 0,
+                  videoHeight:
+                    camera
+                      ? camera.videoHeight
+                      : 0
+                }
+              );
+            }
+            catch (debugErro) {}
+
+            fecharInspecao();
+
+            return;
+
+          }
+
           clearInterval(
             countdownInterval
           );
@@ -11215,6 +11300,53 @@ function escolherMimeType() {
    ===================================================== */
 
 function iniciarGravacao() {
+
+  const camera =
+    document.getElementById(
+      'cameraPreview'
+    );
+
+  if (
+    !cameraStream ||
+    !camera ||
+    camera.videoWidth <= 0 ||
+    camera.videoHeight <= 0
+  ) {
+
+    mostrarMensagem(
+      '❌ A câmera não está pronta. A gravação não será iniciada.',
+      'error'
+    );
+
+    try {
+
+      debugUploadCliente(
+        'VIDEO_BLOQUEADO_CAMERA_NAO_PRONTA',
+        {
+          mediaType:
+            'VIDEO'
+        },
+        {
+          videoWidth:
+            camera
+              ? camera.videoWidth
+              : 0,
+          videoHeight:
+            camera
+              ? camera.videoHeight
+              : 0
+        }
+      );
+
+    }
+    catch (debugErro) {}
+
+    fecharInspecao();
+
+    return;
+
+  }
+
   pararAlarmeInspecaoContinuo();
 
 
