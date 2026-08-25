@@ -4071,6 +4071,41 @@ function formatarTempo(
    ===================================================== */
 
 
+
+function escapeHtml(
+  valor
+) {
+
+  return String(
+    valor === undefined ||
+    valor === null
+      ? ''
+      : valor
+  )
+    .replace(
+      /&/g,
+      '&amp;'
+    )
+    .replace(
+      /</g,
+      '&lt;'
+    )
+    .replace(
+      />/g,
+      '&gt;'
+    )
+    .replace(
+      /"/g,
+      '&quot;'
+    )
+    .replace(
+      /'/g,
+      '&#039;'
+    );
+
+}
+
+
 function normalizarMaquinaTela(
   valor
 ) {
@@ -4229,45 +4264,99 @@ function atualizarPainelPendenciasAntesDaMaquina(
       ? 'Máquina pendente: confira abaixo qual máquina precisa de atendimento.'
       : 'Máquinas pendentes: confira abaixo quais máquinas precisam de atendimento.';
 
-  list.innerHTML =
-    pendencias
-      .map(
-        function(item) {
+  try {
 
-          const atraso =
-            Number(
-              item.atrasoMinutos ||
-              0
+    list.innerHTML =
+      pendencias
+        .map(
+          function(item) {
+
+            const atraso =
+              Number(
+                item.atrasoMinutos ||
+                0
+              );
+
+            const nome =
+              escapeHtml(
+                item.maquina ||
+                'Máquina não identificada'
+              );
+
+            let estado =
+              '🔔 INSPEÇÃO DEVIDA';
+
+            if (
+              !item.ultimaInspecao
+            ) {
+
+              estado =
+                '🔔 SEM INSPEÇÃO REGISTRADA';
+
+            }
+            else if (
+              atraso > 0
+            ) {
+
+              estado =
+                '🚨 ATRASADA ' +
+                atraso +
+                ' min';
+
+            }
+
+            return (
+              '<div class="alarm-overview-item">' +
+                '<span class="alarm-overview-machine">' +
+                  '🏭 ' +
+                  nome +
+                '</span>' +
+                '<span class="alarm-overview-delay">' +
+                  estado +
+                '</span>' +
+              '</div>'
             );
 
-          return (
-            '<div class="alarm-overview-item">' +
-              '<span class="alarm-overview-machine">🏭 ' +
-              escapeHtml(
-                item.maquina || ''
-              ) +
-              '</span>' +
-              '<span class="alarm-overview-delay">' +
-                (
-                  item.ultimaInspecao
-                    ? (
-                        atraso > 0
-                          ? '🚨 ATRASADA ' +
-                            atraso +
-                            ' min'
-                          : '🔔 INSPEÇÃO DEVIDA'
-                      )
-                    : '🔔 SEM INSPEÇÃO REGISTRADA'
-                ) +
-              '</span>' +
-            '</div>'
-          );
+          }
+        )
+        .join('');
 
+  }
+  catch (erro) {
+
+    list.innerHTML =
+      '<div class="alarm-overview-item">' +
+        '<span class="alarm-overview-machine">' +
+          '⚠️ Não foi possível listar as máquinas pendentes.' +
+        '</span>' +
+      '</div>';
+
+    try {
+
+      debugUploadCliente(
+        'ALARM_PENDENCIAS_RENDER_ERRO',
+        {
+          mediaType:
+            'ALARM'
+        },
+        {
+          erro:
+            erro &&
+            erro.message
+              ? erro.message
+              : String(
+                  erro
+                )
         }
-      )
-      .join('');
+      );
+
+    }
+    catch (debugErro) {}
+
+  }
 
 }
+
 
 
 let pendenciasGlobaisTimer = null;
@@ -4350,7 +4439,30 @@ function consultarPendenciasAntesDaMaquina() {
           }
           catch (debugErro) {}
 
-          resolve(
+          
+          try {
+
+            debugUploadCliente(
+              'ALARME_PENDENCIAS_GLOBAIS_RECEBIDAS',
+              {
+                mediaType:
+                  'ALARM'
+              },
+              {
+                total:
+                  dados &&
+                  Array.isArray(
+                    dados.pendencias
+                  )
+                    ? dados.pendencias.length
+                    : 0
+              }
+            );
+
+          }
+          catch (debugErro) {}
+
+resolve(
             dados || {}
           );
 
@@ -4808,6 +4920,10 @@ function atualizarAlarmeInspecaoUI() {
 
   }
 
+  /*
+   * Status ≠ PRODUZINDO suspende o disparo temporariamente.
+   * Não altera o relógio calculado a partir da última inspeção.
+   */
   if (
     fabricaParadaSemanal_() ||
     inspecaoSuspensa ||
@@ -5820,16 +5936,12 @@ function carregarUltimaInspecaoMaquina() {
 
       }
 
-      if (inspecaoSuspensa) {
-
-        proximaInspecaoTimestamp = null;
-
-        apagarEstadoAlarmePersistido_(
-          maquina
-        );
-
-      }
-      else if (
+      /*
+       * A suspensão é apenas operacional enquanto a máquina
+       * não está PRODUZINDO. O relógio continua sendo baseado
+       * exclusivamente na última inspeção concluída.
+       */
+      if (
         dados.ultimaInspecao
       ) {
 
@@ -5849,7 +5961,42 @@ function carregarUltimaInspecaoMaquina() {
 
       }
 
+      if (
+        inspecaoSuspensa
+      ) {
+
+        /*
+         * Não tocamos no timestamp da última inspeção.
+         * Apenas não deixamos o alarme tocar enquanto estiver parada.
+         */
+
+      }
+
       try {
+
+        debugUploadCliente(
+          'ALARME_RELOGIO_BASE_INSPECAO',
+          {
+            mediaType:
+              'ALARM'
+          },
+          {
+            maquina:
+              maquina,
+            base:
+              dados.ultimaInspecao ||
+              null,
+            proxima:
+              dados.proximaInspecao ||
+              null,
+            status:
+              dados.statusAtual ||
+              '',
+            statusNaoResetaRelogio:
+              true
+          }
+        );
+
         debugUploadCliente(
           'ALARME_ULTIMA_INSPECAO_RESPOSTA',
           {
@@ -7585,9 +7732,12 @@ async function salvarStatusMaquina() {
        * Durante parada/quebra/manutenção/falta de material,
        * a inspeção horária fica suspensa.
        */
-      proximaInspecaoTimestamp =
-        null;
-
+      /*
+       * Suspende apenas o alarme da inspeção enquanto a máquina
+       * não produz. Não zera a última inspeção nem o próximo
+       * horário: o relógio continua correndo independentemente
+       * do status.
+       */
       inspecaoSuspensa =
         true;
 
@@ -7942,9 +8092,6 @@ function salvarStatusMaquinaNoServidor(
 
           }
           else {
-
-            proximaInspecaoTimestamp =
-              null;
 
             inspecaoSuspensa =
               true;
@@ -9713,9 +9860,10 @@ function manterStatusAtual() {
   }
   else {
 
-    proximaInspecaoTimestamp =
-      null;
-
+    /*
+     * Apenas suspende o alarme enquanto a máquina não produz.
+     * O relógio continua baseado na última inspeção concluída.
+     */
     inspecaoSuspensa =
       true;
 
