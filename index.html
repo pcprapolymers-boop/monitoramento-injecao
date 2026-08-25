@@ -523,6 +523,19 @@
   opacity:1 !important;
 }
 
+
+/* V13.14 — instruções claras do alarme */
+#inspectionAlarmInstruction {
+  border: 1px solid #E4C56A;
+}
+
+#inspectionAlarmActionHint {
+  padding: 9px 10px;
+  border-radius: 8px;
+  background: #F5F9FC;
+  border: 1px solid #D6E1EA;
+}
+
 </style>
 
 </head>
@@ -646,7 +659,64 @@
 
   <!-- FORMULÁRIO PRINCIPAL -->
 
-  <div id="mainForm">
+  
+  <div
+    id="pushCard"
+    class="card"
+    style="
+      border:2px solid #D6E4EE;
+      background:#F8FBFD;
+      margin-bottom:12px;
+    "
+  >
+    <div
+      style="
+        font-size:18px;
+        font-weight:800;
+        color:#17324D;
+      "
+    >
+      📱 ALARME COM TELA BLOQUEADA
+    </div>
+
+    <div
+      id="pushStatus"
+      style="
+        margin-top:7px;
+        font-size:13px;
+        line-height:1.4;
+      "
+    >
+      Ative este telefone para receber o lembrete da inspeção mesmo com a tela bloqueada ou o navegador em segundo plano.
+    </div>
+
+    <button
+      id="btnAtivarPush"
+      type="button"
+      class="btn-primary"
+      style="
+        width:100%;
+        min-height:46px;
+        margin-top:10px;
+      "
+      onclick="solicitarPushOperacional()"
+    >
+      🔔 ATIVAR ALARME COM TELA BLOQUEADA
+    </button>
+
+    <div
+      style="
+        margin-top:7px;
+        font-size:11px;
+        color:#667788;
+        line-height:1.35;
+      "
+    >
+      O alarme de inspeção continua sendo contado pela última inspeção concluída + 1 hora.
+    </div>
+  </div>
+
+<div id="mainForm">
 
 
     <!-- MÁQUINA — MODO PROVISÓRIO -->
@@ -960,14 +1030,30 @@
           line-height:1.35;
         "
       >
-        🛑 <strong>O alarme só será encerrado após o reconhecimento
-        e a seleção do produto que será inspecionado.</strong><br>
-        Selecione o produto abaixo para prosseguir com a inspeção.
+        🛑 <strong>Para parar o alarme, toque em
+        “RECONHECER E PARAR ALARME”.</strong><br>
+        O alarme será interrompido imediatamente e ficará silencioso por 5 minutos.
+        Depois, selecione o produto e continue a inspeção.
       </div>
       <div
         id="inspectionAlarmCountdown"
         style="font-size:28px;font-weight:700;font-variant-numeric:tabular-nums;"
       >--</div>
+
+      <div
+        id="inspectionAlarmActionHint"
+        style="
+          display:none;
+          margin-top:8px;
+          font-size:13px;
+          line-height:1.35;
+          font-weight:700;
+          color:#17324D;
+        "
+      >
+        👆 <strong>1.</strong> Toque em <strong>RECONHECER E PARAR ALARME</strong>.<br>
+        <strong>2.</strong> Selecione o produto para iniciar a inspeção.
+      </div>
     </div>
 
 
@@ -1368,6 +1454,397 @@
 
 const URL_APPS_SCRIPT =
   'https://script.google.com/macros/s/AKfycbyyczQIADys9S5tG7G9WiR_tFiWubW4mcteLurFO_GOlrlSs9f9CWkcojnjsuG5Jgvt/exec';
+
+
+/* =========================================================
+   PUSH / PWA — RA POLYMERS
+   ========================================================= */
+
+const RA_POLYMERS_PUSH_CONFIG = {
+  apiKey: 'COLOQUE_AQUI_FIREBASE_API_KEY',
+  authDomain: 'COLOQUE_AQUI_FIREBASE_AUTH_DOMAIN',
+  projectId: 'COLOQUE_AQUI_FIREBASE_PROJECT_ID',
+  storageBucket: 'COLOQUE_AQUI_FIREBASE_STORAGE_BUCKET',
+  messagingSenderId: 'COLOQUE_AQUI_FIREBASE_MESSAGING_SENDER_ID',
+  appId: 'COLOQUE_AQUI_FIREBASE_APP_ID'
+};
+
+const RA_POLYMERS_VAPID_PUBLIC_KEY =
+  'COLOQUE_AQUI_VAPID_PUBLIC_KEY';
+
+
+function pushFirebaseConfigurado_() {
+
+  return (
+    RA_POLYMERS_PUSH_CONFIG.apiKey &&
+    !String(
+      RA_POLYMERS_PUSH_CONFIG.apiKey
+    ).startsWith(
+      'COLOQUE_AQUI_'
+    ) &&
+    RA_POLYMERS_VAPID_PUBLIC_KEY &&
+    !String(
+      RA_POLYMERS_VAPID_PUBLIC_KEY
+    ).startsWith(
+      'COLOQUE_AQUI_'
+    )
+  );
+
+}
+
+
+async function registrarServiceWorkerPush_() {
+
+  if (
+    !(
+      'serviceWorker' in
+      navigator
+    )
+  ) {
+
+    return null;
+
+  }
+
+  const registro =
+    await navigator.serviceWorker.register(
+      './firebase-messaging-sw.js',
+      {
+        scope:
+          './'
+      }
+    );
+
+  await navigator.serviceWorker.ready;
+
+  return registro;
+
+}
+
+
+async function solicitarPushOperacional() {
+
+  /*
+   * A ativação é voluntária e deve ocorrer pelo botão
+   * "ATIVAR ALARME COM TELA BLOQUEADA".
+   */
+  if (
+    !pushFirebaseConfigurado_()
+  ) {
+
+    mostrarMensagem(
+      '⚙️ Push ainda não configurado. Preencha o Firebase da RA Polymers primeiro.',
+      'warning'
+    );
+
+    return false;
+
+  }
+
+  if (
+    !(
+      'Notification' in
+      window
+    )
+  ) {
+
+    mostrarMensagem(
+      '⚠️ Este navegador não oferece notificações.',
+      'warning'
+    );
+
+    return false;
+
+  }
+
+  try {
+
+    const permission =
+      await Notification
+        .requestPermission();
+
+    if (
+      permission !==
+      'granted'
+    ) {
+
+      mostrarMensagem(
+        '⚠️ As notificações não foram autorizadas no telefone.',
+        'warning'
+      );
+
+      return false;
+
+    }
+
+    const registro =
+      await registrarServiceWorkerPush_();
+
+    if (
+      !registro
+    ) {
+
+      return false;
+
+    }
+
+    if (
+      !window.firebase
+    ) {
+
+      await carregarScriptExternoPush_(
+        'https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js'
+      );
+
+      await carregarScriptExternoPush_(
+        'https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging-compat.js'
+      );
+
+    }
+
+    if (
+      !firebase.apps.length
+    ) {
+
+      firebase.initializeApp(
+        RA_POLYMERS_PUSH_CONFIG
+      );
+
+    }
+
+    const messaging =
+      firebase.messaging();
+
+    const token =
+      await messaging.getToken(
+        {
+          vapidKey:
+            RA_POLYMERS_VAPID_PUBLIC_KEY,
+          serviceWorkerRegistration:
+            registro
+        }
+      );
+
+    if (
+      !token
+    ) {
+
+      mostrarMensagem(
+        '⚠️ O telefone não forneceu o token de notificação.',
+        'warning'
+      );
+
+      return false;
+
+    }
+
+    await registrarTokenPushNoServidor_(
+      token
+    );
+
+    localStorage.setItem(
+      'ra_polymers_push_ativo',
+      '1'
+    );
+
+    mostrarMensagem(
+      '✅ Alarme com tela bloqueada ativado neste telefone.',
+      'success'
+    );
+
+    atualizarStatusPushUI_();
+
+    return true;
+
+  }
+  catch (
+    erro
+  ) {
+
+    console.error(
+      'Push:',
+      erro
+    );
+
+    mostrarMensagem(
+      '❌ Não foi possível ativar o alarme com tela bloqueada: ' +
+      (
+        erro &&
+        erro.message
+          ? erro.message
+          : String(
+              erro
+            )
+      ),
+      'error'
+    );
+
+    return false;
+
+  }
+
+}
+
+
+function carregarScriptExternoPush_(
+  src
+) {
+
+  return new Promise(
+    function(
+      resolve,
+      reject
+    ) {
+
+      const script =
+        document.createElement(
+          'script'
+        );
+
+      script.src =
+        src;
+
+      script.onload =
+        function() {
+          resolve();
+        };
+
+      script.onerror =
+        function() {
+          reject(
+            new Error(
+              'Não foi possível carregar ' +
+              src
+            )
+          );
+        };
+
+      document.head.appendChild(
+        script
+      );
+
+    }
+  );
+
+}
+
+
+async function registrarTokenPushNoServidor_(
+  token
+) {
+
+  const payload =
+    {
+      acao:
+        'registrarPushToken',
+
+      token:
+        token,
+
+      maquina:
+        maquina || '',
+
+      operador:
+        (
+          typeof operadorAtual !==
+            'undefined' &&
+          operadorAtual
+        )
+          ? operadorAtual
+          : '',
+
+      userAgent:
+        navigator.userAgent,
+
+      timestampCliente:
+        new Date().toISOString()
+    };
+
+  /*
+   * POST simples. Não dependemos de ler a resposta
+   * do Apps Script, então não precisamos de CORS exposto.
+   */
+  try {
+
+    await fetch(
+      URL_APPS_SCRIPT,
+      {
+        method:
+          'POST',
+
+        headers:
+          {
+            'Content-Type':
+              'text/plain;charset=utf-8'
+          },
+
+        body:
+          JSON.stringify(
+            payload
+          ),
+
+        mode:
+          'no-cors'
+      }
+    );
+
+  }
+  catch (
+    erro
+  ) {
+
+    console.warn(
+      'Falha ao registrar push:',
+      erro
+    );
+
+  }
+
+}
+
+
+function atualizarStatusPushUI_() {
+
+  const botao =
+    document.getElementById(
+      'btnAtivarPush'
+    );
+
+  const status =
+    document.getElementById(
+      'pushStatus'
+    );
+
+  if (
+    localStorage.getItem(
+      'ra_polymers_push_ativo'
+    ) === '1'
+  ) {
+
+    if (
+      botao
+    ) {
+
+      botao.textContent =
+        '✅ ALARME COM TELA BLOQUEADA ATIVO';
+
+    }
+
+    if (
+      status
+    ) {
+
+      status.textContent =
+        'Este telefone está cadastrado para receber os alarmes de inspeção mesmo com o navegador em segundo plano.';
+
+    }
+
+  }
+
+}
+
+
+
 
 
 
@@ -4847,6 +5324,22 @@ function atualizarAlarmeInspecaoUI() {
       'btnPararAlarmeInspecao'
     );
 
+  const actionHint =
+    document.getElementById(
+      'inspectionAlarmActionHint'
+    );
+
+  /*
+   * Garante que o botão exista antes de o alarme tocar.
+   */
+  const botaoAlarme =
+    (
+      typeof criarBotaoPararAlarme ===
+      'function'
+    )
+      ? criarBotaoPararAlarme()
+      : null;
+
   if (
     !card ||
     !title ||
@@ -4864,6 +5357,10 @@ function atualizarAlarmeInspecaoUI() {
 
     if (botaoParar) {
       botaoParar.style.display = 'none';
+    }
+
+    if (actionHint) {
+      actionHint.style.display = 'none';
     }
 
     pararAlarmeInspecaoContinuo();
@@ -4914,6 +5411,10 @@ function atualizarAlarmeInspecaoUI() {
       botaoParar.style.display = 'none';
     }
 
+    if (actionHint) {
+      actionHint.style.display = 'none';
+    }
+
     pararAlarmeInspecaoContinuo();
 
     return;
@@ -4935,6 +5436,10 @@ function atualizarAlarmeInspecaoUI() {
 
     if (botaoParar) {
       botaoParar.style.display = 'none';
+    }
+
+    if (actionHint) {
+      actionHint.style.display = 'none';
     }
 
     pararAlarmeInspecaoContinuo();
@@ -4996,6 +5501,10 @@ function atualizarAlarmeInspecaoUI() {
       botaoParar.style.display = 'none';
     }
 
+    if (actionHint) {
+      actionHint.style.display = 'none';
+    }
+
     return;
 
   }
@@ -5042,6 +5551,21 @@ function atualizarAlarmeInspecaoUI() {
 
     countdown.textContent =
       'AGORA';
+
+    if (botaoAlarme) {
+      botaoAlarme.style.display =
+        'block';
+    }
+
+    if (actionHint) {
+      actionHint.style.display =
+        'block';
+
+      actionHint.innerHTML =
+        '👆 <strong>1.</strong> Toque em <strong>RECONHECER E PARAR ALARME</strong>.<br>' +
+        '<strong>2.</strong> Selecione o produto para iniciar a inspeção.';
+
+    }
 
   }
   else {
@@ -5319,6 +5843,14 @@ function criarBotaoPararAlarme() {
   botao.type =
     'button';
 
+  botao.setAttribute(
+    'aria-label',
+    'Reconhecer e parar alarme'
+  );
+
+  botao.title =
+    'Reconhecer e parar alarme';
+
   botao.textContent =
     '🔕 RECONHECER E PARAR ALARME';
 
@@ -5327,11 +5859,12 @@ function criarBotaoPararAlarme() {
       'width:100%',
       'min-height:56px',
       'margin-top:10px',
-      'font-size:17px',
-      'font-weight:800',
+      'font-size:18px',
+      'font-weight:900',
       'background:#C62828',
       'color:#fff',
       'border:0',
+      'box-shadow:0 3px 10px rgba(198,40,40,.25)',
       'border-radius:10px',
       'padding:12px'
     ].join(';');
