@@ -479,6 +479,42 @@
   position:relative;
   z-index:10000 !important;
 }
+
+.alarm-overview-card {
+  border: 2px solid #D32F2F !important;
+  background: #FFF5F5 !important;
+}
+
+.alarm-overview-item {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  padding:10px 12px;
+  margin-top:8px;
+  border-radius:9px;
+  background:#FFFFFF;
+  border:1px solid #E6B8B8;
+  font-size:13px;
+}
+
+.alarm-overview-machine {
+  font-weight:800;
+  color:#17324D;
+}
+
+.alarm-overview-delay {
+  font-weight:800;
+  color:#C62828;
+}
+
+@media (max-width:760px) {
+  .alarm-overview-item {
+    align-items:flex-start;
+    flex-direction:column;
+  }
+}
+
 </style>
 
 </head>
@@ -606,6 +642,38 @@
 
 
     <!-- MÁQUINA — MODO PROVISÓRIO -->
+
+    <div
+      id="preMachineAlarmCard"
+      class="card alarm-overview-card"
+      style="display:none;margin-bottom:12px;"
+    >
+      <div
+        id="preMachineAlarmTitle"
+        style="
+          font-size:18px;
+          font-weight:800;
+          color:#B71C1C;
+        "
+      >
+        🚨 INSPEÇÕES PENDENTES
+      </div>
+
+      <div
+        id="preMachineAlarmText"
+        style="
+          margin-top:6px;
+          font-size:14px;
+          line-height:1.4;
+        "
+      ></div>
+
+      <div
+        id="preMachineAlarmList"
+        style="margin-top:10px;"
+      ></div>
+    </div>
+
     <div class="card" id="machineSelectionCard">
 
       <div
@@ -3702,6 +3770,240 @@ function atualizarSeletorMaquina() {
         : 'SELECIONE A MÁQUINA';
 
   }
+
+}
+
+
+
+function atualizarPainelPendenciasAntesDaMaquina(
+  resposta
+) {
+
+  const card =
+    document.getElementById(
+      'preMachineAlarmCard'
+    );
+
+  const text =
+    document.getElementById(
+      'preMachineAlarmText'
+    );
+
+  const list =
+    document.getElementById(
+      'preMachineAlarmList'
+    );
+
+  if (
+    !card ||
+    !text ||
+    !list
+  ) {
+    return;
+  }
+
+  const pendencias =
+    resposta &&
+    Array.isArray(
+      resposta.pendencias
+    )
+      ? resposta.pendencias
+      : [];
+
+  if (
+    !pendencias.length
+  ) {
+
+    card.style.display =
+      'none';
+
+    return;
+
+  }
+
+  card.style.display =
+    'block';
+
+  text.textContent =
+    pendencias.length === 1
+      ? 'Existe 1 máquina com inspeção horária pendente. Selecione-a na lista abaixo para iniciar o atendimento.'
+      : 'Existem ' +
+        pendencias.length +
+        ' máquinas com inspeção horária pendente. Selecione uma delas na lista abaixo para iniciar o atendimento.';
+
+  list.innerHTML =
+    pendencias
+      .map(
+        function(item) {
+
+          const atraso =
+            Number(
+              item.atrasoMinutos ||
+              0
+            );
+
+          return (
+            '<div class="alarm-overview-item">' +
+              '<span class="alarm-overview-machine">🏭 ' +
+              escapeHtml(
+                item.maquina || ''
+              ) +
+              '</span>' +
+              '<span class="alarm-overview-delay">' +
+                (
+                  item.ultimaInspecao
+                    ? (
+                        atraso > 0
+                          ? '🚨 ATRASADA ' +
+                            atraso +
+                            ' min'
+                          : '🔔 INSPEÇÃO DEVIDA'
+                      )
+                    : '🔔 SEM INSPEÇÃO REGISTRADA'
+                ) +
+              '</span>' +
+            '</div>'
+          );
+
+        }
+      )
+      .join('');
+
+}
+
+
+function consultarPendenciasAntesDaMaquina() {
+
+  return new Promise(
+    function(resolve) {
+
+      const callbackName =
+        'pendenciasMaquinas_' +
+        Date.now() +
+        '_' +
+        Math.random()
+          .toString(36)
+          .substring(
+            2,
+            8
+          );
+
+      const script =
+        document.createElement(
+          'script'
+        );
+
+      let finalizado =
+        false;
+
+      const finalizar =
+        function(dados) {
+
+          if (
+            finalizado
+          ) {
+            return;
+          }
+
+          finalizado =
+            true;
+
+          try {
+            delete window[
+              callbackName
+            ];
+          }
+          catch (erro) {}
+
+          try {
+            if (
+              script.parentNode
+            ) {
+              script.parentNode.removeChild(
+                script
+              );
+            }
+          }
+          catch (erro) {}
+
+          atualizarPainelPendenciasAntesDaMaquina(
+            dados || {}
+          );
+
+          try {
+            debugUploadCliente(
+              'ALARME_PENDENCIAS_GLOBAIS',
+              {
+                mediaType:
+                  'ALARM'
+              },
+              {
+                total:
+                  dados &&
+                  dados.total
+                    ? Number(
+                        dados.total
+                      )
+                    : 0
+              }
+            );
+          }
+          catch (debugErro) {}
+
+          resolve(
+            dados || {}
+          );
+
+        };
+
+      window[
+        callbackName
+      ] =
+      finalizar;
+
+      script.onerror =
+        function() {
+
+          finalizar({
+            sucesso:false,
+            pendencias:[],
+            total:0
+          });
+
+        };
+
+      script.src =
+        URL_APPS_SCRIPT +
+        '?status=pendenciasInspecao' +
+        '&callback=' +
+        encodeURIComponent(
+          callbackName
+        ) +
+        '&_=' +
+        Date.now();
+
+      script.async =
+        true;
+
+      document.head.appendChild(
+        script
+      );
+
+      setTimeout(
+        function() {
+
+          finalizar({
+            sucesso:false,
+            pendencias:[],
+            total:0
+          });
+
+        },
+        5000
+      );
+
+    }
+  );
 
 }
 
@@ -14876,6 +15178,8 @@ document.addEventListener(
   async function() {
 
     atualizarSeletorMaquina();
+    consultarPendenciasAntesDaMaquina();
+
 
     ativarDebugLocalSeSolicitado();
 
