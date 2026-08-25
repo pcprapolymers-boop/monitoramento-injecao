@@ -1370,6 +1370,363 @@ const URL_APPS_SCRIPT =
   'https://script.google.com/macros/s/AKfycbyyczQIADys9S5tG7G9WiR_tFiWubW4mcteLurFO_GOlrlSs9f9CWkcojnjsuG5Jgvt/exec';
 
 
+
+/*
+ * =====================================================
+ * PROTEÇÃO DE PRÉVIA / CHATGPT
+ * =====================================================
+ *
+ * O arquivo pode ser aberto pela Prévia do ChatGPT.
+ * Nesse ambiente, chamadas automáticas ao Apps Script
+ * provocam o popup do navegador:
+ * "Permitir acesso de rede?"
+ *
+ * O sistema real é publicado no GitHub Pages.
+ * Portanto:
+ *   - GitHub Pages  -> rede externa LIBERADA
+ *   - Prévia/local  -> chamadas ao Apps Script BLOQUEADAS
+ *
+ * Isso não altera o comportamento do site publicado.
+ */
+
+const AMBIENTE_GITHUB_PAGES =
+  Boolean(
+    window.location &&
+    window.location.hostname &&
+    /\.github\.io$/i.test(
+      String(
+        window.location.hostname
+      )
+    )
+  );
+
+const BLOQUEAR_REDE_NA_PREVIA =
+  !AMBIENTE_GITHUB_PAGES;
+
+function redeAppsScriptPermitida_() {
+
+  return (
+    !BLOQUEAR_REDE_NA_PREVIA
+  );
+
+}
+
+function ehURLAppsScript_(url) {
+
+  return String(
+    url || ''
+  )
+    .trim()
+    .indexOf(
+      'https://script.google.com/'
+    ) === 0;
+
+}
+
+function registrarBloqueioRedePrevia_(
+  url,
+  tipo
+) {
+
+  try {
+
+    if (
+      typeof debugUploadCliente ===
+      'function'
+    ) {
+
+      debugUploadCliente(
+        'REDE_BLOQUEADA_PREVIA',
+        {
+          mediaType:
+            'NETWORK'
+        },
+        {
+          tipo:
+            tipo || '',
+          url:
+            String(
+              url || ''
+            )
+        }
+      );
+
+    }
+
+  }
+  catch (erro) {}
+
+}
+
+
+/*
+ * Intercepta fetch para impedir acesso externo
+ * ao Apps Script quando o arquivo estiver na Prévia.
+ */
+(function instalarBloqueioFetchPrevia_() {
+
+  try {
+
+    const fetchOriginal =
+      window.fetch;
+
+    if (
+      typeof fetchOriginal !==
+      'function'
+    ) {
+
+      return;
+
+    }
+
+    window.fetch =
+      function(
+        input,
+        init
+      ) {
+
+        let url = '';
+
+        try {
+
+          url =
+            typeof input ===
+            'string'
+              ? input
+              : (
+                  input &&
+                  input.url
+                    ? input.url
+                    : ''
+                );
+
+        }
+        catch (erro) {}
+
+        if (
+          BLOQUEAR_REDE_NA_PREVIA &&
+          ehURLAppsScript_(
+            url
+          )
+        ) {
+
+          registrarBloqueioRedePrevia_(
+            url,
+            'fetch'
+          );
+
+          return Promise.reject(
+            new Error(
+              'Rede externa bloqueada na Prévia.'
+            )
+          );
+
+        }
+
+        return fetchOriginal.call(
+          this,
+          input,
+          init
+        );
+
+      };
+
+  }
+  catch (erro) {}
+
+})();
+
+
+/*
+ * Intercepta a inclusão dinâmica de <script src=AppsScript>.
+ * Esse é o principal ponto que estava provocando o popup.
+ */
+(function instalarBloqueioScriptsPrevia_() {
+
+  try {
+
+    const appendOriginal =
+      Node.prototype.appendChild;
+
+    Node.prototype.appendChild =
+      function(
+        node
+      ) {
+
+        try {
+
+          if (
+            BLOQUEAR_REDE_NA_PREVIA &&
+            node &&
+            node.tagName ===
+              'SCRIPT' &&
+            ehURLAppsScript_(
+              node.src
+            )
+          ) {
+
+            registrarBloqueioRedePrevia_(
+              node.src,
+              'script'
+            );
+
+            /*
+             * Não adiciona o script ao DOM.
+             * O próprio código de cada consulta possui
+             * timeout/fallback, evitando travamento.
+             */
+            return node;
+
+          }
+
+        }
+        catch (erro) {}
+
+        return appendOriginal.call(
+          this,
+          node
+        );
+
+      };
+
+  }
+  catch (erro) {}
+
+})();
+
+
+/*
+ * Intercepta formulários POST para o Apps Script.
+ * Evita que uploads da Prévia abram conexão de rede.
+ */
+(function instalarBloqueioFormsPrevia_() {
+
+  try {
+
+    const submitOriginal =
+      HTMLFormElement.prototype.submit;
+
+    HTMLFormElement.prototype.submit =
+      function() {
+
+        let action = '';
+
+        try {
+          action =
+            this.action || '';
+        }
+        catch (erro) {}
+
+        if (
+          BLOQUEAR_REDE_NA_PREVIA &&
+          ehURLAppsScript_(
+            action
+          )
+        ) {
+
+          registrarBloqueioRedePrevia_(
+            action,
+            'form-submit'
+          );
+
+          return;
+
+        }
+
+        return submitOriginal.call(
+          this
+        );
+
+      };
+
+  }
+  catch (erro) {}
+
+})();
+
+
+/*
+ * Um aviso discreto, sem modal, para deixar claro que
+ * a Prévia está offline. No GitHub Pages ele não aparece.
+ */
+(function mostrarAvisoPreviaOffline_() {
+
+  if (
+    !BLOQUEAR_REDE_NA_PREVIA
+  ) {
+
+    return;
+
+  }
+
+  const mostrar =
+    function() {
+
+      if (
+        document.getElementById(
+          'avisoPreviaOffline'
+        )
+      ) {
+
+        return;
+
+      }
+
+      const aviso =
+        document.createElement(
+          'div'
+        );
+
+      aviso.id =
+        'avisoPreviaOffline';
+
+      aviso.textContent =
+        '🧪 MODO PRÉVIA: acesso ao Apps Script bloqueado para evitar pop-ups.';
+
+      aviso.style.cssText =
+        [
+          'position:fixed',
+          'left:10px',
+          'right:10px',
+          'bottom:10px',
+          'z-index:2147483647',
+          'padding:8px 12px',
+          'border-radius:8px',
+          'background:#FFF3CD',
+          'color:#664D03',
+          'font:600 12px/1.3 Arial,sans-serif',
+          'text-align:center',
+          'box-shadow:0 2px 10px rgba(0,0,0,.12)'
+        ].join(';');
+
+      document.body.appendChild(
+        aviso
+      );
+
+    };
+
+  if (
+    document.body
+  ) {
+
+    mostrar();
+
+  }
+  else {
+
+    document.addEventListener(
+      'DOMContentLoaded',
+      mostrar,
+      {
+        once:true
+      }
+    );
+
+  }
+
+})();
+
+
 /* =====================================================
    PARÂMETROS
    ===================================================== */
@@ -2389,6 +2746,15 @@ function debugUploadCliente(
   job,
   detalhes
 ) {
+
+  if (
+    BLOQUEAR_REDE_NA_PREVIA
+  ) {
+
+    return;
+
+  }
+
 
   /*
    * DEBUG LOCAL — NÃO FAZ NENHUMA CHAMADA DE REDE.
