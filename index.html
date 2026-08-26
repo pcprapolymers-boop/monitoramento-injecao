@@ -554,6 +554,12 @@
   display: none !important;
 }
 
+
+/* V13.23 — botão de ativação apenas no primeiro uso */
+#pushCard {
+  transition: opacity .2s ease;
+}
+
 </style>
 
 </head>
@@ -1972,12 +1978,16 @@ async function solicitarPushOperacional() {
       '1'
     );
 
+    /*
+     * Oculta imediatamente para o operador.
+     * O cadastro/permissionamento é feito apenas uma vez.
+     */
+    atualizarStatusPushUI_();
+
     mostrarMensagem(
       '✅ Alarme com tela bloqueada ativado neste telefone.',
       'success'
     );
-
-    atualizarStatusPushUI_();
 
     return true;
 
@@ -2148,6 +2158,11 @@ async function registrarTokenPushNoServidor_(
 
 function atualizarStatusPushUI_() {
 
+  const card =
+    document.getElementById(
+      'pushCard'
+    );
+
   const botao =
     document.getElementById(
       'btnAtivarPush'
@@ -2158,33 +2173,64 @@ function atualizarStatusPushUI_() {
       'pushStatus'
     );
 
-  if (
+  const ativo =
     localStorage.getItem(
       'ra_polymers_push_ativo'
-    ) === '1'
+    ) === '1';
+
+  if (
+    ativo
   ) {
 
+    /*
+     * Depois do primeiro cadastro bem-sucedido,
+     * o operador não precisa mais ver o botão.
+     */
     if (
-      botao
+      card
     ) {
-
-      botao.textContent =
-        '✅ ALARME COM TELA BLOQUEADA ATIVO';
-
+      card.style.display =
+        'none';
     }
 
-    if (
-      status
-    ) {
+    return;
 
-      status.textContent =
-        'Este telefone está cadastrado para receber os alarmes de inspeção mesmo com o navegador em segundo plano.';
+  }
 
-    }
+  /*
+   * Primeiro uso:
+   * exibe o cartão e o botão para ativação.
+   */
+  if (
+    card
+  ) {
+    card.style.display =
+      'block';
+  }
+
+  if (
+    botao
+  ) {
+
+    botao.textContent =
+      '🔔 ATIVAR ALARME COM TELA BLOQUEADA';
+
+    botao.disabled =
+      false;
+
+  }
+
+  if (
+    status
+  ) {
+
+    status.textContent =
+      'Ative este telefone uma única vez para receber o lembrete da inspeção mesmo com a tela bloqueada ou o navegador em segundo plano.';
 
   }
 
 }
+
 
 
 
