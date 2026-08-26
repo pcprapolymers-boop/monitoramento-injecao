@@ -1472,57 +1472,73 @@ async function carregarConfiguracaoFirebasePush_() {
     RA_POLYMERS_PUSH_CONFIG &&
     RA_POLYMERS_VAPID_PUBLIC_KEY
   ) {
+
     return true;
+
   }
 
   try {
 
-    await new Promise(
-      function(resolve,reject) {
+    const resposta =
+      await fetch(
+        './firebase-config.js?v=' +
+        Date.now(),
+        {
+          cache:
+            'no-store'
+        }
+      );
 
-        const script =
-          document.createElement(
-            'script'
-          );
+    if (
+      !resposta.ok
+    ) {
 
-        script.src =
-          './firebase-config.js?v=' +
-          Date.now();
+      throw new Error(
+        'firebase-config.js não pôde ser carregado (HTTP ' +
+        resposta.status +
+        ').'
+      );
 
-        console.info(
-          'Push: carregando firebase-config.js...',
-          script.src
-        );
+    }
 
-        script.async =
-          true;
+    const codigo =
+      await resposta.text();
 
-        script.onload =
-          function() {
-            resolve();
-          };
+    if (
+      !codigo.trim()
+    ) {
 
-        script.onerror =
-          function() {
-            reject(
-              new Error(
-                'Não foi possível carregar firebase-config.js.'
-              )
-            );
-          };
+      throw new Error(
+        'firebase-config.js está vazio.'
+      );
 
-        document.head.appendChild(
-          script
-        );
+    }
 
-      }
-    );
+    /*
+     * O arquivo de configuração é controlado pelo usuário e contém
+     * somente configurações públicas do Firebase + VAPID pública.
+     * Executamos esse arquivo em um escopo controlado para suportar
+     * tanto globalThis.* quanto const/let legados.
+     */
+    const obterConfiguracao =
+      new Function(
+        codigo +
+        '\nreturn {' +
+        'config: (typeof RA_POLYMERS_FIREBASE_CONFIG !== "undefined" ? RA_POLYMERS_FIREBASE_CONFIG : globalThis.RA_POLYMERS_FIREBASE_CONFIG),' +
+        'vapid: (typeof RA_POLYMERS_VAPID_PUBLIC_KEY !== "undefined" ? RA_POLYMERS_VAPID_PUBLIC_KEY : globalThis.RA_POLYMERS_VAPID_PUBLIC_KEY)' +
+        '};'
+      );
+
+    const resultado =
+      obterConfiguracao();
 
     const config =
-      window.RA_POLYMERS_FIREBASE_CONFIG;
+      resultado &&
+      resultado.config;
 
     const vapid =
-      window.RA_POLYMERS_VAPID_PUBLIC_KEY;
+      resultado &&
+      resultado.vapid;
 
     if (
       !config ||
@@ -1531,7 +1547,7 @@ async function carregarConfiguracaoFirebasePush_() {
     ) {
 
       throw new Error(
-        'RA_POLYMERS_FIREBASE_CONFIG não foi encontrado no firebase-config.js. Verifique se o arquivo publicado usa window.RA_POLYMERS_FIREBASE_CONFIG.'
+        'RA_POLYMERS_FIREBASE_CONFIG não foi encontrado no firebase-config.js. Verifique o conteúdo publicado no GitHub.'
       );
 
     }
@@ -1554,6 +1570,10 @@ async function carregarConfiguracaoFirebasePush_() {
     RA_POLYMERS_VAPID_PUBLIC_KEY =
       vapid;
 
+    console.info(
+      'Push: firebase-config.js carregado com sucesso.'
+    );
+
     return true;
 
   }
@@ -1561,11 +1581,23 @@ async function carregarConfiguracaoFirebasePush_() {
     erro
   ) {
 
-    throw erro;
+    throw new Error(
+      (
+        erro &&
+        erro.message
+          ? erro.message
+          : String(
+              erro
+            )
+      )
+    );
 
   }
 
 }
+
+
+
 
 
 
