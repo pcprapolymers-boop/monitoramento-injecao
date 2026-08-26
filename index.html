@@ -1489,6 +1489,11 @@ async function carregarConfiguracaoFirebasePush_() {
           './firebase-config.js?v=' +
           Date.now();
 
+        console.info(
+          'Push: carregando firebase-config.js...',
+          script.src
+        );
+
         script.async =
           true;
 
@@ -1513,20 +1518,28 @@ async function carregarConfiguracaoFirebasePush_() {
       }
     );
 
+    const config =
+      window.RA_POLYMERS_FIREBASE_CONFIG;
+
+    const vapid =
+      window.RA_POLYMERS_VAPID_PUBLIC_KEY;
+
     if (
-      typeof RA_POLYMERS_FIREBASE_CONFIG !==
-      'object'
+      !config ||
+      typeof config !==
+        'object'
     ) {
 
       throw new Error(
-        'RA_POLYMERS_FIREBASE_CONFIG não foi encontrado no firebase-config.js.'
+        'RA_POLYMERS_FIREBASE_CONFIG não foi encontrado no firebase-config.js. Verifique se o arquivo publicado usa window.RA_POLYMERS_FIREBASE_CONFIG.'
       );
 
     }
 
     if (
-      typeof RA_POLYMERS_VAPID_PUBLIC_KEY !==
-      'string'
+      !vapid ||
+      typeof vapid !==
+        'string'
     ) {
 
       throw new Error(
@@ -1536,7 +1549,10 @@ async function carregarConfiguracaoFirebasePush_() {
     }
 
     RA_POLYMERS_PUSH_CONFIG =
-      RA_POLYMERS_FIREBASE_CONFIG;
+      config;
+
+    RA_POLYMERS_VAPID_PUBLIC_KEY =
+      vapid;
 
     return true;
 
