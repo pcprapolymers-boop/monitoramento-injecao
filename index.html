@@ -536,6 +536,17 @@
   border: 1px solid #D6E1EA;
 }
 
+
+/* V13.20 — lembrete global de inspeção atrasada */
+#preMachineAlarmCard.alarm-global-reminder {
+  border: 2px solid #C62828 !important;
+  background: #FFF7F7 !important;
+}
+
+#preMachineAlarmCard .alarm-overview-item {
+  min-height: 42px;
+}
+
 </style>
 
 </head>
@@ -4938,6 +4949,9 @@ function atualizarPainelPendenciasAntesDaMaquina(
   resposta
 ) {
 
+  ultimaRespostaPendenciasGlobal =
+    resposta || {};
+
   const card =
     document.getElementById(
       'preMachineAlarmCard'
@@ -4951,6 +4965,11 @@ function atualizarPainelPendenciasAntesDaMaquina(
   const list =
     document.getElementById(
       'preMachineAlarmList'
+    );
+
+  const title =
+    document.getElementById(
+      'preMachineAlarmTitle'
     );
 
   if (
@@ -4969,12 +4988,50 @@ function atualizarPainelPendenciasAntesDaMaquina(
       ? resposta.pendencias
       : [];
 
+  const atrasadas =
+    pendencias.filter(
+      function(item) {
+
+        return (
+          String(
+            item.status ||
+            ''
+          )
+          .trim()
+          .toUpperCase() ===
+          'ATRASADA'
+        );
+
+      }
+    );
+
+  if (
+    title
+  ) {
+
+    title.textContent =
+      pendencias.length
+        ? (
+            '🚨 ' +
+            pendencias.length +
+            (
+              pendencias.length === 1
+                ? ' INSPEÇÃO PENDENTE'
+                : ' INSPEÇÕES PENDENTES'
+            )
+          )
+        : '✅ INSPEÇÕES EM DIA';
+
+  }
+
   if (
     !pendencias.length
   ) {
 
     card.style.display =
       'none';
+
+    pararAlarmePendenciaGlobal();
 
     return;
 
@@ -4983,28 +5040,41 @@ function atualizarPainelPendenciasAntesDaMaquina(
   card.style.display =
     'block';
 
-  const title =
-    document.getElementById(
-      'preMachineAlarmTitle'
-    );
+  card.classList.add(
+    'alarm-global-reminder'
+  );
 
-  if (title) {
+  if (
+    atrasadas.length
+  ) {
 
-    title.textContent =
-      '🚨 ' +
-      pendencias.length +
-      (
-        pendencias.length === 1
-          ? ' INSPEÇÃO PENDENTE'
-          : ' INSPEÇÕES PENDENTES'
-      );
+    if (
+      Date.now() >=
+      silenciadoPendenciaGlobalAte
+    ) {
+
+      iniciarAlarmePendenciaGlobal();
+
+    }
+
+    text.textContent =
+      atrasadas.length === 1
+        ? '🔔 Existe 1 inspeção ATRASADA. O alarme é apenas um lembrete. Confira abaixo qual máquina está atrasada.'
+        : (
+            '🔔 Existem ' +
+            atrasadas.length +
+            ' inspeções ATRASADAS. O alarme é apenas um lembrete. Confira abaixo quais máquinas estão atrasadas.'
+          );
 
   }
+  else {
 
-  text.textContent =
-    pendencias.length === 1
-      ? 'Máquina pendente: confira abaixo qual máquina precisa de atendimento.'
-      : 'Máquinas pendentes: confira abaixo quais máquinas precisam de atendimento.';
+    pararAlarmePendenciaGlobal();
+
+    text.textContent =
+      'ℹ️ Há inspeção(ões) pendente(s), mas nenhuma está atrasada neste momento. O alarme ainda não será acionado.';
+
+  }
 
   try {
 
@@ -5025,27 +5095,26 @@ function atualizarPainelPendenciasAntesDaMaquina(
                 'Máquina não identificada'
               );
 
-            let estado =
-              '🔔 INSPEÇÃO DEVIDA';
-
-            if (
-              !item.ultimaInspecao
-            ) {
-
-              estado =
-                '🔔 SEM INSPEÇÃO REGISTRADA';
-
-            }
-            else if (
-              atraso > 0
-            ) {
-
-              estado =
-                '🚨 ATRASADA ' +
-                atraso +
-                ' min';
-
-            }
+            const estado =
+              (
+                String(
+                  item.status ||
+                  ''
+                )
+                .trim()
+                .toUpperCase() ===
+                'ATRASADA'
+              )
+                ? (
+                    '🚨 ATRASADA ' +
+                    atraso +
+                    ' min'
+                  )
+                : (
+                    item.ultimaInspecao
+                      ? '⏱️ PENDENTE'
+                      : '🔔 SEM INSPEÇÃO REGISTRADA'
+                  );
 
             return (
               '<div class="alarm-overview-item">' +
@@ -5073,35 +5142,206 @@ function atualizarPainelPendenciasAntesDaMaquina(
         '</span>' +
       '</div>';
 
-    try {
-
-      debugUploadCliente(
-        'ALARM_PENDENCIAS_RENDER_ERRO',
-        {
-          mediaType:
-            'ALARM'
-        },
-        {
-          erro:
-            erro &&
-            erro.message
-              ? erro.message
-              : String(
-                  erro
-                )
-        }
-      );
-
-    }
-    catch (debugErro) {}
-
   }
 
 }
 
 
 
+
+
 let pendenciasGlobaisTimer = null;
+
+let alarmePendenciaGlobalAtivo = false;
+let timerAlarmePendenciaGlobal = null;
+let silenciadoPendenciaGlobalAte = 0;
+
+
+function iniciarAlarmePendenciaGlobal() {
+
+  if (
+    alarmePendenciaGlobalAtivo
+  ) {
+    return;
+  }
+
+  if (
+    gravacaoAtivaBloqueiaAlarme()
+  ) {
+    return;
+  }
+
+  if (
+    Date.now() <
+    silenciadoPendenciaGlobalAte
+  ) {
+    return;
+  }
+
+  alarmePendenciaGlobalAtivo = true;
+
+  garantirAudioAlarmeLiberado();
+
+  function repetir() {
+
+    if (
+      !alarmePendenciaGlobalAtivo
+    ) {
+      return;
+    }
+
+    if (
+      Date.now() <
+      silenciadoPendenciaGlobalAte
+    ) {
+      return;
+    }
+
+    if (
+      gravacaoAtivaBloqueiaAlarme()
+    ) {
+      return;
+    }
+
+    try {
+
+      const agora =
+        contextoAlarmeInspecao.currentTime;
+
+      const ganho =
+        contextoAlarmeInspecao.createGain();
+
+      ganho.gain.setValueAtTime(
+        0.90,
+        agora
+      );
+
+      ganho.connect(
+        contextoAlarmeInspecao.destination
+      );
+
+      [700, 930, 1174.66].forEach(
+        function(freq) {
+
+          const oscilador =
+            contextoAlarmeInspecao.createOscillator();
+
+          oscilador.type =
+            'square';
+
+          oscilador.frequency.setValueAtTime(
+            freq,
+            agora
+          );
+
+          oscilador.connect(
+            ganho
+          );
+
+          oscilador.start(
+            agora
+          );
+
+          oscilador.stop(
+            agora + 0.30
+          );
+
+        }
+      );
+
+      setTimeout(
+        function() {
+          try {
+            ganho.disconnect();
+          } catch (erro) {}
+        },
+        500
+      );
+
+    }
+    catch (erro) {}
+
+    try {
+
+      if (
+        navigator.vibrate
+      ) {
+
+        navigator.vibrate([
+          800,
+          250,
+          800,
+          250,
+          800
+        ]);
+
+      }
+
+    }
+    catch (erro) {}
+
+  }
+
+  repetir();
+
+  timerAlarmePendenciaGlobal =
+    setInterval(
+      repetir,
+      3000
+    );
+
+}
+
+
+function pararAlarmePendenciaGlobal() {
+
+  alarmePendenciaGlobalAtivo =
+    false;
+
+  if (
+    timerAlarmePendenciaGlobal
+  ) {
+
+    clearInterval(
+      timerAlarmePendenciaGlobal
+    );
+
+    timerAlarmePendenciaGlobal =
+      null;
+
+  }
+
+  try {
+
+    if (
+      navigator.vibrate
+    ) {
+      navigator.vibrate(0);
+    }
+
+  }
+  catch (erro) {}
+
+}
+
+
+function silenciarAlarmePendenciaGlobalPorCincoMinutos() {
+
+  silenciadoPendenciaGlobalAte =
+    Date.now() +
+    SILENCIO_POS_ALARME_MS;
+
+  pararAlarmePendenciaGlobal();
+
+  atualizarPainelPendenciasAntesDaMaquina(
+    ultimaRespostaPendenciasGlobal ||
+    {}
+  );
+
+}
+
+
+let ultimaRespostaPendenciasGlobal = null;
 
 function consultarPendenciasAntesDaMaquina() {
 
@@ -5156,6 +5396,9 @@ function consultarPendenciasAntesDaMaquina() {
             }
           }
           catch (erro) {}
+
+          ultimaRespostaPendenciasGlobal =
+            dados || {};
 
           atualizarPainelPendenciasAntesDaMaquina(
             dados || {}
@@ -5373,7 +5616,11 @@ async function selecionarMaquinaProvisoria() {
       novaMaquina;
   }
 
-  iniciarRelogioAlarmeInspecao();
+  /*
+   * A seleção da máquina NÃO inicia e NÃO reinicia
+   * o alarme de inspeção. O lembrete é controlado
+   * exclusivamente pela consulta global de pendências.
+   */
 
   ultimaInspecaoRegistrada =
     null;
@@ -5579,31 +5826,10 @@ function atualizarAlarmeInspecaoUI() {
       'inspectionAlarmCountdown'
     );
 
-  const instruction =
-    document.getElementById(
-      'inspectionAlarmInstruction'
-    );
-
-  const botaoParar =
-    document.getElementById(
-      'btnPararAlarmeInspecao'
-    );
-
   const actionHint =
     document.getElementById(
       'inspectionAlarmActionHint'
     );
-
-  /*
-   * Garante que o botão exista antes de o alarme tocar.
-   */
-  const botaoAlarme =
-    (
-      typeof criarBotaoPararAlarme ===
-      'function'
-    )
-      ? criarBotaoPararAlarme()
-      : null;
 
   if (
     !card ||
@@ -5614,249 +5840,24 @@ function atualizarAlarmeInspecaoUI() {
     return;
   }
 
-  if (
-    gravacaoAtivaBloqueiaAlarme()
-  ) {
-
-    card.style.display = 'none';
-
-    if (botaoParar) {
-      botaoParar.style.display = 'none';
-    }
-
-    if (actionHint) {
-      actionHint.style.display = 'none';
-    }
-
-    pararAlarmeInspecaoContinuo();
-
-    return;
-
-  }
-
-  if (
-    !maquina
-  ) {
-
-    card.style.display = 'none';
-
-    if (botaoParar) {
-      botaoParar.style.display = 'none';
-    }
-
-    return;
-
-  }
-
-  if (
-    alarmeEmSilencioPosAlarme()
-  ) {
-
-    card.style.display = 'block';
-
-    title.textContent =
-      '🔕 INSPEÇÃO EM ANDAMENTO';
-
-    text.textContent =
-      'Alarme silenciado por 5 minutos após o reconhecimento. Selecione o produto para iniciar a inspeção.';
-
-    countdown.textContent =
-      formatarTempoAlarme(
-        Math.max(
-          0,
-          (
-            inicioSilencioPosAlarme +
-            SILENCIO_POS_ALARME_MS
-          ) -
-          Date.now()
-        )
-      );
-
-    if (botaoParar) {
-      botaoParar.style.display = 'none';
-    }
-
-    if (actionHint) {
-      actionHint.style.display = 'none';
-    }
-
-    pararAlarmeInspecaoContinuo();
-
-    return;
-
-  }
-
   /*
-   * Status ≠ PRODUZINDO suspende o disparo temporariamente.
-   * Não altera o relógio calculado a partir da última inspeção.
+   * O card da máquina agora é apenas informativo.
+   * O alarme sonoro é GLOBAL e está ligado ao painel
+   * de pendências atrasadas.
    */
-  if (
-    fabricaParadaSemanal_() ||
-    inspecaoSuspensa ||
-    statusOperacionalMaquina !==
-      'PRODUZINDO'
-  ) {
-
-    card.style.display = 'none';
-
-    if (botaoParar) {
-      botaoParar.style.display = 'none';
-    }
-
-    if (actionHint) {
-      actionHint.style.display = 'none';
-    }
-
-    pararAlarmeInspecaoContinuo();
-
-    return;
-
-  }
+  card.style.display =
+    'none';
 
   if (
-    !proximaInspecaoTimestamp
+    actionHint
   ) {
-
-    card.style.display = 'none';
-
-    if (botaoParar) {
-      botaoParar.style.display = 'none';
-    }
-
-    return;
-
-  }
-
-  const restante =
-    proximaInspecaoTimestamp -
-    Date.now();
-
-  if (
-    restante > 0
-  ) {
-
-    card.style.display = 'block';
-
-    card.classList.remove(
-      'alarm-due',
-      'alarm-overdue'
-    );
-
-    title.textContent =
-      inspecaoPendenteInicial
-        ? '⏱️ PRIMEIRA INSPEÇÃO'
-        : '⏱️ PRÓXIMA INSPEÇÃO';
-
-    text.textContent =
-      inspecaoPendenteInicial
-        ? 'Primeira inspeção desta máquina.'
-        : (
-            ultimaInspecaoRegistrada
-              ? 'Última inspeção: ' +
-                ultimaInspecaoRegistrada
-              : 'Inspeção horária programada.'
-          );
-
-    countdown.textContent =
-      formatarTempoAlarme(
-        restante
-      );
-
-    if (botaoParar) {
-      botaoParar.style.display = 'none';
-    }
-
-    if (actionHint) {
-      actionHint.style.display = 'none';
-    }
-
-    return;
-
-  }
-
-  alarmeInspecaoAtivo = true;
-
-  const atraso =
-    Math.max(
-      0,
-      Date.now() -
-      proximaInspecaoTimestamp
-    );
-
-  alarmeAtrasoMinutos =
-    Math.floor(
-      atraso /
-      60000
-    );
-
-  card.style.display = 'block';
-
-  if (
-    atraso <=
-    TOLERANCIA_ALARME_MS
-  ) {
-
-    card.classList.remove(
-      'alarm-overdue'
-    );
-
-    card.classList.add(
-      'alarm-due'
-    );
-
-    title.textContent =
-      inspecaoPendenteInicial
-        ? '🔔 PRIMEIRA INSPEÇÃO DEVIDA'
-        : '🔔 INSPEÇÃO HORÁRIA DEVIDA';
-
-    text.textContent =
-      inspecaoPendenteInicial
-        ? 'A primeira inspeção desta máquina está devida.'
-        : 'Está na hora de realizar a inspeção da máquina.';
-
-    countdown.textContent =
-      'AGORA';
-
-    if (botaoAlarme) {
-      botaoAlarme.style.display =
-        'block';
-    }
-
-    if (actionHint) {
-      actionHint.style.display =
-        'block';
-
-      actionHint.innerHTML =
-        '👆 <strong>1.</strong> Toque em <strong>RECONHECER E PARAR ALARME</strong>.<br>' +
-        '<strong>2.</strong> Selecione o produto para iniciar a inspeção.';
-
-    }
-
-  }
-  else {
-
-    card.classList.remove(
-      'alarm-due'
-    );
-
-    card.classList.add(
-      'alarm-overdue'
-    );
-
-    title.textContent =
-      '🚨 INSPEÇÃO ATRASADA';
-
-    text.textContent =
-      'A inspeção está atrasada há ' +
-      alarmeAtrasoMinutos +
-      ' minuto(s).';
-
-    countdown.textContent =
-      'ATRASADA';
-
+    actionHint.style.display =
+      'none';
   }
 
 }
+
+
 
 
 
@@ -6620,9 +6621,6 @@ function emitirAlarmeInspecao() {
       'block';
 
   }
-
-  iniciarAlarmeInspecaoContinuo();
-
 }
 
 
