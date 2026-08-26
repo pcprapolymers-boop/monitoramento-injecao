@@ -547,6 +547,13 @@
   min-height: 42px;
 }
 
+
+/* V13.21 — status continua disponível, mas sem alarme horário */
+#statusMandatoryBanner,
+#statusMandatoryOverlay {
+  display: none !important;
+}
+
 </style>
 
 </head>
@@ -9191,155 +9198,24 @@ function minutosAteFimParadaSemanal_() {
 
 
 function tocarAlarmeStatusAlto() {
-
-  if (
-    !garantirAudioAlarmeLiberado()
-  ) {
-    return;
-  }
-
-  try {
-
-    const agora =
-      contextoAlarmeInspecao
-        .currentTime;
-
-    const ganho =
-      contextoAlarmeInspecao
-        .createGain();
-
-    ganho.gain.setValueAtTime(
-      0.95,
-      agora
-    );
-
-    ganho.connect(
-      contextoAlarmeInspecao
-        .destination
-    );
-
-    [660, 880, 1174.66]
-      .forEach(
-        function(frequencia) {
-
-          const oscilador =
-            contextoAlarmeInspecao
-              .createOscillator();
-
-          oscilador.type =
-            'square';
-
-          oscilador.frequency
-            .setValueAtTime(
-              frequencia,
-              agora
-            );
-
-          oscilador.connect(
-            ganho
-          );
-
-          oscilador.start(
-            agora
-          );
-
-          oscilador.stop(
-            agora +
-            0.30
-          );
-
-          osciladoresAlarmeStatus
-            .push(
-              oscilador
-            );
-
-        }
-      );
-
-    setTimeout(
-      function() {
-        try {
-          ganho.disconnect();
-        } catch (erro) {}
-      },
-      500
-    );
-
-  }
-  catch (erro) {}
-
+  /* V13.21 — alarme de status removido. */
 }
+
 
 
 function iniciarAlarmeStatusContinuo() {
-
-  alarmeStatusAtivo =
-    true;
-
-  garantirAudioAlarmeLiberado();
-
-  if (
-    intervaloSomAlarmeStatus
-  ) {
-    return;
-  }
-
-  function repetir() {
-
-    if (
-      !alarmeStatusAtivo
-    ) {
-      pararAlarmeStatusContinuo();
-      return;
-    }
-
-    if (
-      gravacaoAtivaBloqueiaAlarme()
-    ) {
-      return;
-    }
-
-    tocarAlarmeStatusAlto();
-
-    try {
-
-      if (
-        navigator.vibrate
-      ) {
-
-        navigator.vibrate([
-          900,
-          250,
-          900,
-          250,
-          900,
-          1000
-        ]);
-
-      }
-
-    }
-    catch (erro) {}
-
-  }
-
-  repetir();
-
-  intervaloSomAlarmeStatus =
-    setInterval(
-      repetir,
-      2500
-    );
-
+  /* V13.21 — alarme de status removido. */
+  alarmeStatusAtivo = false;
 }
+
 
 
 function pararAlarmeStatusContinuo() {
 
-  alarmeStatusAtivo =
-    false;
+  alarmeStatusAtivo = false;
 
   if (
+    typeof intervaloSomAlarmeStatus !== 'undefined' &&
     intervaloSomAlarmeStatus
   ) {
 
@@ -9347,66 +9223,32 @@ function pararAlarmeStatusContinuo() {
       intervaloSomAlarmeStatus
     );
 
-    intervaloSomAlarmeStatus =
-      null;
+    intervaloSomAlarmeStatus = null;
 
   }
 
   try {
-
-    if (
-      navigator.vibrate
-    ) {
+    if (navigator.vibrate) {
       navigator.vibrate(0);
     }
-
   }
   catch (erro) {}
 
-  osciladoresAlarmeStatus
-    .forEach(
-      function(oscilador) {
-
-        try {
-          oscilador.stop();
-        }
-        catch (erro) {}
-
-      }
-    );
-
-  osciladoresAlarmeStatus =
-    [];
+  if (
+    typeof osciladoresAlarmeStatus !== 'undefined'
+  ) {
+    osciladoresAlarmeStatus = [];
+  }
 
 }
 
 
+
 function atualizarBloqueioStatusObrigatorio_() {
 
-  if (
-    !maquina
-  ) {
+  /* V13.21 — sem alarme de status. */
 
-    statusAtualizacaoObrigatoria =
-      false;
-
-    const banner =
-      document.getElementById(
-        'statusMandatoryBanner'
-      );
-
-    const overlay =
-      document.getElementById(
-        'statusMandatoryOverlay'
-      );
-
-    if (banner) banner.style.display='none';
-    if (overlay) overlay.style.display='none';
-
-    pararAlarmeStatusContinuo();
-
-    return;
-  }
+  statusAtualizacaoObrigatoria = false;
 
   const banner =
     document.getElementById(
@@ -9418,133 +9260,29 @@ function atualizarBloqueioStatusObrigatorio_() {
       'statusMandatoryOverlay'
     );
 
-  const bannerText =
+  if (banner) {
+    banner.style.display = 'none';
+  }
+
+  if (overlay) {
+    overlay.style.display = 'none';
+  }
+
+  const card =
     document.getElementById(
-      'statusMandatoryBannerText'
+      'machineStatusCard'
     );
 
-  if (
-    fabricaParadaSemanal_()
-  ) {
-
-    statusAtualizacaoObrigatoria =
-      false;
-
-    if (banner) banner.style.display='none';
-    if (overlay) overlay.style.display='none';
-
-    pararAlarmeStatusContinuo();
-
-    return;
+  if (card) {
+    card.classList.remove(
+      'status-obrigatorio'
+    );
   }
 
-  if (
-    statusConfirmadoLocalEm &&
-    (
-      Date.now() -
-      statusConfirmadoLocalEm
-    ) <
-      INTERVALO_STATUS_OBRIGATORIO_MS
-  ) {
-
-    statusAtualizacaoObrigatoria =
-      false;
-
-  }
-  else if (
-    !statusAtualizadoEm
-  ) {
-
-    statusAtualizacaoObrigatoria =
-      true;
-
-  }
-  else {
-
-    const data =
-      new Date(
-        statusAtualizadoEm
-      );
-
-    statusAtualizacaoObrigatoria =
-      !isNaN(
-        data.getTime()
-      ) &&
-      (
-        Date.now() -
-        data.getTime()
-      ) >=
-      INTERVALO_STATUS_OBRIGATORIO_MS;
-
-  }
-
-  if (
-    statusAtualizacaoObrigatoria
-  ) {
-
-    if (banner) {
-      banner.style.display='block';
-    }
-
-    if (bannerText) {
-
-      bannerText.textContent =
-        '🔊 CONFIRMAÇÃO OBRIGATÓRIA DO STATUS DE M-' +
-        (
-          maquina
-            ? maquina.substring(1)
-            : ''
-        ) +
-        ' — o alarme continuará tocando até confirmar o status.';
-
-    }
-
-    if (overlay) {
-      overlay.style.display='block';
-    }
-
-    const card =
-      document.getElementById(
-        'machineStatusCard'
-      );
-
-    if (card) {
-      card.classList.add(
-        'status-obrigatorio'
-      );
-    }
-
-    if (
-      gravacaoAtivaBloqueiaAlarme()
-    ) {
-      pararAlarmeStatusContinuo();
-    }
-    else {
-      iniciarAlarmeStatusContinuo();
-    }
-
-  }
-  else {
-
-    if (banner) banner.style.display='none';
-    if (overlay) overlay.style.display='none';
-
-    const card =
-      document.getElementById(
-        'machineStatusCard'
-      );
-
-    if (card) {
-      card.classList.remove(
-        'status-obrigatorio'
-      );
-    }
-
-    pararAlarmeStatusContinuo();
-
-  }
+  pararAlarmeStatusContinuo();
 
 }
+
 
 
 
