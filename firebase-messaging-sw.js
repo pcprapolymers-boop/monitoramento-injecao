@@ -1,23 +1,38 @@
-
 /*
- * RA Polymers — Service Worker de alarmes
- *
- * Este arquivo precisa ficar na raiz do GitHub Pages.
+ * RA Polymers — Service Worker FCM
+ * V2 — leitura robusta do firebase-config.js
  */
 
 importScripts(
   'https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js',
   'https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging-compat.js',
-  './firebase-config.js'
+  './firebase-config.js?v=2'
 );
 
+const RA_CONFIG_SW =
+  self.RA_POLYMERS_FIREBASE_CONFIG;
+
+if (
+  !RA_CONFIG_SW
+) {
+
+  throw new Error(
+    'RA_POLYMERS_FIREBASE_CONFIG não foi encontrado pelo Service Worker.'
+  );
+
+}
+
 firebase.initializeApp(
-  RA_POLYMERS_FIREBASE_CONFIG
+  RA_CONFIG_SW
 );
 
 const messaging =
   firebase.messaging();
 
+
+/*
+ * Mensagens recebidas em segundo plano.
+ */
 messaging.onBackgroundMessage(
   function(payload) {
 
@@ -33,32 +48,40 @@ messaging.onBackgroundMessage(
         payload.data
       ) || {};
 
+    const maquina =
+      String(
+        data.maquina ||
+        ''
+      ).trim();
+
     const titulo =
       notification.title ||
       data.title ||
-      '🚨 INSPEÇÃO HORÁRIA';
+      '🚨 INSPEÇÃO ATRASADA';
 
     const corpo =
-      notification.body ||
-      data.body ||
-      'É hora de realizar a inspeção da máquina.';
+      maquina
+        ? (
+            'Máquina ' +
+            maquina +
+            ': ' +
+            (
+              notification.body ||
+              data.body ||
+              'Existe uma inspeção atrasada.'
+            )
+          )
+        : (
+            notification.body ||
+            data.body ||
+            'Existe uma inspeção atrasada.'
+          );
 
-    const maquina =
-      data.maquina ||
-      '';
-
-    self.registration.showNotification(
+    return self.registration.showNotification(
       titulo,
       {
         body:
-          maquina
-            ? (
-                'Máquina ' +
-                maquina +
-                ': ' +
-                corpo
-              )
-            : corpo,
+          corpo,
 
         icon:
           './icons/icon-192.png',
@@ -110,17 +133,21 @@ messaging.onBackgroundMessage(
 );
 
 
+/*
+ * Clique na notificação.
+ */
 self.addEventListener(
   'notificationclick',
   function(event) {
 
     event.notification.close();
 
+    const dados =
+      event.notification.data ||
+      {};
+
     const destino =
-      (
-        event.notification.data &&
-        event.notification.data.url
-      ) ||
+      dados.url ||
       './';
 
     event.waitUntil(
@@ -162,6 +189,8 @@ self.addEventListener(
 
             }
 
+            return null;
+
           }
         )
     );
@@ -169,3 +198,26 @@ self.addEventListener(
   }
 );
 
+
+/*
+ * Permite atualização imediata do Service Worker.
+ */
+self.addEventListener(
+  'install',
+  function(event) {
+
+    self.skipWaiting();
+
+  }
+);
+
+self.addEventListener(
+  'activate',
+  function(event) {
+
+    event.waitUntil(
+      self.clients.claim()
+    );
+
+  }
+);
