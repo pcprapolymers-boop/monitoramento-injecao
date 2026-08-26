@@ -5,12 +5,12 @@
  * do projeto Firebase usado para o monitoramento.
  */
 const RA_POLYMERS_FIREBASE_CONFIG = {
-  apiKey: "AIzaSyAN6r-yas54aDg1xxohhxxUqwaDoWZRAC4",
-  authDomain: "ra-polymers-monitoramento.firebaseapp.com",
-  projectId: "ra-polymers-monitoramento",
-  storageBucket: "ra-polymers-monitoramento.firebasestorage.app",
-  messagingSenderId: "598583808399",
-  appId: "1:598583808399:web:1f4613e6b144787a9d7bfa"
+  apiKey: 'AIzaSyAN6r-yas54aDg1xxohhxxUqwaDoWZRAC4',
+  authDomain: 'ra-polymers-monitoramento.firebaseapp.com',
+  projectId: 'ra-polymers-monitoramento',
+  storageBucket: 'ra-polymers-monitoramento.firebasestorage.app',
+  messagingSenderId: '598583808399',
+  appId: '1:598583808399:web:1f4613e6b144787a9d7bfa'
 };
 
 const RA_POLYMERS_VAPID_PUBLIC_KEY =
