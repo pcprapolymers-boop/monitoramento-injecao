@@ -1461,16 +1461,80 @@ const URL_APPS_SCRIPT =
    ========================================================= */
 
 const RA_POLYMERS_PUSH_CONFIG = {
-  apiKey: "AIzaSyAN6r-yas54aDg1xxohhxxUqwaDoWZRAC4",
-  authDomain: "ra-polymers-monitoramento.firebaseapp.com",
-  projectId: "ra-polymers-monitoramento",
-  storageBucket: "ra-polymers-monitoramento.firebasestorage.app",
-  messagingSenderId: "598583808399",
-  appId: "1:598583808399:web:1f4613e6b144787a9d7bfa"
+  apiKey: 'COLOQUE_AQUI_FIREBASE_API_KEY',
+  authDomain: 'COLOQUE_AQUI_FIREBASE_AUTH_DOMAIN',
+  projectId: 'COLOQUE_AQUI_FIREBASE_PROJECT_ID',
+  storageBucket: 'COLOQUE_AQUI_FIREBASE_STORAGE_BUCKET',
+  messagingSenderId: 'COLOQUE_AQUI_FIREBASE_MESSAGING_SENDER_ID',
+  appId: 'COLOQUE_AQUI_FIREBASE_APP_ID'
 };
 
 const RA_POLYMERS_VAPID_PUBLIC_KEY =
-  '-----BEGIN PRIVATE KEY-----\nMIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQChUyqlN4caRtgM\nP4S5Glsgh5tOeLl2Ql1wAZBO1/PaQAcWMtei4A0NHuWxPomoSVIB/uxvGo71aw2F\n7EfT84tI+KgtQpmdX28lFApk4DHKnQxqqRPmOOnML03EjQSQg+Ypz7n9TKnJJ0/j\nXC8KK1FdIGg05v3gxyjj7ncXWyBlbIyzMhLdcN0hcl2hrE8k3I98osbczpbSTyKy\n1+nx+AOnfTDHuZUhsDx0EaSFXgKkuT6yKwixbqhJuMMKU86jo/Q8IsoQfDksmGmC\n/Ekj9cOrwzyP0niXLlGhYr2cQtIGW8i2VVR5KiDZlT5SJrlqJNaRGxZIp+1GdwBN\nPMJWjPArAgMBAAECggEAEy8yL5KSYOgS0iYNkPuW4Z/usp69o1gSB3tQH2gj6gza\nKuQh648MTkah1vmSYi5R78XSdQXqATpZUdc+1XAtXKChUzyLywCp1XV0JPnaQfd6\nHgb8RFD5UJxBecGxTMQ6rzcyLXKb8D1aDTYNq/5pvxLXAY+EmmHktXJKvD7Mc/ML\nxBrvlZz4aUvv9fBbh+yukfe6sSE/5AbWeLUcjqcWmMkVwjYuhyhTZMCdHAf4Ew83\nvIOXJIHj9kqUOicW1TFVe1MhdYPe1Xba9/aOzts2GFBO8JJJeExYJcBlDLxNfN5I\nrQJglkOWQTxZ3m9Rn2GCVuC8GxdinMEbMVg0TTCCDQKBgQDWD8gwqed/3/SOsucs\ntnBoAAZwOoIDnzI1NiEKe2iR5RsCWxzkY3EFwvEQWLwk9WYwslUCt7u1w3zGhQDg\naIi1wS5MFkwS9b/Hh1uWtqqkHZRuASZov3KFhCqM2p3tqdIvdO2ZaN/GiogjgkVY\nmbafgUtH8tcfnqEub7aaz4KsFwKBgQDA7mHcy9WBP5MmqDPMzdauG+FYuXV0GZ2T\nlL1mo9HnZEjnSEz6JaP02IL6q+HmQdloxFJD7FyXXZE5339XZorSlhE5hHu4hi8f\nmWUvIwHfw5SLfGKDnL6wkWrhmuvaQVBoto4xQxm0VZFpnwNTF/gJntQ5faCod5t7\n0miNvLhFDQKBgCJ4DhtP8JgVvvKPekwn4HfOsTq3ISJmKxaIbc+bSZ5cjvnVJBTe\nsl9kIZ8pOrqUzWy/+pJidZZyMRBicF6yVnk17zePS5at/cCqWiQtq9KbdMA17TJm\nyZEYVCW0OkP/2XmM0Ymnaok023EkU/hNYCvVDQM75koQKBIrKPNKwNbnAoGALUYD\nWv/OK1VS36hq9216KkNKnzpuEH+OVbp6s6JPuH/1B6kUv0Kj9en02oQJL7JWJVqk\nf2Hw3GhNkwoaZNUgUIh8pEWtjsCWQFELyILrhqnrqsvWhlH7AY4uSaDEJeRbzSbB\nuVeoqYPG6sUwz4f5YbCO1qrfT4k5yFW4yUH27+UCgYBE1P9E5M2AO6cP7la7BNAR\n8EDEbe4Bccd5cYhuzF6CaeR8bbnwM5McoDFBVo+7XSz1pMaxYQXC0+VkJbbSHL54\npmAazEIwJyo14X4fdosLDezmYmj0tGdcGz3FXTA0GEa/HmunzC0k+m0fMEVCwH3t\nXScln5tOdohWg4kpQ+B9fQ==\n-----END PRIVATE KEY-----\n';
+  'COLOQUE_AQUI_VAPID_PUBLIC_KEY';
+
+
+/*
+ * Normaliza a chave pública VAPID antes de entregá-la ao Firebase.
+ * Aceita cópia com espaços, quebras de linha, aspas e Base64 padrão
+ * (+ /) e converte para Base64URL (- _), que é o formato esperado.
+ */
+function normalizarVapidPublicKey_(valor) {
+
+  let chave =
+    String(valor || '')
+      .trim()
+      .replace(/^['\"]+|['\"]+$/g, '')
+      .replace(/\s+/g, '');
+
+  /* Aceita, por segurança, prefixos que às vezes são copiados junto. */
+  chave =
+    chave
+      .replace(/^VAPID_KEY=/i, '')
+      .replace(/^VAPID=/i, '')
+      .trim();
+
+  /* Base64 padrão -> Base64URL. */
+  chave =
+    chave
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/g, '');
+
+  return chave;
+}
+
+
+function validarVapidPublicKey_(valor) {
+
+  const chave =
+    normalizarVapidPublicKey_(valor);
+
+  if (!chave) {
+    throw new Error(
+      'Chave VAPID vazia.'
+    );
+  }
+
+  if (!/^[A-Za-z0-9_-]+$/.test(chave)) {
+    throw new Error(
+      'Chave VAPID contém caracteres inválidos. Cole somente a chave pública VAPID.'
+    );
+  }
+
+  /* Uma chave pública VAPID Web normal tem 65 bytes codificados em Base64URL. */
+  const bytesAproximados =
+    Math.floor((chave.length * 6) / 8);
+
+  if (bytesAproximados !== 65) {
+    throw new Error(
+      'Chave VAPID com tamanho inesperado (' +
+      chave.length +
+      ' caracteres). Gere/copie novamente a chave pública em Firebase → Cloud Messaging → Web Push.'
+    );
+  }
+
+  return chave;
+}
 
 
 function pushFirebaseConfigurado_() {
@@ -1511,7 +1575,9 @@ async function registrarServiceWorkerPush_() {
       './firebase-messaging-sw.js',
       {
         scope:
-          './'
+          './',
+        updateViaCache:
+          'none'
       }
     );
 
@@ -1558,6 +1624,16 @@ async function solicitarPushOperacional() {
   }
 
   try {
+
+    const vapidKey =
+      validarVapidPublicKey_(
+        RA_POLYMERS_VAPID_PUBLIC_KEY
+      );
+
+    console.info(
+      'Push: VAPID validada. Tamanho:',
+      vapidKey.length
+    );
 
     const permission =
       await Notification
@@ -1615,11 +1691,25 @@ async function solicitarPushOperacional() {
     const messaging =
       firebase.messaging();
 
+    if (
+      !messaging
+    ) {
+
+      throw new Error(
+        'Firebase Messaging não pôde ser inicializado.'
+      );
+
+    }
+
+    console.info(
+      'Push: solicitando token FCM...'
+    );
+
     const token =
       await messaging.getToken(
         {
           vapidKey:
-            RA_POLYMERS_VAPID_PUBLIC_KEY,
+            vapidKey,
           serviceWorkerRegistration:
             registro
         }
@@ -1666,16 +1756,34 @@ async function solicitarPushOperacional() {
       erro
     );
 
+    const mensagemErro =
+      erro && erro.message
+        ? erro.message
+        : String(erro);
+
+    let orientacao = '';
+
+    if (
+      /VAPID|Base64|atob|encoded/i.test(
+        mensagemErro
+      )
+    ) {
+      orientacao =
+        ' Verifique a chave pública VAPID no Firebase e copie novamente somente a chave, sem aspas ou espaços.';
+    }
+    else if (
+      /service.?worker/i.test(
+        mensagemErro
+      )
+    ) {
+      orientacao =
+        ' Verifique se firebase-messaging-sw.js está na raiz do GitHub Pages.';
+    }
+
     mostrarMensagem(
       '❌ Não foi possível ativar o alarme com tela bloqueada: ' +
-      (
-        erro &&
-        erro.message
-          ? erro.message
-          : String(
-              erro
-            )
-      ),
+      mensagemErro +
+      orientacao,
       'error'
     );
 
