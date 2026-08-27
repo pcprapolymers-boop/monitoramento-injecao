@@ -6629,27 +6629,119 @@ async function selecionarMaquinaProvisoria() {
     );
 
   /*
-   * V13.33 — não recarrega operadores/produtos ao trocar de máquina.
-   * A lista de cadastros permanece em memória/cache.
+   * V13.34:
+   * Os operadores precisam estar disponíveis imediatamente no cartão
+   * de STATUS. Usa memória -> cache -> rede, nessa ordem.
    */
-  try {
+  let dadosLocais =
+    dadosCadastrosEmMemoria;
+
+  if (
+    !dadosLocais
+  ) {
+
+    try {
+
+      dadosLocais =
+        lerCacheCadastrosLocal();
+
+    }
+    catch (erroCache) {
+      dadosLocais =
+        null;
+    }
+
+  }
+
+  if (
+    dadosLocais &&
+    dadosLocais.sucesso
+  ) {
+
+    dadosCadastrosEmMemoria =
+      dadosLocais;
+
+    operadores =
+      Array.isArray(
+        dadosLocais.operadores
+      )
+        ? dadosLocais.operadores
+            .map(
+              function(item) {
+                return typeof item ===
+                  'string'
+                    ? item
+                    : (
+                        item.nome ||
+                        ''
+                      );
+              }
+            )
+            .filter(
+              Boolean
+            )
+        : [];
+
+    produtos =
+      Array.isArray(
+        dadosLocais.produtos
+      )
+        ? dadosLocais.produtos
+            .map(
+              function(item) {
+                return typeof item ===
+                  'string'
+                    ? {
+                        nome:item,
+                        ciclo:0
+                      }
+                    : {
+                        nome:item.nome || '',
+                        ciclo:
+                          Number(
+                            item.ciclo ||
+                            0
+                          ),
+                        codigoInterno:
+                          item.codigoInterno ||
+                          ''
+                      };
+              }
+            )
+            .filter(
+              function(item) {
+                return Boolean(
+                  item.nome
+                );
+              }
+            )
+        : [];
 
     preencherSelecoes();
     preencherOperadoresStatus();
+    atualizarObrigatoriedadeAudioStatus();
     verificarFormulario();
 
   }
-  catch (erro) {}
+  else {
 
-  /*
-   * Só busca os cadastros pela rede se ainda não houver cache.
-   */
-  if (
-    !dadosCadastrosEmMemoria &&
-    !lerCacheCadastrosLocal()
-  ) {
+    /*
+     * Primeira abertura sem cache:
+     * carrega os cadastros uma vez. Trocas seguintes não repetem isso.
+     */
+    try {
 
-    carregarDados();
+      await carregarDados();
+
+    }
+    catch (erro) {
+
+      console.warn(
+        'Falha ao carregar cadastros para o status:',
+        erro
+      );
+
+    }
 
   }
 
@@ -17650,6 +17742,104 @@ document.addEventListener(
 
       maquinaValida =
         false;
+
+      /*
+       * V13.34:
+       * Carrega os cadastros uma única vez, mesmo antes da seleção.
+       * Assim, ao tocar numa pendência, operador/produtos já estão prontos.
+       */
+      try {
+
+        const dadosIniciais =
+          dadosCadastrosEmMemoria ||
+          lerCacheCadastrosLocal();
+
+        if (
+          dadosIniciais &&
+          dadosIniciais.sucesso
+        ) {
+
+          dadosCadastrosEmMemoria =
+            dadosIniciais;
+
+          operadores =
+            Array.isArray(
+              dadosIniciais.operadores
+            )
+              ? dadosIniciais.operadores
+                  .map(
+                    function(item) {
+                      return typeof item ===
+                        'string'
+                          ? item
+                          : (
+                              item.nome ||
+                              ''
+                            );
+                    }
+                  )
+                  .filter(Boolean)
+              : [];
+
+          produtos =
+            Array.isArray(
+              dadosIniciais.produtos
+            )
+              ? dadosIniciais.produtos
+                  .map(
+                    function(item) {
+                      return typeof item ===
+                        'string'
+                          ? {
+                              nome:item,
+                              ciclo:0
+                            }
+                          : {
+                              nome:item.nome || '',
+                              ciclo:Number(
+                                item.ciclo || 0
+                              ),
+                              codigoInterno:
+                                item.codigoInterno || ''
+                            };
+                    }
+                  )
+                  .filter(
+                    function(item) {
+                      return Boolean(
+                        item.nome
+                      );
+                    }
+                  )
+              : [];
+
+          preencherSelecoes();
+          preencherOperadoresStatus();
+
+        }
+        else {
+
+          carregarDados()
+            .catch(
+              function(erro) {
+                console.warn(
+                  'Falha ao pré-carregar cadastros:',
+                  erro
+                );
+              }
+            );
+
+        }
+
+      }
+      catch (erroInicial) {
+
+        console.warn(
+          'Falha ao preparar cadastros iniciais:',
+          erroInicial
+        );
+
+      }
 
       verificarFormulario();
 
