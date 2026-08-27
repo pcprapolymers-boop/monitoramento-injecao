@@ -4095,7 +4095,8 @@ async function processarFilaStatus() {
       await listarStatusOutboxLocais();
 
     for (
-      const item of itens
+      const item
+      of itens
     ) {
 
       if (
@@ -4124,93 +4125,254 @@ async function processarFilaStatus() {
         item
       );
 
-      const params =
-        new URLSearchParams();
-
-      params.set(
-        'tipo',
-        'STATUS_SET'
-      );
-
-      params.set(
-        'm',
-        item.maquina
-      );
-
-      params.set(
-        'novoStatus',
-        item.novoStatus
-      );
-
-      params.set(
-        'operador',
-        item.operador
-      );
-
-      params.set(
-        'observacao',
-        item.observacao ||
-        ''
-      );
-
-      params.set(
-        'audioUrl',
-        item.audioUrl ||
-        ''
-      );
-
-      params.set(
-        'audioId',
-        item.audioId ||
-        ''
-      );
-
-      params.set(
-        'acao',
-        item.acao ||
-        'ALTERAR_STATUS'
-      );
-
-      params.set(
-        'operacaoId',
-        item.operacaoId
-      );
-
+      /*
+       * V13.28:
+       * O envio anterior usava fetch POST com no-cors e apagava
+       * a fila sem conseguir ler a resposta do Apps Script.
+       *
+       * Agora usamos a mesma rota JSONP machineStatusSet.
+       * Assim sabemos se o backend realmente gravou ou devolveu erro.
+       */
       try {
 
-        await fetch(
-          URL_APPS_SCRIPT,
-          {
-            method:
-              'POST',
-            mode:
-              'no-cors',
-            cache:
-              'no-store',
-            credentials:
-              'omit',
-            headers: {
-              'Content-Type':
-                'application/x-www-form-urlencoded;charset=UTF-8'
-            },
-            body:
-              params.toString(),
-            keepalive:
-              true
-          }
-        );
+        const resposta =
+          await new Promise(
+            function(
+              resolve,
+              reject
+            ) {
+
+              const callbackName =
+                'statusSet_' +
+                Date.now() +
+                '_' +
+                Math.random()
+                  .toString(36)
+                  .substring(
+                    2,
+                    8
+                  );
+
+              const script =
+                document.createElement(
+                  'script'
+                );
+
+              let terminou =
+                false;
+
+              const limpar =
+                function() {
+
+                  try {
+                    delete window[
+                      callbackName
+                    ];
+                  }
+                  catch (erro) {}
+
+                  try {
+
+                    if (
+                      script.parentNode
+                    ) {
+
+                      script.parentNode
+                        .removeChild(
+                          script
+                        );
+
+                    }
+
+                  }
+                  catch (erro) {}
+
+                };
+
+              const timeout =
+                setTimeout(
+                  function() {
+
+                    if (
+                      terminou
+                    ) {
+                      return;
+                    }
+
+                    terminou =
+                      true;
+
+                    limpar();
+
+                    reject(
+                      new Error(
+                        'Tempo excedido ao salvar o status no Apps Script.'
+                      )
+                    );
+
+                  },
+                  15000
+                );
+
+              window[
+                callbackName
+              ] =
+              function(
+                dados
+              ) {
+
+                if (
+                  terminou
+                ) {
+                  return;
+                }
+
+                terminou =
+                  true;
+
+                clearTimeout(
+                  timeout
+                );
+
+                limpar();
+
+                if (
+                  dados &&
+                  dados.sucesso
+                ) {
+
+                  resolve(
+                    dados
+                  );
+
+                }
+                else {
+
+                  reject(
+                    new Error(
+                      dados &&
+                      dados.erro
+                        ? dados.erro
+                        : 'O Apps Script não confirmou a gravação do status.'
+                    )
+                  );
+
+                }
+
+              };
+
+              const params =
+                new URLSearchParams();
+
+              params.set(
+                'status',
+                'machineStatusSet'
+              );
+
+              params.set(
+                'm',
+                item.maquina
+              );
+
+              params.set(
+                'novoStatus',
+                item.novoStatus
+              );
+
+              params.set(
+                'operador',
+                item.operador
+              );
+
+              params.set(
+                'observacao',
+                item.observacao ||
+                ''
+              );
+
+              params.set(
+                'audioUrl',
+                item.audioUrl ||
+                ''
+              );
+
+              params.set(
+                'audioId',
+                item.audioId ||
+                ''
+              );
+
+              params.set(
+                'acao',
+                item.acao ||
+                'ALTERAR_STATUS'
+              );
+
+              params.set(
+                'operacaoId',
+                item.operacaoId
+              );
+
+              params.set(
+                'callback',
+                callbackName
+              );
+
+              params.set(
+                '_',
+                Date.now()
+              );
+
+              script.src =
+                URL_APPS_SCRIPT +
+                '?' +
+                params.toString();
+
+              script.async =
+                true;
+
+              script.onerror =
+                function() {
+
+                  if (
+                    terminou
+                  ) {
+                    return;
+                  }
+
+                  terminou =
+                    true;
+
+                  clearTimeout(
+                    timeout
+                  );
+
+                  limpar();
+
+                  reject(
+                    new Error(
+                      'Falha de rede ao enviar o status para o Apps Script.'
+                    )
+                  );
+
+                };
+
+              document.head.appendChild(
+                script
+              );
+
+            }
+          );
 
         /*
-         * no-cors não permite ler a resposta.
-         * O registro sai da outbox depois do envio.
-         * O Apps Script é responsável por registrar debug.
+         * Só removemos da fila depois da confirmação explícita.
          */
         await removerStatusOutboxLocal(
           item.operacaoId
         );
 
         debugUploadCliente(
-          'STATUS_OUTBOX_ENVIADO',
+          'STATUS_SERVIDOR_CONFIRMOU',
           {
             uploadId:
               item.operacaoId,
@@ -4221,9 +4383,27 @@ async function processarFilaStatus() {
             tentativa:
               item.attempts,
             status:
-              item.novoStatus
+              item.novoStatus,
+            sucesso:
+              Boolean(
+                resposta &&
+                resposta.sucesso
+              ),
+            audioId:
+              resposta &&
+              resposta.audioId
+                ? resposta.audioId
+                : ''
           }
         );
+
+        /*
+         * Atualiza o estado da interface após confirmação.
+         */
+        try {
+          carregarStatusMaquina();
+        }
+        catch (erro) {}
 
       }
       catch (erro) {
@@ -4238,7 +4418,7 @@ async function processarFilaStatus() {
             Math.max(
               3000,
               item.attempts *
-                5000
+              5000
             )
           );
 
@@ -4247,7 +4427,7 @@ async function processarFilaStatus() {
         );
 
         debugUploadCliente(
-          'STATUS_OUTBOX_ERRO',
+          'STATUS_SERVIDOR_REJEITOU',
           {
             uploadId:
               item.operacaoId,
@@ -4268,8 +4448,7 @@ async function processarFilaStatus() {
         );
 
         /*
-         * Não bloqueamos as demais tarefas da interface.
-         * A fila tentará novamente depois.
+         * Mantém na fila para tentar novamente.
          */
         break;
 
@@ -4306,6 +4485,7 @@ async function processarFilaStatus() {
   }
 
 }
+
 
 
 function iniciarFilaStatusPeriodica() {
@@ -8853,7 +9033,7 @@ async function salvarStatusMaquina() {
         statusNovo ===
         'PRODUZINDO'
           ? '✅ Status PRODUZINDO atualizado.'
-          : '✅ Status atualizado. A justificativa continua sendo enviada em segundo plano.';
+          : '⏳ Status colocado na fila. A gravação será confirmada pelo servidor em segundo plano.';
 
     }
 
