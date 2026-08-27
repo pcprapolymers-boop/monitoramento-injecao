@@ -610,6 +610,7 @@
 </style>
 
   <link rel="preconnect" href="https://script.google.com">
+  <meta http-equiv="Cache-Control" content="public, max-age=60">
 </head>
 
 <body>
@@ -2805,6 +2806,23 @@ let produtos = [];
 /* V13.33 — cache em memória para acelerar troca de máquina */
 let dadosCadastrosEmMemoria = null;
 let carregandoCadastrosPromise = null;
+
+/* V13.38 — cache rápido por máquina */
+const CACHE_MAQUINA_TTL_MS =
+  60000;
+
+const cacheUltimaInspecaoPorMaquina =
+  new Map();
+
+const cacheStatusPorMaquina =
+  new Map();
+
+const promessasUltimaInspecaoPorMaquina =
+  new Map();
+
+const promessasStatusPorMaquina =
+  new Map();
+
 
 let produtoAtual = null;
 
@@ -6610,23 +6628,30 @@ async function selecionarMaquinaProvisoria() {
     true
   );
 
-  carregarUltimaInspecaoMaquina();
+  /*
+   * V13.38:
+   * dados específicos da máquina são carregados em paralelo.
+   * Se já houver cache, as funções retornam imediatamente.
+   */
+  const ultimaPromise =
+    carregarUltimaInspecaoMaquina();
 
   preencherOperadoresStatus();
 
   atualizarObrigatoriedadeAudioStatus();
 
-  carregarStatusMaquina()
+  const statusPromise =
+    carregarStatusMaquina();
 
-    .then(
-      function() {
-
-        atualizarStatusMaquinaUI();
-
-        atualizarBloqueioStatusObrigatorio_();
-
-      }
-    );
+  Promise.allSettled(
+    [
+      ultimaPromise,
+      statusPromise
+    ]
+  )
+  .catch(
+    function() {}
+  );
 
   /*
    * V13.34:
@@ -7678,221 +7703,326 @@ function carregarUltimaInspecaoMaquina() {
 
     atualizarAlarmeInspecaoUI();
 
-    return;
+    return Promise.resolve(
+      null
+    );
 
   }
 
-  const callbackName =
-    'ultimaInspecao_' +
-    Date.now() +
-    '_' +
-    Math.random()
-      .toString(36)
-      .substring(2,8);
-
-  const script =
-    document.createElement('script');
-
-  const timeout =
-    setTimeout(
-      function() {
-
-        try {
-          delete window[callbackName];
-        } catch (erro) {}
-
-        try {
-          if (script.parentNode) {
-            script.parentNode.removeChild(
-              script
-            );
-          }
-        } catch (erro) {}
-
-        atualizarAlarmeInspecaoUI();
-
-      },
-      4000
+  const chave =
+    normalizarMaquinaChave_(
+      maquina
     );
 
-  window[callbackName] =
-  function(dados) {
-
-    clearTimeout(timeout);
-
-    try {
-      delete window[callbackName];
-    } catch (erro) {}
-
-    try {
-      if (script.parentNode) {
-        script.parentNode.removeChild(
-          script
-        );
-      }
-    } catch (erro) {}
-
-    if (
-      dados &&
-      dados.sucesso
-    ) {
-
-      ultimaInspecaoRegistrada =
-        dados.ultimaInspecao
-          ? new Date(
-              dados.ultimaInspecao
-            ).toLocaleString(
-              'pt-BR'
-            )
-          : null;
-
-      proximaInspecaoTimestamp =
-        dados.proximaInspecao
-          ? new Date(
-              dados.proximaInspecao
-            ).getTime()
-          : null;
-
-      inspecaoSuspensa =
-        Boolean(
-          dados.inspecaoSuspensa
-        );
-
-      inspecaoPendenteInicial =
-        Boolean(
-          dados.pendenteInicial
-        );
-
-      if (
-        dados.statusAtual
-      ) {
-
-        statusOperacionalMaquina =
-          String(
-            dados.statusAtual
-          ).trim().toUpperCase();
-
-      }
-
-      /*
-       * A suspensão é apenas operacional enquanto a máquina
-       * não está PRODUZINDO. O relógio continua sendo baseado
-       * exclusivamente na última inspeção concluída.
-       */
-      if (
-        dados.ultimaInspecao
-      ) {
-
-        const data =
-          new Date(
-            dados.ultimaInspecao
-          );
-
-        if (!isNaN(data.getTime())) {
-
-          restaurarSilencioAlarmePersistido_(
-            maquina,
-            data.getTime()
-          );
-
-        }
-
-      }
-
-      if (
-        inspecaoSuspensa
-      ) {
-
-        /*
-         * Não tocamos no timestamp da última inspeção.
-         * Apenas não deixamos o alarme tocar enquanto estiver parada.
-         */
-
-      }
-
-      try {
-
-        debugUploadCliente(
-          'ALARME_RELOGIO_BASE_INSPECAO',
-          {
-            mediaType:
-              'ALARM'
-          },
-          {
-            maquina:
-              maquina,
-            base:
-              dados.ultimaInspecao ||
-              null,
-            proxima:
-              dados.proximaInspecao ||
-              null,
-            status:
-              dados.statusAtual ||
-              '',
-            statusNaoResetaRelogio:
-              true
-          }
-        );
-
-        debugUploadCliente(
-          'ALARME_ULTIMA_INSPECAO_RESPOSTA',
-          {
-            mediaType:'ALARM',
-            uploadId:''
-          },
-          {
-            ultimaInspecao:
-              dados.ultimaInspecao || null,
-            proximaInspecao:
-              dados.proximaInspecao || null,
-            baseInspecao:
-              dados.baseInspecao || null,
-            statusAtual:
-              dados.statusAtual || '',
-            inspecaoSuspensa:
-              inspecaoSuspensa,
-            pendenteInicial:
-              inspecaoPendenteInicial
-          }
-        );
-      } catch (debugErro) {}
-
-    }
-    else {
-
-      ultimaInspecaoRegistrada = null;
-      proximaInspecaoTimestamp = null;
-      inspecaoSuspensa = false;
-      inspecaoPendenteInicial = false;
-
-    }
-
-    atualizarAlarmeInspecaoUI();
-
-  };
-
-  script.src =
-    URL_APPS_SCRIPT +
-    '?status=ultimaInspecao' +
-    '&m=' +
-    encodeURIComponent(
-      maquina
-    ) +
-    '&callback=' +
-    encodeURIComponent(
-      callbackName
-    ) +
-    '&_=' +
+  const agora =
     Date.now();
 
-  script.async = true;
+  const cached =
+    cacheUltimaInspecaoPorMaquina
+      .get(chave);
 
-  document.head.appendChild(
-    script
+  if (
+    cached &&
+    (
+      agora -
+      cached.at
+    ) <
+    CACHE_MAQUINA_TTL_MS
+  ) {
+
+    aplicarDadosUltimaInspecaoNaTela_(
+      cached.data
+    );
+
+    return Promise.resolve(
+      cached.data
+    );
+
+  }
+
+  const existente =
+    promessasUltimaInspecaoPorMaquina
+      .get(chave);
+
+  if (existente) {
+    return existente;
+  }
+
+  const promise =
+    new Promise(
+      function(
+        resolve
+      ) {
+
+        const callbackName =
+          'ultimaInspecao_' +
+          Date.now() +
+          '_' +
+          Math.random()
+            .toString(36)
+            .substring(
+              2,
+              8
+            );
+
+        const script =
+          document.createElement(
+            'script'
+          );
+
+        let finalizado =
+          false;
+
+        const limpar =
+          function() {
+
+            try {
+              delete window[
+                callbackName
+              ];
+            }
+            catch (erro) {}
+
+            try {
+
+              if (
+                script.parentNode
+              ) {
+
+                script.parentNode
+                  .removeChild(
+                    script
+                  );
+
+              }
+
+            }
+            catch (erro) {}
+
+          };
+
+        const timeout =
+          setTimeout(
+            function() {
+
+              if (
+                finalizado
+              ) {
+                return;
+              }
+
+              finalizado =
+                true;
+
+              limpar();
+
+              atualizarAlarmeInspecaoUI();
+
+              resolve(
+                null
+              );
+
+            },
+            3500
+          );
+
+        window[
+          callbackName
+        ] =
+        function(
+          dados
+        ) {
+
+          if (
+            finalizado
+          ) {
+            return;
+          }
+
+          finalizado =
+            true;
+
+          clearTimeout(
+            timeout
+          );
+
+          limpar();
+
+          if (
+            dados &&
+            dados.sucesso
+          ) {
+
+            cacheUltimaInspecaoPorMaquina.set(
+              chave,
+              {
+                at:
+                  Date.now(),
+                data:
+                  dados
+              }
+            );
+
+            /*
+             * Só aplica se ainda estivermos na mesma máquina.
+             */
+            if (
+              normalizarMaquinaChave_(
+                maquina
+              ) ===
+              chave
+            ) {
+
+              aplicarDadosUltimaInspecaoNaTela_(
+                dados
+              );
+
+            }
+
+          }
+
+          resolve(
+            dados || null
+          );
+
+        };
+
+        script.async =
+          true;
+
+        script.src =
+          URL_APPS_SCRIPT +
+          '?status=ultimaInspecao' +
+          '&m=' +
+          encodeURIComponent(
+            chave
+          ) +
+          '&callback=' +
+          encodeURIComponent(
+            callbackName
+          ) +
+          '&_=' +
+          Date.now();
+
+        document.head.appendChild(
+          script
+        );
+
+      }
+    )
+    .finally(
+      function() {
+
+        promessasUltimaInspecaoPorMaquina
+          .delete(
+            chave
+          );
+
+      }
+    );
+
+  promessasUltimaInspecaoPorMaquina.set(
+    chave,
+    promise
   );
 
+  /*
+   * Mantém a resposta anterior visível enquanto atualiza em background.
+   */
+  if (
+    cached &&
+    cached.data
+  ) {
+
+    aplicarDadosUltimaInspecaoNaTela_(
+      cached.data
+    );
+
+  }
+
+  return promise;
+
 }
+
+
+function aplicarDadosUltimaInspecaoNaTela_(
+  dados
+) {
+
+  if (
+    !dados ||
+    !dados.sucesso
+  ) {
+    return;
+  }
+
+  ultimaInspecaoRegistrada =
+    dados.ultimaInspecao
+      ? new Date(
+          dados.ultimaInspecao
+        ).toLocaleString(
+          'pt-BR'
+        )
+      : null;
+
+  proximaInspecaoTimestamp =
+    dados.proximaInspecao
+      ? new Date(
+          dados.proximaInspecao
+        ).getTime()
+      : null;
+
+  inspecaoSuspensa =
+    Boolean(
+      dados.inspecaoSuspensa
+    );
+
+  inspecaoPendenteInicial =
+    Boolean(
+      dados.pendenteInicial
+    );
+
+  if (
+    dados.statusAtual
+  ) {
+
+    statusOperacionalMaquina =
+      String(
+        dados.statusAtual
+      )
+        .trim()
+        .toUpperCase();
+
+  }
+
+  if (
+    dados.ultimaInspecao
+  ) {
+
+    const data =
+      new Date(
+        dados.ultimaInspecao
+      );
+
+    if (
+      !isNaN(
+        data.getTime()
+      )
+    ) {
+
+      restaurarSilencioAlarmePersistido_(
+        maquina,
+        data.getTime()
+      );
+
+    }
+
+  }
+
+  atualizarAlarmeInspecaoUI();
+
+}
+
 
 
 
@@ -8436,9 +8566,7 @@ function carregarStatusMaquina() {
       resolve
     ) {
 
-      if (
-        !maquina
-      ) {
+      if (!maquina) {
 
         resolve(
           null
@@ -8448,200 +8576,320 @@ function carregarStatusMaquina() {
 
       }
 
-      const callbackName =
-        'statusMaquina_' +
-        Date.now() +
-        '_' +
-        Math.random()
-          .toString(36)
-          .substring(
-            2,
-            8
-          );
-
-      const script =
-        document.createElement(
-          'script'
-        );
-
-      let terminou =
-        false;
-
-      const limpar =
-        function() {
-
-          try {
-
-            delete window[
-              callbackName
-            ];
-
-          }
-          catch (erro) {}
-
-          try {
-
-            if (
-              script.parentNode
-            ) {
-
-              script.parentNode
-                .removeChild(
-                  script
-                );
-
-            }
-
-          }
-          catch (erro) {}
-
-        };
-
-      const timeout =
-        setTimeout(
-          function() {
-
-            if (
-              terminou
-            ) {
-
-              return;
-
-            }
-
-            terminou =
-              true;
-
-            limpar();
-
-            atualizarStatusMaquinaUI();
-
-            resolve(
-              null
-            );
-
-          },
-          8000
-        );
-
-      window[
-        callbackName
-      ] =
-      function(
-        dados
-      ) {
-
-        if (
-          terminou
-        ) {
-
-          return;
-
-        }
-
-        terminou =
-          true;
-
-        clearTimeout(
-          timeout
-        );
-
-        limpar();
-
-        if (
-          dados &&
-          dados.sucesso
-        ) {
-
-          statusOperacionalMaquina =
-            dados.status ||
-            'PRODUZINDO';
-
-          motivoParadaMaquina =
-            dados.motivo ||
-            '';
-
-          inicioStatusMaquina =
-            dados.inicioStatus ||
-            null;
-
-          statusAtualizadoEm =
-            dados.atualizadoEm ||
-            null;
-
-          responsavelStatusMaquina =
-            dados.responsavel ||
-            '';
-
-          observacaoStatusMaquina =
-            dados.observacao ||
-            '';
-
-          const responsavel =
-            document.getElementById(
-              'machineStatusResponsible'
-            );
-
-          const observacao =
-            document.getElementById(
-              'machineStatusNote'
-            );
-
-          if (
-            responsavel
-          ) {
-
-            responsavel.value =
-              responsavelStatusMaquina;
-
-          }
-
-          if (
-            observacao
-          ) {
-
-            observacao.value =
-              observacaoStatusMaquina;
-
-          }
-
-          atualizarStatusMaquinaUI();
-
-          atualizarBloqueioStatusObrigatorio_();
-
-        }
-
-        resolve(
-          dados
-        );
-
-      };
-
-      script.src =
-        URL_APPS_SCRIPT +
-        '?status=machineStatus' +
-        '&m=' +
-        encodeURIComponent(
+      const chave =
+        normalizarMaquinaChave_(
           maquina
-        ) +
-        '&callback=' +
-        encodeURIComponent(
-          callbackName
-        ) +
-        '&_=' +
+        );
+
+      const agora =
         Date.now();
 
-      script.async =
-        true;
+      const cached =
+        cacheStatusPorMaquina
+          .get(chave);
 
-      document.head.appendChild(
-        script
+      if (
+        cached &&
+        (
+          agora -
+          cached.at
+        ) <
+        CACHE_MAQUINA_TTL_MS
+      ) {
+
+        aplicarDadosStatusNaTela_(
+          cached.data
+        );
+
+        resolve(
+          cached.data
+        );
+
+        return;
+
+      }
+
+      const existente =
+        promessasStatusPorMaquina
+          .get(chave);
+
+      if (existente) {
+
+        existente.then(
+          resolve
+        );
+
+        return;
+
+      }
+
+      const promise =
+        new Promise(
+          function(
+            done
+          ) {
+
+            const callbackName =
+              'statusMaquina_' +
+              Date.now() +
+              '_' +
+              Math.random()
+                .toString(36)
+                .substring(
+                  2,
+                  8
+                );
+
+            const script =
+              document.createElement(
+                'script'
+              );
+
+            let terminou =
+              false;
+
+            const limpar =
+              function() {
+
+                try {
+                  delete window[
+                    callbackName
+                  ];
+                }
+                catch (erro) {}
+
+                try {
+
+                  if (
+                    script.parentNode
+                  ) {
+
+                    script.parentNode
+                      .removeChild(
+                        script
+                      );
+
+                  }
+
+                }
+                catch (erro) {}
+
+              };
+
+            const timeout =
+              setTimeout(
+                function() {
+
+                  if (
+                    terminou
+                  ) {
+                    return;
+                  }
+
+                  terminou =
+                    true;
+
+                  limpar();
+
+                  atualizarStatusMaquinaUI();
+
+                  done(
+                    null
+                  );
+
+                },
+                5000
+              );
+
+            window[
+              callbackName
+            ] =
+            function(
+              dados
+            ) {
+
+              if (
+                terminou
+              ) {
+                return;
+              }
+
+              terminou =
+                true;
+
+              clearTimeout(
+                timeout
+              );
+
+              limpar();
+
+              if (
+                dados &&
+                dados.sucesso
+              ) {
+
+                cacheStatusPorMaquina.set(
+                  chave,
+                  {
+                    at:
+                      Date.now(),
+                    data:
+                      dados
+                  }
+                );
+
+                if (
+                  normalizarMaquinaChave_(
+                    maquina
+                  ) ===
+                  chave
+                ) {
+
+                  aplicarDadosStatusNaTela_(
+                    dados
+                  );
+
+                }
+
+              }
+
+              done(
+                dados || null
+              );
+
+            };
+
+            script.async =
+              true;
+
+            script.src =
+              URL_APPS_SCRIPT +
+              '?status=machineStatus' +
+              '&m=' +
+              encodeURIComponent(
+                chave
+              ) +
+              '&callback=' +
+              encodeURIComponent(
+                callbackName
+              ) +
+              '&_=' +
+              Date.now();
+
+            document.head.appendChild(
+              script
+            );
+
+          }
+        )
+        .finally(
+          function() {
+
+            promessasStatusPorMaquina.delete(
+              chave
+            );
+
+          }
+        );
+
+      promessasStatusPorMaquina.set(
+        chave,
+        promise
+      );
+
+      /*
+       * Exibe imediatamente a última resposta conhecida.
+       * A atualização nova acontece em segundo plano.
+       */
+      if (
+        cached &&
+        cached.data
+      ) {
+
+        aplicarDadosStatusNaTela_(
+          cached.data
+        );
+
+      }
+
+      promise.then(
+        resolve
       );
 
     }
   );
 
 }
+
+
+function aplicarDadosStatusNaTela_(
+  dados
+) {
+
+  if (
+    !dados ||
+    !dados.sucesso
+  ) {
+    return;
+  }
+
+  statusOperacionalMaquina =
+    dados.status ||
+    'PRODUZINDO';
+
+  motivoParadaMaquina =
+    dados.motivo ||
+    '';
+
+  inicioStatusMaquina =
+    dados.inicioStatus ||
+    null;
+
+  statusAtualizadoEm =
+    dados.atualizadoEm ||
+    null;
+
+  responsavelStatusMaquina =
+    dados.responsavel ||
+    '';
+
+  observacaoStatusMaquina =
+    dados.observacao ||
+    '';
+
+  const responsavel =
+    document.getElementById(
+      'machineStatusResponsible'
+    );
+
+  const observacao =
+    document.getElementById(
+      'machineStatusNote'
+    );
+
+  if (
+    responsavel
+  ) {
+
+    responsavel.value =
+      responsavelStatusMaquina;
+
+  }
+
+  if (
+    observacao
+  ) {
+
+    observacao.value =
+      observacaoStatusMaquina;
+
+  }
+
+  atualizarStatusMaquinaUI();
+  atualizarBloqueioStatusObrigatorio_();
+
+}
+
 
 
 
