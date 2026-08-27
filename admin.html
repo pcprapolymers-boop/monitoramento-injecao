@@ -1369,7 +1369,12 @@ async function carregarHistoricoStatusMaquinas(
             adminToken,
 
           data:
-            dataInicialBR,
+            (
+              dataInicialBR ===
+                dataFinalBR
+            )
+              ? dataInicialBR
+              : '',
 
           dataInicial:
             dataInicialBR,
@@ -1632,7 +1637,12 @@ async function carregarHistorico() {
             adminToken,
 
           data:
-            dataInicialBR,
+            (
+              dataInicialBR ===
+                dataFinalBR
+            )
+              ? dataInicialBR
+              : '',
 
           dataInicial:
             dataInicialBR,
