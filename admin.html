@@ -449,150 +449,206 @@ tr:nth-child(even) td {
 <button class="btn btn-primary" onclick="entrarAdmin()">
       🔓 ENTRAR
     </button>
+<label
+  style="
+    display:flex;
+    align-items:center;
+    gap:8px;
+    margin:12px 0 4px;
+    font-size:13px;
+    color:var(--muted);
+    cursor:pointer;
+  "
+>
+  <input
+    id="lembrarSenhaAdmin"
+    type="checkbox"
+    style="width:18px;height:18px;margin:0;"
+  />
+  <span>💾 Salvar senha neste aparelho</span>
+</label>
+<div
+  id="avisoSenhaSalva"
+  style="
+    display:none;
+    margin-top:6px;
+    font-size:11px;
+    color:var(--muted);
+  "
+>
+  A senha será armazenada no navegador deste aparelho.
+</div>
 <div class="message hidden" id="loginMessage"></div>
 </div>
 <div class="card hidden" id="painelAdmin">
-<h2>📊 Histórico de Inspeções</h2>
-<div class="filters">
-<input aria-label="Data" id="data" type="date"/>
-<select id="maquina">
-<option value="">Todas as máquinas</option>
-<option value="M1">M-1</option>
-<option value="M2">M-2</option>
-<option value="M3">M-3</option>
-<option value="M4">M-4</option>
-<option value="M5">M-5</option>
-<option value="M6">M-6</option>
-</select>
-<select id="operador">
-<option value="">Todos os operadores</option>
-</select>
-<select id="produto">
-<option value="">Todos os produtos</option>
-</select>
-<select id="conforme">
-<option value="">Todos os resultados</option>
-<option value="SIM">Conformes</option>
-<option value="NÃO">Não conformes</option>
-</select>
-<label>
-          Status da máquina
-          <select id="statusMaquina">
-<option value="">Todos</option>
-<option value="PRODUZINDO">🟢 Produzindo</option>
-<option value="PARADA_PROGRAMADA">🟡 Parada programada</option>
-<option value="QUEBRA">🔴 Quebra</option>
-<option value="MANUTENCAO">🔧 Manutenção</option>
-<option value="FALTA_MATERIAL">📦 Falta de material</option>
-<option value="OUTROS">⚪ Outros</option>
-</select>
-</label>
-</div>
-<div class="actions">
-<button class="btn btn-primary" onclick="carregarHistorico()">
-        🔎 FILTRAR
-      </button>
-<button class="btn btn-secondary" onclick="limparFiltros()">
-        ♻️ LIMPAR
-      </button>
-<button
-  class="btn btn-secondary"
-  id="btnAtualizarLancamentos"
-  type="button"
-  onclick="atualizarLancamentos()"
-  title="Atualizar inspeções e status sem recarregar a página"
->
-        🔄 ATUALIZAR LANÇAMENTOS
-      </button>
-</div>
-<div style="
-        margin:8px 0 12px;
-        color:var(--muted);
-        font-size:13px;
-      ">
-      🔎 Os filtros acima são compartilhados pelo histórico de inspeções e pelo histórico de status das máquinas.
+
+  <div class="admin-section">
+    <h2>📊 Histórico de Inspeções</h2>
+
+    <div class="filters">
+      <input aria-label="Data da inspeção" id="data" type="date"/>
+
+      <select id="maquina">
+        <option value="">Todas as máquinas</option>
+        <option value="M1">M-1</option>
+        <option value="M2">M-2</option>
+        <option value="M3">M-3</option>
+        <option value="M4">M-4</option>
+        <option value="M5">M-5</option>
+        <option value="M6">M-6</option>
+      </select>
+
+      <select id="operador">
+        <option value="">Todos os operadores</option>
+      </select>
+
+      <select id="produto">
+        <option value="">Todos os produtos</option>
+      </select>
+
+      <select id="conforme">
+        <option value="">Todos os resultados</option>
+        <option value="SIM">Conformes</option>
+        <option value="NÃO">Não conformes</option>
+      </select>
     </div>
-<div class="summary" id="summary">
+
+    <div class="actions">
+      <button class="btn btn-primary" type="button" onclick="carregarHistorico()">
+        🔎 FILTRAR INSPEÇÕES
+      </button>
+
+      <button class="btn btn-secondary" type="button" onclick="limparFiltrosInspecoes()">
+        ♻️ LIMPAR FILTROS
+      </button>
+
+      <button class="btn btn-secondary" id="btnAtualizarInspecoes" type="button" onclick="atualizarHistoricoInspecoes()">
+        🔄 ATUALIZAR INSPEÇÕES
+      </button>
+    </div>
+
+    <div class="summary" id="summary">
       Nenhuma consulta realizada.
     </div>
-<div
-  id="ultimaAtualizacaoLancamentos"
-  style="
-    margin:4px 0 10px;
-    color:var(--muted);
-    font-size:12px;
-  "
->
-</div>
-<div style="
-        margin:8px 0 12px;
-        color:var(--muted);
-        font-size:13px;
-      ">
-      🎙️ Quando houver áudio associado à inspeção, o botão
-      <strong>OUVIR</strong> abre a gravação armazenada no Google Drive.
-    </div>
-<div class="table-wrap">
-<table>
-<thead>
-<tr>
-<th>Data/Hora</th>
-<th>Máquina</th>
-<th>Operador</th>
-<th>Produto</th>
-<th>Ciclo</th>
-<th>Duração</th>
-<th>Resultado</th>
-<th>Turno</th>
-<th>Vídeo</th>
-<th>Áudio</th>
-</tr>
-</thead>
-<tbody id="tabela">
-<tr>
-<td colspan="10" style="text-align:center;padding:20px;">
-              Faça uma consulta.
 
-            </td>
-</tr>
-</tbody>
-</table>
-</div>
-<div class="card" id="statusHistoryPanel" style="margin-top:20px;">
-<div style="
-      font-size:18px;
-      font-weight:800;
-      margin-bottom:6px;
-    ">
-    🏭 HISTÓRICO DE STATUS DAS MÁQUINAS
+    <div
+      id="ultimaAtualizacaoInspecoes"
+      style="margin:4px 0 10px;color:var(--muted);font-size:12px;"
+    ></div>
+
+    <div style="margin:8px 0 12px;color:var(--muted);font-size:13px;">
+      🎙️ Quando houver áudio associado à inspeção, <strong>OUVIR</strong> abre a gravação do Google Drive.
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Data/Hora</th>
+            <th>Máquina</th>
+            <th>Operador</th>
+            <th>Produto</th>
+            <th>Ciclo</th>
+            <th>Duração</th>
+            <th>Resultado</th>
+            <th>Turno</th>
+            <th>Vídeo</th>
+            <th>Áudio</th>
+          </tr>
+        </thead>
+        <tbody id="tabela">
+          <tr>
+            <td colspan="10" style="text-align:center;padding:20px;">Faça uma consulta.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
   </div>
-<div class="summary" id="statusHistorySummary">
-    Nenhuma consulta realizada.
+
+  <div
+    class="admin-section"
+    id="statusHistoryPanel"
+    style="margin-top:24px;"
+  >
+
+    <div style="font-size:20px;font-weight:800;margin-bottom:6px;">
+      🏭 Histórico de Status das Máquinas
+    </div>
+
+    <div class="filters">
+      <input aria-label="Data do status" id="statusData" type="date"/>
+
+      <select id="statusMaquina">
+        <option value="">Todas as máquinas</option>
+        <option value="M1">M-1</option>
+        <option value="M2">M-2</option>
+        <option value="M3">M-3</option>
+        <option value="M4">M-4</option>
+        <option value="M5">M-5</option>
+        <option value="M6">M-6</option>
+      </select>
+
+      <select id="statusOperador">
+        <option value="">Todos os operadores</option>
+      </select>
+
+      <select id="statusFiltro">
+        <option value="">Todos os status</option>
+        <option value="PRODUZINDO">🟢 Produzindo</option>
+        <option value="PARADA_PROGRAMADA">🟡 Parada programada</option>
+        <option value="QUEBRA">🔴 Quebra</option>
+        <option value="MANUTENCAO">🔧 Manutenção</option>
+        <option value="FALTA_MATERIAL">📦 Falta de material</option>
+        <option value="OUTROS">⚪ Outros</option>
+      </select>
+    </div>
+
+    <div class="actions">
+      <button class="btn btn-primary" type="button" onclick="carregarHistoricoStatusMaquinas()">
+        🔎 FILTRAR STATUS
+      </button>
+
+      <button class="btn btn-secondary" type="button" onclick="limparFiltrosStatus()">
+        ♻️ LIMPAR FILTROS
+      </button>
+
+      <button class="btn btn-secondary" id="btnAtualizarStatusHistorico" type="button" onclick="atualizarHistoricoStatus()">
+        🔄 ATUALIZAR STATUS
+      </button>
+    </div>
+
+    <div class="summary" id="statusHistorySummary">
+      Nenhuma consulta realizada.
+    </div>
+
+    <div
+      id="ultimaAtualizacaoStatus"
+      style="margin:4px 0 10px;color:var(--muted);font-size:12px;"
+    ></div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Data/Hora</th>
+            <th>Máquina</th>
+            <th>Status</th>
+            <th>Operador</th>
+            <th>Motivo</th>
+            <th>Observação</th>
+            <th>Áudio</th>
+            <th>Atualizado em</th>
+          </tr>
+        </thead>
+        <tbody id="statusHistoricoTabela">
+          <tr>
+            <td colspan="8" style="text-align:center;padding:20px;">Faça uma consulta.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
   </div>
-<div class="table-wrap">
-<table>
-<thead>
-<tr>
-<th>Data/Hora</th>
-<th>Máquina</th>
-<th>Status</th>
-<th>Operador</th>
-<th>Motivo</th>
-<th>Observação</th>
-<th>Áudio</th>
-<th>Atualizado em</th>
-</tr>
-</thead>
-<tbody id="statusHistoricoTabela">
-<tr>
-<td colspan="8" style="text-align:center;padding:20px;">
-            Faça uma consulta.
-          </td>
-</tr>
-</tbody>
-</table>
-</div>
-</div></div>
 
 </div>
 <script>
@@ -864,21 +920,28 @@ document.getElementById(
 
 async function entrarAdmin() {
 
-  const senha =
+  const campoSenha =
     document.getElementById(
       'senhaAdmin'
-    ).value;
+    );
 
+  const senha =
+    campoSenha
+      ? campoSenha.value
+      : '';
+
+  const lembrar =
+    document.getElementById(
+      'lembrarSenhaAdmin'
+    );
 
   const message =
     document.getElementById(
       'loginMessage'
     );
 
-
   message.className =
     'message hidden';
-
 
   if (!senha) {
 
@@ -892,7 +955,6 @@ async function entrarAdmin() {
 
   }
 
-
   try {
 
     const resposta =
@@ -900,15 +962,12 @@ async function entrarAdmin() {
         {
           status:
             'adminLogin',
-
           senha:
             senha
-
         },
         null,
         15000
       );
-
 
     if (
       !resposta ||
@@ -924,16 +983,55 @@ async function entrarAdmin() {
 
     }
 
-
     adminToken =
       resposta.token;
-
 
     sessionStorage.setItem(
       'adminHistoryToken',
       adminToken
     );
 
+    /*
+     * Salva a senha somente quando o administrador solicitar.
+     * O navegador/app continua responsável pela proteção do aparelho.
+     */
+    if (
+      lembrar &&
+      lembrar.checked
+    ) {
+
+      try {
+
+        localStorage.setItem(
+          'ra_polymers_admin_saved_password',
+          senha
+        );
+
+        localStorage.setItem(
+          'ra_polymers_admin_remember',
+          '1'
+        );
+
+      }
+      catch (erro) {}
+
+    }
+    else {
+
+      try {
+
+        localStorage.removeItem(
+          'ra_polymers_admin_saved_password'
+        );
+
+        localStorage.removeItem(
+          'ra_polymers_admin_remember'
+        );
+
+      }
+      catch (erro) {}
+
+    }
 
     document.getElementById(
       'loginCard'
@@ -941,16 +1039,19 @@ async function entrarAdmin() {
       'hidden'
     );
 
-
     document.getElementById(
       'painelAdmin'
     ).classList.remove(
       'hidden'
     );
 
-
     carregarFiltros();
 
+    /*
+     * A abertura consulta somente o histórico de inspeções.
+     * O histórico de status fica separado e é carregado pelo
+     * botão próprio.
+     */
     carregarHistorico();
 
   }
@@ -970,23 +1071,23 @@ async function entrarAdmin() {
 }
 
 
+
 async function carregarFiltros() {
 
-  /*
-   * Mantemos listas simples no painel administrativo.
-   * Elas são opcionais; o backend não depende delas.
-   */
   const operador =
     document.getElementById(
       'operador'
     );
 
+  const operadorStatus =
+    document.getElementById(
+      'statusOperador'
+    );
 
   const produto =
     document.getElementById(
       'produto'
     );
-
 
   const operadoresConhecidos = [
     'Guilherme',
@@ -997,7 +1098,6 @@ async function carregarFiltros() {
     'Célio'
   ];
 
-
   const produtosConhecidos = [
     'Reservatório 25L',
     'Reservatório 50L',
@@ -1005,102 +1105,60 @@ async function carregarFiltros() {
     'Tampa de 100L Cinza'
   ];
 
+  const opcoesOperador =
+    '<option value="">Todos os operadores</option>' +
+    operadoresConhecidos
+      .map(
+        function(nome) {
+          return (
+            '<option value="' +
+            escapeHtml(nome) +
+            '">' +
+            escapeHtml(nome) +
+            '</option>'
+          );
+        }
+      )
+      .join('');
 
-  operador.innerHTML =
-    '<option value="">Todos os operadores</option>';
+  if (operador) {
+    operador.innerHTML =
+      opcoesOperador;
+  }
 
+  if (operadorStatus) {
+    operadorStatus.innerHTML =
+      opcoesOperador;
+  }
 
-  operadoresConhecidos.forEach(
-    function(nome) {
+  if (produto) {
 
-      operador.insertAdjacentHTML(
-        'beforeend',
-        '<option value="' +
-        escapeHtml(
-          nome
-        ) +
-        '">' +
-        escapeHtml(
-          nome
-        ) +
-        '</option>'
-      );
+    produto.innerHTML =
+      '<option value="">Todos os produtos</option>' +
+      produtosConhecidos
+        .map(
+          function(nome) {
+            return (
+              '<option value="' +
+              escapeHtml(nome) +
+              '">' +
+              escapeHtml(nome) +
+              '</option>'
+            );
+          }
+        )
+        .join('');
 
-    }
-  );
-
-
-  produto.innerHTML =
-    '<option value="">Todos os produtos</option>';
-
-
-  produtosConhecidos.forEach(
-    function(nome) {
-
-      produto.insertAdjacentHTML(
-        'beforeend',
-        '<option value="' +
-        escapeHtml(
-          nome
-        ) +
-        '">' +
-        escapeHtml(
-          nome
-        ) +
-        '</option>'
-      );
-
-    }
-  );
-
-}
-
-
-function limparFiltros() {
-
-  document.getElementById(
-    'data'
-  ).value =
-    '';
-
-
-  document.getElementById(
-    'maquina'
-  ).value =
-    '';
-
-
-  document.getElementById(
-    'operador'
-  ).value =
-    '';
-
-
-  document.getElementById(
-    'produto'
-  ).value =
-    '';
-
-
-  document.getElementById(
-    'conforme'
-  ).value =
-    '';
-
-
-  carregarHistorico();
-
-
-  const status =
-    document.getElementById(
-      'statusMaquina'
-    );
-
-  if (status) {
-    status.value = '';
   }
 
 }
+
+
+
+function limparFiltros() {
+  limparFiltrosInspecoes();
+}
+
 
 
 
@@ -1210,21 +1268,21 @@ async function carregarHistoricoStatusMaquinas(
             adminToken,
 
           data:
-            dataBR || '',
+            dataBRStatus,
 
           maquina:
             document.getElementById(
-              'maquina'
+              'statusMaquina'
             ).value,
 
           operador:
             document.getElementById(
-              'operador'
+              'statusOperador'
             ).value,
 
           statusMaquina:
             document.getElementById(
-              'statusMaquina'
+              'statusFiltro'
             ).value,
 
           limite:
@@ -1667,11 +1725,6 @@ async function carregarHistorico() {
         : [];
 
 
-    await carregarHistoricoStatusMaquinas(
-      dataBR
-    );
-
-
     resumo.textContent =
       registros.length +
       ' registro(s) exibido(s) de ' +
@@ -1924,6 +1977,289 @@ function escapeHtml(
       /'/g,
       '&#039;'
     );
+
+}
+
+
+function limparFiltrosInspecoes() {
+
+  document.getElementById(
+    'data'
+  ).value = '';
+
+  document.getElementById(
+    'maquina'
+  ).value = '';
+
+  document.getElementById(
+    'operador'
+  ).value = '';
+
+  document.getElementById(
+    'produto'
+  ).value = '';
+
+  document.getElementById(
+    'conforme'
+  ).value = '';
+
+  carregarHistorico();
+
+}
+
+
+function limparFiltrosStatus() {
+
+  const ids = [
+    'statusData',
+    'statusMaquina',
+    'statusOperador',
+    'statusFiltro'
+  ];
+
+  ids.forEach(
+    function(id) {
+
+      const el =
+        document.getElementById(
+          id
+        );
+
+      if (el) {
+        el.value =
+          '';
+      }
+
+    }
+  );
+
+  carregarHistoricoStatusMaquinas();
+
+}
+
+
+async function atualizarHistoricoInspecoes() {
+
+  const botao =
+    document.getElementById(
+      'btnAtualizarInspecoes'
+    );
+
+  const ultimo =
+    document.getElementById(
+      'ultimaAtualizacaoInspecoes'
+    );
+
+  if (botao) {
+    botao.disabled =
+      true;
+    botao.textContent =
+      '⏳ ATUALIZANDO...';
+  }
+
+  try {
+
+    await carregarHistorico();
+
+    if (ultimo) {
+
+      ultimo.textContent =
+        '✅ Atualizado às ' +
+        new Date()
+          .toLocaleTimeString(
+            'pt-BR'
+          );
+
+    }
+
+  }
+  finally {
+
+    if (botao) {
+      botao.disabled =
+        false;
+      botao.textContent =
+        '🔄 ATUALIZAR INSPEÇÕES';
+    }
+
+  }
+
+}
+
+
+async function atualizarHistoricoStatus() {
+
+  const botao =
+    document.getElementById(
+      'btnAtualizarStatusHistorico'
+    );
+
+  const ultimo =
+    document.getElementById(
+      'ultimaAtualizacaoStatus'
+    );
+
+  if (botao) {
+    botao.disabled =
+      true;
+    botao.textContent =
+      '⏳ ATUALIZANDO...';
+  }
+
+  try {
+
+    await carregarHistoricoStatusMaquinas();
+
+    if (ultimo) {
+
+      ultimo.textContent =
+        '✅ Atualizado às ' +
+        new Date()
+          .toLocaleTimeString(
+            'pt-BR'
+          );
+
+    }
+
+  }
+  finally {
+
+    if (botao) {
+      botao.disabled =
+        false;
+      botao.textContent =
+        '🔄 ATUALIZAR STATUS';
+    }
+
+  }
+
+}
+
+
+function carregarSenhaSalvaAdmin() {
+
+  const campo =
+    document.getElementById(
+      'senhaAdmin'
+    );
+
+  const lembrar =
+    document.getElementById(
+      'lembrarSenhaAdmin'
+    );
+
+  if (
+    !campo ||
+    !lembrar
+  ) {
+    return;
+  }
+
+  try {
+
+    const senhaSalva =
+      localStorage.getItem(
+        'ra_polymers_admin_saved_password'
+      );
+
+    const lembrarSalvo =
+      localStorage.getItem(
+        'ra_polymers_admin_remember'
+      ) ===
+      '1';
+
+    if (
+      lembrarSalvo &&
+      senhaSalva
+    ) {
+
+      campo.value =
+        senhaSalva;
+
+      lembrar.checked =
+        true;
+
+      const aviso =
+        document.getElementById(
+          'avisoSenhaSalva'
+        );
+
+      if (aviso) {
+        aviso.style.display =
+          'block';
+      }
+
+    }
+
+  }
+  catch (erro) {}
+
+}
+
+
+function esquecerSenhaAdminSalva() {
+
+  try {
+
+    localStorage.removeItem(
+      'ra_polymers_admin_saved_password'
+    );
+
+    localStorage.removeItem(
+      'ra_polymers_admin_remember'
+    );
+
+  }
+  catch (erro) {}
+
+  const campo =
+    document.getElementById(
+      'senhaAdmin'
+    );
+
+  const lembrar =
+    document.getElementById(
+      'lembrarSenhaAdmin'
+    );
+
+  if (campo) {
+    campo.value = '';
+  }
+
+  if (lembrar) {
+    lembrar.checked = false;
+  }
+
+}
+
+
+carregarSenhaSalvaAdmin();
+
+const lembrarSenha =
+  document.getElementById(
+    'lembrarSenhaAdmin'
+  );
+
+if (lembrarSenha) {
+
+  lembrarSenha.addEventListener(
+    'change',
+    function() {
+
+      const aviso =
+        document.getElementById(
+          'avisoSenhaSalva'
+        );
+
+      if (aviso) {
+        aviso.style.display =
+          lembrarSenha.checked
+            ? 'block'
+            : 'none';
+      }
+
+    }
+  );
 
 }
 
