@@ -560,6 +560,37 @@
   transition: opacity .2s ease;
 }
 
+
+/* V13.24 — máquinas pendentes clicáveis */
+#preMachineAlarmCard .alarm-pending-machine {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  justify-content: space-between;
+  min-height: 46px;
+  margin-top: 6px;
+  padding: 10px 12px;
+  border: 1px solid #D6E1EA;
+  border-radius: 9px;
+  background: #FFFFFF;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+#preMachineAlarmCard .alarm-pending-machine:active {
+  transform: translateY(1px);
+}
+
+#preMachineAlarmCard .alarm-overview-open {
+  margin-left: auto;
+  font-size: 12px;
+  font-weight: 800;
+  color: #1E5A8A;
+  white-space: nowrap;
+}
+
 </style>
 
 </head>
@@ -2173,22 +2204,35 @@ function atualizarStatusPushUI_() {
       'pushStatus'
     );
 
-  const ativo =
-    localStorage.getItem(
-      'ra_polymers_push_ativo'
-    ) === '1';
+  let permissao =
+    'default';
 
+  try {
+    if (
+      'Notification' in
+      window
+    ) {
+      permissao =
+        Notification.permission;
+    }
+  }
+  catch (erro) {}
+
+  /*
+   * A permissão concedida pelo Android/Brave é a fonte de verdade.
+   * Se for removida, o botão volta a aparecer.
+   */
   if (
-    ativo
+    permissao ===
+    'granted'
   ) {
 
-    /*
-     * Depois do primeiro cadastro bem-sucedido,
-     * o operador não precisa mais ver o botão.
-     */
-    if (
-      card
-    ) {
+    localStorage.setItem(
+      'ra_polymers_push_ativo',
+      '1'
+    );
+
+    if (card) {
       card.style.display =
         'none';
     }
@@ -2197,20 +2241,12 @@ function atualizarStatusPushUI_() {
 
   }
 
-  /*
-   * Primeiro uso:
-   * exibe o cartão e o botão para ativação.
-   */
-  if (
-    card
-  ) {
+  if (card) {
     card.style.display =
       'block';
   }
 
-  if (
-    botao
-  ) {
+  if (botao) {
 
     botao.textContent =
       '🔔 ATIVAR ALARME COM TELA BLOQUEADA';
@@ -2220,16 +2256,17 @@ function atualizarStatusPushUI_() {
 
   }
 
-  if (
-    status
-  ) {
+  if (status) {
 
     status.textContent =
-      'Ative este telefone uma única vez para receber o lembrete da inspeção mesmo com a tela bloqueada ou o navegador em segundo plano.';
+      permissao === 'denied'
+        ? '⚠️ As notificações estão bloqueadas neste aparelho. Libere a permissão no Brave/Android.'
+        : 'Ative este telefone uma única vez para receber o lembrete da inspeção mesmo com a tela bloqueada ou o navegador em segundo plano.';
 
   }
 
 }
+
 
 
 
@@ -5229,8 +5266,20 @@ function atualizarPainelPendenciasAntesDaMaquina(
                       : '🔔 SEM INSPEÇÃO REGISTRADA'
                   );
 
+            const maquinaChave =
+              escapeHtml(
+                item.maquina ||
+                ''
+              );
+
             return (
-              '<div class="alarm-overview-item">' +
+              '<button type="button" ' +
+                'class="alarm-overview-item alarm-pending-machine" ' +
+                'data-maquina="' +
+                maquinaChave +
+                '" ' +
+                'onclick="selecionarMaquinaPendenteDoPainel(this)" ' +
+                'title="Toque para iniciar a inspeção desta máquina">' +
                 '<span class="alarm-overview-machine">' +
                   '🏭 ' +
                   nome +
@@ -5238,7 +5287,10 @@ function atualizarPainelPendenciasAntesDaMaquina(
                 '<span class="alarm-overview-delay">' +
                   estado +
                 '</span>' +
-              '</div>'
+                '<span class="alarm-overview-open">' +
+                  '👉 INSPECIONAR' +
+                '</span>' +
+              '</button>'
             );
 
           }
@@ -5625,6 +5677,39 @@ function limparDependentesAoTrocarMaquina_() {
 
 }
 
+
+
+function selecionarMaquinaPendenteDoPainel(
+  elemento
+) {
+
+  const novaMaquina =
+    normalizarMaquinaTela(
+      elemento &&
+      elemento.dataset
+        ? elemento.dataset.maquina
+        : ''
+    );
+
+  if (!novaMaquina) {
+    return;
+  }
+
+  const seletor =
+    document.getElementById(
+      'machineSelector'
+    );
+
+  if (!seletor) {
+    return;
+  }
+
+  seletor.value =
+    novaMaquina;
+
+  selecionarMaquinaProvisoria();
+
+}
 
 async function selecionarMaquinaProvisoria() {
 
