@@ -6427,6 +6427,21 @@ async function selecionarMaquinaPendenteDoPainel(
     statusCard.style.display =
       'block';
 
+    try {
+      const infoStatus =
+        document.getElementById(
+          'machineStatusInfo'
+        );
+
+      if (
+        infoStatus
+      ) {
+        infoStatus.textContent =
+          '⏳ Carregando status da máquina...';
+      }
+    }
+    catch (erroStatus) {}
+
     statusCard.scrollIntoView({
       behavior:
         'smooth',
@@ -6590,6 +6605,33 @@ async function selecionarMaquinaProvisoria() {
 
   maquinaValida =
     true;
+
+  /*
+   * V13.39 — mostra o cartão de STATUS imediatamente.
+   * A consulta ao servidor atualiza os valores em paralelo.
+   */
+  const statusCardImediato =
+    document.getElementById(
+      'machineStatusCard'
+    );
+
+  if (
+    statusCardImediato
+  ) {
+
+    statusCardImediato.style.display =
+      'block';
+
+    /*
+     * O status atual conhecido é PRODUZINDO até a resposta do servidor.
+     * Isso evita que o cartão fique invisível durante a consulta.
+     */
+    try {
+      atualizarStatusMaquinaUI();
+    }
+    catch (erroUI) {}
+
+  }
 
   const seletorRestaurado =
     document.getElementById(
@@ -8460,6 +8502,11 @@ function atualizarStatusMaquinaUI() {
 
   }
 
+  /*
+   * V13.39:
+   * assim que existe uma máquina selecionada, o cartão fica visível;
+   * os dados reais entram quando carregarStatusMaquina responder.
+   */
   card.style.display =
     'block';
 
