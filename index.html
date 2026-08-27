@@ -591,6 +591,16 @@
   white-space: nowrap;
 }
 
+
+/* V13.26 — clique na pendência leva diretamente ao status */
+#preMachineAlarmCard .alarm-pending-machine {
+  cursor: pointer;
+}
+
+#machineStatusCard {
+  scroll-margin-top: 12px;
+}
+
 </style>
 
 </head>
@@ -5679,7 +5689,7 @@ function limparDependentesAoTrocarMaquina_() {
 
 
 
-function selecionarMaquinaPendenteDoPainel(
+async function selecionarMaquinaPendenteDoPainel(
   elemento
 ) {
 
@@ -5707,9 +5717,55 @@ function selecionarMaquinaPendenteDoPainel(
   seletor.value =
     novaMaquina;
 
-  selecionarMaquinaProvisoria();
+  await selecionarMaquinaProvisoria();
+
+  /*
+   * Ao tocar na máquina atrasada, o fluxo deve levar
+   * o operador diretamente ao cartão de STATUS.
+   */
+  const statusCard =
+    document.getElementById(
+      'machineStatusCard'
+    );
+
+  if (
+    statusCard
+  ) {
+
+    statusCard.scrollIntoView({
+      behavior:
+        'smooth',
+      block:
+        'start'
+    });
+
+  }
+
+  setTimeout(
+    function() {
+
+      const statusSelector =
+        document.getElementById(
+          'machineStatusSelector'
+        );
+
+      if (
+        statusSelector
+      ) {
+
+        try {
+          statusSelector.focus();
+        }
+        catch (erro) {}
+
+      }
+
+    },
+    350
+  );
 
 }
+
 
 async function selecionarMaquinaProvisoria() {
 
@@ -8794,6 +8850,75 @@ async function salvarStatusMaquina() {
       'ALTERAR_STATUS',
       operacaoId
     );
+
+    /*
+     * Fallback de vinculação:
+     * se o áudio terminar no Drive após o status ter sido gravado,
+     * tenta fazer a ligação novamente no servidor.
+     */
+    if (
+      statusNovo !== 'PRODUZINDO' &&
+      audioId &&
+      audioId.indexOf(
+        'PENDENTE_AUDIO:'
+      ) === 0
+    ) {
+
+      const pendingUploadId =
+        audioId.substring(
+          'PENDENTE_AUDIO:'.length
+        );
+
+      setTimeout(
+        function() {
+
+          aguardarAudioStatusResultado(
+            pendingUploadId,
+            maquina,
+            operadorStatusSelecionado,
+            statusNovo
+          )
+          .then(
+            function(resultado) {
+
+              return vincularAudioStatusAoRegistro(
+                pendingUploadId,
+                resultado.url || '',
+                resultado.idArquivo || ''
+              );
+
+            }
+          )
+          .catch(
+            function(erro) {
+
+              debugUploadCliente(
+                'STATUS_AUDIO_VINCULO_RETRY_ERRO',
+                {
+                  uploadId:
+                    pendingUploadId,
+                  mediaType:
+                    'STATUS_AUDIO'
+                },
+                {
+                  erro:
+                    erro &&
+                    erro.message
+                      ? erro.message
+                      : String(
+                          erro
+                        )
+                }
+              );
+
+            }
+          );
+
+        },
+        5000
+      );
+
+    }
 
     /*
      * Confirmação assíncrona após o servidor ter tido
