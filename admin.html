@@ -373,6 +373,12 @@ tr:nth-child(even) td {
   }
 }
 
+
+/* V5.4 — períodos independentes */
+.admin-history-view .filters input[type="date"] {
+  min-width: 150px;
+}
+
 </style>
 </head>
 <body>
@@ -1313,6 +1319,38 @@ async function carregarHistoricoStatusMaquinas(
   ) {
     return;
   }
+
+  const dataInicial =
+    document.getElementById(
+      'statusDataInicial'
+    ).value;
+
+  const dataFinal =
+    document.getElementById(
+      'statusDataFinal'
+    ).value;
+
+  const dataInicialBR =
+    dataInicial
+      ? (
+          dataInicial.split('-')[2] +
+          '/' +
+          dataInicial.split('-')[1] +
+          '/' +
+          dataInicial.split('-')[0]
+        )
+      : '';
+
+  const dataFinalBR =
+    dataFinal
+      ? (
+          dataFinal.split('-')[2] +
+          '/' +
+          dataFinal.split('-')[1] +
+          '/' +
+          dataFinal.split('-')[0]
+        )
+      : '';
 
   resumo.textContent =
     '🔄 Consultando alterações de status...';
@@ -2303,6 +2341,31 @@ function mostrarHistoricoAdmin(
         ? 'true'
         : 'false'
     );
+
+  }
+
+
+  if (
+    !inspecoes
+  ) {
+
+    const resumoStatus =
+      document.getElementById(
+        'statusHistorySummary'
+      );
+
+    if (
+      resumoStatus &&
+      (
+        !resumoStatus.textContent ||
+        resumoStatus.textContent ===
+          'Nenhuma consulta realizada.'
+      )
+    ) {
+
+      carregarHistoricoStatusMaquinas();
+
+    }
 
   }
 
