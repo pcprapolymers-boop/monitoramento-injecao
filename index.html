@@ -601,8 +601,15 @@
   scroll-margin-top: 12px;
 }
 
+
+/* V13.33 — carregamento rápido */
+.v13-fast-transition {
+  scroll-behavior: smooth;
+}
+
 </style>
 
+  <link rel="preconnect" href="https://script.google.com">
 </head>
 
 <body>
@@ -2795,6 +2802,10 @@ let operadores = [];
 
 let produtos = [];
 
+/* V13.33 — cache em memória para acelerar troca de máquina */
+let dadosCadastrosEmMemoria = null;
+let carregandoCadastrosPromise = null;
+
 let produtoAtual = null;
 
 let conformidade = '';
@@ -2856,7 +2867,7 @@ const NOME_DB_VIDEO =
   'RAPolymersMonitoramentoVideo';
 
 const VERSAO_DB_VIDEO =
-  3;
+  4;
 
 const STORE_JOBS =
   'jobs';
@@ -2898,7 +2909,10 @@ let ultimaVideoUrl =
 function abrirBancoVideo() {
 
   return new Promise(
-    function(resolve, reject) {
+    function(
+      resolve,
+      reject
+    ) {
 
       const requisicao =
         indexedDB.open(
@@ -2912,13 +2926,21 @@ function abrirBancoVideo() {
           const db =
             evento.target.result;
 
-          if (!db.objectStoreNames.contains(STORE_JOBS)) {
+          /*
+           * Estrutura de uploads existente.
+           */
+          if (
+            !db.objectStoreNames.contains(
+              STORE_JOBS
+            )
+          ) {
 
             const jobs =
               db.createObjectStore(
                 STORE_JOBS,
                 {
-                  keyPath: 'uploadId'
+                  keyPath:
+                    'uploadId'
                 }
               );
 
@@ -2926,7 +2948,8 @@ function abrirBancoVideo() {
               'createdAt',
               'createdAt',
               {
-                unique: false
+                unique:
+                  false
               }
             );
 
@@ -2934,19 +2957,25 @@ function abrirBancoVideo() {
               'status',
               'status',
               {
-                unique: false
+                unique:
+                  false
               }
             );
 
           }
 
-          if (!db.objectStoreNames.contains(STORE_CHUNKS)) {
+          if (
+            !db.objectStoreNames.contains(
+              STORE_CHUNKS
+            )
+          ) {
 
             const chunks =
               db.createObjectStore(
                 STORE_CHUNKS,
                 {
-                  keyPath: 'key'
+                  keyPath:
+                    'key'
                 }
               );
 
@@ -2954,28 +2983,20 @@ function abrirBancoVideo() {
               'uploadId',
               'uploadId',
               {
-                unique: false
+                unique:
+                  false
               }
             );
 
           }
 
-        };
-
-      requisicao.onsuccess =
-        function(evento) {
-          resolve(evento.target.result);
-        };
-
-      requisicao.onerror =
-        function() {
-          reject(
-            requisicao.error ||
-            new Error(
-              'Não foi possível abrir o armazenamento local.'
-            )
-          );
-
+          /*
+           * CORREÇÃO V13.32:
+           * a store de status precisa ser criada dentro de
+           * onupgradeneeded. Na versão anterior ela estava
+           * erroneamente dentro de onerror, onde nunca poderia
+           * ser criada.
+           */
           if (
             !db.objectStoreNames.contains(
               STORE_STATUS_OUTBOX
@@ -2995,7 +3016,8 @@ function abrirBancoVideo() {
               'createdAt',
               'createdAt',
               {
-                unique:false
+                unique:
+                  false
               }
             );
 
@@ -3003,7 +3025,8 @@ function abrirBancoVideo() {
               'nextAttemptAt',
               'nextAttemptAt',
               {
-                unique:false
+                unique:
+                  false
               }
             );
 
@@ -3011,7 +3034,8 @@ function abrirBancoVideo() {
               'status',
               'status',
               {
-                unique:false
+                unique:
+                  false
               }
             );
 
@@ -3019,10 +3043,139 @@ function abrirBancoVideo() {
 
         };
 
+      requisicao.onsuccess =
+        function(evento) {
+
+          const db =
+            evento.target.result;
+
+          /*
+           * Se houver algum banco antigo que chegou a abrir
+           * sem a store, fazemos uma recuperação defensiva.
+           * A criação de objectStore só é permitida durante upgrade,
+           * por isso, quando faltar a store, fechamos e reabrimos
+           * com a versão seguinte.
+           */
+          if (
+            !db.objectStoreNames.contains(
+              STORE_STATUS_OUTBOX
+            )
+          ) {
+
+            const novaVersao =
+              db.version +
+              1;
+
+            db.close();
+
+            const upgrade =
+              indexedDB.open(
+                NOME_DB_VIDEO,
+                novaVersao
+              );
+
+            upgrade.onupgradeneeded =
+              function(eventoUpgrade) {
+
+                const dbUpgrade =
+                  eventoUpgrade.target.result;
+
+                if (
+                  !dbUpgrade.objectStoreNames.contains(
+                    STORE_STATUS_OUTBOX
+                  )
+                ) {
+
+                  const statusOutbox =
+                    dbUpgrade.createObjectStore(
+                      STORE_STATUS_OUTBOX,
+                      {
+                        keyPath:
+                          'operacaoId'
+                      }
+                    );
+
+                  statusOutbox.createIndex(
+                    'createdAt',
+                    'createdAt',
+                    {
+                      unique:
+                        false
+                    }
+                  );
+
+                  statusOutbox.createIndex(
+                    'nextAttemptAt',
+                    'nextAttemptAt',
+                    {
+                      unique:
+                        false
+                    }
+                  );
+
+                  statusOutbox.createIndex(
+                    'status',
+                    'status',
+                    {
+                      unique:
+                        false
+                    }
+                  );
+
+                }
+
+              };
+
+            upgrade.onsuccess =
+              function(eventoUpgrade) {
+
+                resolve(
+                  eventoUpgrade
+                    .target
+                    .result
+                );
+
+              };
+
+            upgrade.onerror =
+              function() {
+
+                reject(
+                  upgrade.error ||
+                  new Error(
+                    'Não foi possível criar a fila local de status.'
+                  )
+                );
+
+              };
+
+            return;
+
+          }
+
+          resolve(
+            db
+          );
+
+        };
+
+      requisicao.onerror =
+        function() {
+
+          reject(
+            requisicao.error ||
+            new Error(
+              'Não foi possível abrir o armazenamento local.'
+            )
+          );
+
+        };
+
     }
   );
 
 }
+
 
 
 async function solicitarArmazenamentoPersistente() {
@@ -3957,6 +4110,104 @@ function ativarDebugLocalSeSolicitado() {
 
 }
 
+
+
+async function verificarFilaStatusLocal() {
+
+  try {
+
+    const db =
+      await abrirBancoVideo();
+
+    const existe =
+      db.objectStoreNames.contains(
+        STORE_STATUS_OUTBOX
+      );
+
+    const versao =
+      db.version;
+
+    db.close();
+
+    const diag =
+      document.getElementById(
+        'statusDiagnosticMessage'
+      );
+
+    if (diag) {
+
+      diag.style.display =
+        'block';
+
+      diag.style.background =
+        existe
+          ? '#E8F5E9'
+          : '#FFEBEE';
+
+      diag.style.color =
+        existe
+          ? '#1B5E20'
+          : '#B71C1C';
+
+      diag.textContent =
+        existe
+          ? '✅ Fila local de status funcionando. IndexedDB v' +
+            versao +
+            ' • store "' +
+            STORE_STATUS_OUTBOX +
+            '" encontrada.'
+          : '❌ A fila local ainda não possui a store "' +
+            STORE_STATUS_OUTBOX +
+            '".';
+
+    }
+
+    return {
+      sucesso:
+        existe,
+      versao:
+        versao,
+      store:
+        existe
+    };
+
+  }
+  catch (erro) {
+
+    const diag =
+      document.getElementById(
+        'statusDiagnosticMessage'
+      );
+
+    if (diag) {
+
+      diag.style.display =
+        'block';
+
+      diag.style.background =
+        '#FFEBEE';
+
+      diag.style.color =
+        '#B71C1C';
+
+      diag.textContent =
+        '❌ Falha ao abrir a fila local: ' +
+        (
+          erro &&
+          erro.message
+            ? erro.message
+            : String(
+                erro
+              )
+        );
+
+    }
+
+    throw erro;
+
+  }
+
+}
 
 
 async function salvarStatusOutboxLocal(
@@ -6377,49 +6628,30 @@ async function selecionarMaquinaProvisoria() {
       }
     );
 
+  /*
+   * V13.33 — não recarrega operadores/produtos ao trocar de máquina.
+   * A lista de cadastros permanece em memória/cache.
+   */
+  try {
 
+    preencherSelecoes();
+    preencherOperadoresStatus();
+    verificarFormulario();
+
+  }
+  catch (erro) {}
 
   /*
-   * Limpa as escolhas anteriores para evitar
-   * carregar operador/produto de uma máquina anterior.
+   * Só busca os cadastros pela rede se ainda não houver cache.
    */
-  operadores = [];
+  if (
+    !dadosCadastrosEmMemoria &&
+    !lerCacheCadastrosLocal()
+  ) {
 
-  produtos = [];
+    carregarDados();
 
-  produtoAtual = null;
-
-  conformidade = '';
-
-  tempoCiclo = 0;
-
-  const selectOperador =
-    document.getElementById(
-      'operador'
-    );
-
-  const selectProduto =
-    document.getElementById(
-      'produto'
-    );
-
-  if (selectOperador) {
-    selectOperador.value = '';
   }
-
-  if (selectProduto) {
-    selectProduto.value = '';
-  }
-
-
-  atualizarSeletorMaquina();
-
-  verificarFormulario();
-
-  /*
-   * Recarrega os cadastros após a escolha.
-   */
-  await carregarDados();
 
 }
 
@@ -11377,17 +11609,15 @@ function operadorSelecionadoUnico() {
 }
 
 
-async function carregarDados() {
+async function carregarDados(opcoes) {
 
   atualizarSeletorMaquina();
 
-  maquinaValida =
-    !!maquina;
+  maquinaValida = !!maquina;
 
   if (!maquinaValida) {
 
     preencherSelecoes();
-
     verificarFormulario();
 
     mostrarMensagem(
@@ -11396,125 +11626,87 @@ async function carregarDados() {
     );
 
     return;
-
   }
 
-  /*
-   * Começamos as três consultas independentes em paralelo.
-   */
-  const dadosCache =
+  let dados =
+    dadosCadastrosEmMemoria ||
     lerCacheCadastrosLocal();
 
+  const forcar =
+    Boolean(
+      opcoes &&
+      opcoes.forcarAtualizacao
+    );
+
+  /*
+   * Cadastros são carregados da memória/cache primeiro.
+   * Em paralelo, buscamos somente os dados específicos da máquina.
+   */
   const cadastroPromise =
-    dadosCache
-      ? Promise.resolve(
-          dadosCache
-        )
+    dados &&
+    dados.sucesso &&
+    !forcar
+      ? Promise.resolve(dados)
       : carregarDadosRemotos();
 
   const ultimaPromise =
-    Promise.resolve()
-      .then(
-        function() {
-          return carregarUltimaInspecaoMaquina();
-        }
-      );
+    carregarUltimaInspecaoMaquina();
 
   const statusPromise =
-    Promise.resolve()
-      .then(
-        function() {
-          return carregarStatusMaquina();
-        }
-      );
+    carregarStatusMaquina();
 
   try {
 
-    const dados =
+    dados =
       await cadastroPromise;
 
     if (
       !dados ||
       !dados.sucesso
     ) {
-
       throw new Error(
-        dados &&
-        dados.erro
+        dados && dados.erro
           ? dados.erro
           : 'Não foi possível carregar os cadastros.'
       );
-
     }
 
+    dadosCadastrosEmMemoria =
+      dados;
+
     operadores =
-      Array.isArray(
-        dados.operadores
-      )
+      Array.isArray(dados.operadores)
         ? dados.operadores
             .map(
               function(item) {
-                return typeof item ===
-                  'string'
-                    ? item
-                    : (
-                        item.nome ||
-                        ''
-                      );
+                return typeof item === 'string'
+                  ? item
+                  : item.nome || '';
               }
             )
-            .filter(
-              function(nome) {
-                return Boolean(
-                  nome
-                );
-              }
-            )
+            .filter(Boolean)
         : [];
 
     produtos =
-      Array.isArray(
-        dados.produtos
-      )
+      Array.isArray(dados.produtos)
         ? dados.produtos
             .map(
               function(item) {
-
-                if (
-                  typeof item ===
-                  'string'
-                ) {
-
-                  return {
-                    nome:
-                      item,
-                    ciclo:
-                      0
-                  };
-
-                }
-
-                return {
-                  nome:
-                    item.nome ||
-                    '',
-                  ciclo:
-                    Number(
-                      item.ciclo ||
-                      0
-                    ),
-                  codigoInterno:
-                    item.codigoInterno ||
-                    ''
-                };
-
+                return typeof item === 'string'
+                  ? {
+                      nome:item,
+                      ciclo:0
+                    }
+                  : {
+                      nome:item.nome || '',
+                      ciclo:Number(item.ciclo || 0),
+                      codigoInterno:item.codigoInterno || ''
+                    };
               }
             )
             .filter(
               function(item) {
-                return Boolean(
-                  item.nome
-                );
+                return Boolean(item.nome);
               }
             )
         : [];
@@ -11523,107 +11715,42 @@ async function carregarDados() {
       Math.max(
         1,
         Number(
-          dados.tempoMaxAudio ||
-          30
+          dados.tempoMaxAudio || 30
         )
       );
-
-    if (
-      operadores.length === 0 ||
-      produtos.length === 0
-    ) {
-
-      throw new Error(
-        'Cadastros de operadores ou produtos vazios.'
-      );
-
-    }
 
     preencherSelecoes();
     preencherOperadoresStatus();
     atualizarObrigatoriedadeAudioStatus();
     verificarFormulario();
 
-    mostrarMensagem(
-      '✅ Pronto. Operadores e produtos disponíveis.',
-      'success'
+    /*
+     * As consultas secundárias não bloqueiam o carregamento do formulário.
+     */
+    Promise.all(
+      [
+        ultimaPromise,
+        statusPromise
+      ]
+    )
+    .catch(
+      function() {}
     );
-
-    /*
-     * Se veio do cache, atualiza a planilha em background.
-     */
-    if (
-      dadosCache
-    ) {
-
-      carregarDadosRemotos()
-        .then(
-          function(atualizados) {
-
-            if (
-              atualizados &&
-              atualizados.sucesso
-            ) {
-
-              salvarCacheCadastrosLocal(
-                atualizados
-              );
-
-            }
-
-          }
-        )
-        .catch(
-          function() {}
-        );
-
-    }
-    else {
-
-      salvarCacheCadastrosLocal(
-        dados
-      );
-
-    }
-
-    /*
-     * As consultas de status/última inspeção já começaram
-     * em paralelo e podem terminar independentemente.
-     */
-    await Promise.allSettled
-      ? Promise.allSettled(
-          [
-            ultimaPromise,
-            statusPromise
-          ]
-        )
-      : Promise.all(
-          [
-            ultimaPromise,
-            statusPromise
-          ]
-        );
 
   }
   catch (erro) {
 
-    /*
-     * Se cache estiver disponível, ele é usado mesmo se a
-     * planilha falhar.
-     */
-    const fallback =
-      dadosCache;
-
     if (
-      fallback
+      dados &&
+      dados.sucesso
     ) {
 
-      preencherSelecoes();
+      dadosCadastrosEmMemoria =
+        dados;
 
-      mostrarMensagem(
-        '⚡ Cadastros locais carregados. Atualização da planilha será tentada em segundo plano.',
-        'warning'
-      );
+      preencherSelecoes();
+      preencherOperadoresStatus();
+      verificarFormulario();
 
       return;
 
@@ -11636,13 +11763,14 @@ async function carregarDados() {
     verificarFormulario();
 
     mostrarMensagem(
-      '❌ Não foi possível carregar Operadores e Produtos.',
+      '❌ Não foi possível carregar os dados.',
       'error'
     );
 
   }
 
 }
+
 
 
 function preencherSelecoes() {
@@ -11839,220 +11967,141 @@ function salvarCacheCadastrosLocal(
 
 function carregarDadosRemotos() {
 
-  return new Promise(
-    function(
-      resolve,
-      reject
-    ) {
+  if (carregandoCadastrosPromise) {
+    return carregandoCadastrosPromise;
+  }
 
-      const callbackName =
-        'dadosPlanilha_' +
-        Date.now() +
-        '_' +
-        Math.random()
-          .toString(36)
-          .substring(
-            2,
-            10
-          );
+  carregandoCadastrosPromise =
+    new Promise(
+      function(resolve,reject) {
 
+        const callbackName =
+          'dadosPlanilha_' +
+          Date.now() +
+          '_' +
+          Math.random()
+            .toString(36)
+            .substring(2,10);
 
-      let script =
-        null;
+        const script =
+          document.createElement('script');
 
+        let terminou = false;
 
-      let timeout =
-        null;
+        let timeout = null;
 
+        function limpar() {
 
-      let terminou =
-        false;
-
-
-      function limpar() {
-
-        try {
-
-          if (
-            script &&
-            script.parentNode
-          ) {
-
-            script.parentNode
-              .removeChild(
-                script
-              );
-
+          if (timeout) {
+            clearTimeout(timeout);
           }
 
-        }
-        catch (erro) {}
+          try {
+            delete window[callbackName];
+          }
+          catch (erro) {}
 
-
-        try {
-
-          delete window[
-            callbackName
-          ];
-
-        }
-        catch (erro) {}
-
-      }
-
-
-      function falhar(
-        mensagem
-      ) {
-
-        if (
-          terminou
-        ) {
-
-          return;
+          try {
+            if (script.parentNode) {
+              script.parentNode.removeChild(script);
+            }
+          }
+          catch (erro) {}
 
         }
 
+        function falhar(mensagem) {
 
-        terminou =
-          true;
+          if (terminou) {
+            return;
+          }
 
-
-        if (
-          timeout
-        ) {
-
-          clearTimeout(
-            timeout
-          );
-
-        }
-
-
-        limpar();
-
-
-        reject(
-          new Error(
-            mensagem
-          )
-        );
-
-      }
-
-
-      window[
-        callbackName
-      ] =
-      function(
-        dados
-      ) {
-
-        if (
-          terminou
-        ) {
-
-          return;
-
-        }
-
-
-        terminou =
-          true;
-
-
-        if (
-          timeout
-        ) {
-
-          clearTimeout(
-            timeout
-          );
-
-        }
-
-
-        limpar();
-
-
-        if (
-          !dados
-        ) {
+          terminou = true;
+          limpar();
 
           reject(
-            new Error(
-              'A planilha retornou uma resposta vazia.'
-            )
+            new Error(mensagem)
           );
-
-          return;
 
         }
 
+        window[callbackName] =
+        function(dados) {
 
-        resolve(
-          dados
-        );
+          if (terminou) {
+            return;
+          }
 
-      };
+          terminou = true;
+          limpar();
 
+          if (!dados || !dados.sucesso) {
 
-      script =
-        document.createElement(
-          'script'
-        );
+            reject(
+              new Error(
+                dados && dados.erro
+                  ? dados.erro
+                  : 'A planilha retornou uma resposta inválida.'
+              )
+            );
 
+            return;
+          }
 
-      script.async =
-        true;
+          dadosCadastrosEmMemoria = dados;
 
+          try {
+            salvarCacheCadastrosLocal(dados);
+          }
+          catch (erro) {}
 
-      script.src =
-        URL_APPS_SCRIPT +
-        '?status=data' +
-        '&m=' +
-        encodeURIComponent(
-          maquina
-        ) +
-        '&callback=' +
-        encodeURIComponent(
-          callbackName
-        ) +
-        '&_=' +
-        Date.now();
-
-
-      script.onerror =
-        function() {
-
-          falhar(
-            'Falha de comunicação com o Apps Script.'
-          );
+          resolve(dados);
 
         };
 
+        script.async = true;
 
-      timeout =
-        setTimeout(
+        script.src =
+          URL_APPS_SCRIPT +
+          '?status=data' +
+          '&m=' +
+          encodeURIComponent(maquina) +
+          '&callback=' +
+          encodeURIComponent(callbackName) +
+          '&_=' +
+          Date.now();
+
+        script.onerror =
           function() {
-
             falhar(
-              'Tempo excedido ao carregar os cadastros.'
+              'Falha de comunicação com o Apps Script ao carregar os cadastros.'
             );
+          };
 
-          },
-          15000
-        );
+        timeout =
+          setTimeout(
+            function() {
+              falhar(
+                'Tempo excedido ao carregar os cadastros.'
+              );
+            },
+            12000
+          );
 
+        document.head.appendChild(script);
 
-      document.head.appendChild(
-        script
-      );
+      }
+    )
+    .finally(
+      function() {
+        carregandoCadastrosPromise = null;
+      }
+    );
 
-    }
-  );
+  return carregandoCadastrosPromise;
 
 }
+
 
 
 
