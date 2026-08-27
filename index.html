@@ -2811,6 +2811,19 @@ let carregandoCadastrosPromise = null;
 const CACHE_MAQUINA_TTL_MS =
   60000;
 
+const CACHE_PENDENCIAS_TTL_MS =
+  15000;
+
+let cachePendenciasGlobais =
+  null;
+
+let carregandoPendenciasPromise =
+  null;
+
+const CACHE_PENDENCIAS_STORAGE_KEY =
+  'ra_polymers_pendencias_inspecao_cache_v1';
+
+
 const cacheUltimaInspecaoPorMaquina =
   new Map();
 
@@ -6215,166 +6228,340 @@ function silenciarAlarmePendenciaGlobalPorCincoMinutos() {
 
 let ultimaRespostaPendenciasGlobal = null;
 
-function consultarPendenciasAntesDaMaquina() {
+function consultarPendenciasAntesDaMaquina(
+  opcoes
+) {
 
-  return new Promise(
-    function(resolve) {
+  const forcar =
+    Boolean(
+      opcoes &&
+      opcoes.forcarAtualizacao
+    );
 
-      const callbackName =
-        'pendenciasMaquinas_' +
-        Date.now() +
-        '_' +
-        Math.random()
-          .toString(36)
-          .substring(
-            2,
-            8
-          );
+  const agora =
+    Date.now();
 
-      const script =
-        document.createElement(
-          'script'
+  /*
+   * Memória: resposta imediata.
+   */
+  if (
+    !forcar &&
+    cachePendenciasGlobais &&
+    (
+      agora -
+      cachePendenciasGlobais.at
+    ) <
+    CACHE_PENDENCIAS_TTL_MS
+  ) {
+
+    const dados =
+      cachePendenciasGlobais.data ||
+      {};
+
+    ultimaRespostaPendenciasGlobal =
+      dados;
+
+    atualizarPainelPendenciasAntesDaMaquina(
+      dados
+    );
+
+    /*
+     * Revalidação em background.
+     */
+    if (
+      !carregandoPendenciasPromise
+    ) {
+      consultarPendenciasAntesDaMaquina({
+        forcarAtualizacao:
+          true,
+        silencioso:
+          true
+      });
+    }
+
+    return Promise.resolve(
+      dados
+    );
+
+  }
+
+  /*
+   * Não inicia duas consultas ao mesmo tempo.
+   */
+  if (
+    carregandoPendenciasPromise
+  ) {
+    return carregandoPendenciasPromise;
+  }
+
+  /*
+   * Se não houver memória, tenta localStorage antes da rede.
+   */
+  if (
+    !forcar &&
+    !cachePendenciasGlobais
+  ) {
+
+    try {
+
+      const salvo =
+        JSON.parse(
+          localStorage.getItem(
+            CACHE_PENDENCIAS_STORAGE_KEY
+          ) ||
+          'null'
         );
 
-      let finalizado =
-        false;
+      if (
+        salvo &&
+        salvo.data
+      ) {
 
-      const finalizar =
-        function(dados) {
+        cachePendenciasGlobais =
+          salvo;
 
-          if (
-            finalizado
-          ) {
-            return;
-          }
+        ultimaRespostaPendenciasGlobal =
+          salvo.data;
 
-          finalizado =
-            true;
+        atualizarPainelPendenciasAntesDaMaquina(
+          salvo.data
+        );
 
-          try {
-            delete window[
-              callbackName
-            ];
-          }
-          catch (erro) {}
-
-          try {
-            if (
-              script.parentNode
-            ) {
-              script.parentNode.removeChild(
-                script
-              );
-            }
-          }
-          catch (erro) {}
-
-          ultimaRespostaPendenciasGlobal =
-            dados || {};
-
-          atualizarPainelPendenciasAntesDaMaquina(
-            dados || {}
-          );
-
-          try {
-            debugUploadCliente(
-              'ALARME_PENDENCIAS_GLOBAIS',
-              {
-                mediaType:
-                  'ALARM'
-              },
-              {
-                total:
-                  dados &&
-                  dados.total
-                    ? Number(
-                        dados.total
-                      )
-                    : 0
-              }
-            );
-          }
-          catch (debugErro) {}
-
-          
-          try {
-
-            debugUploadCliente(
-              'ALARME_PENDENCIAS_GLOBAIS_RECEBIDAS',
-              {
-                mediaType:
-                  'ALARM'
-              },
-              {
-                total:
-                  dados &&
-                  Array.isArray(
-                    dados.pendencias
-                  )
-                    ? dados.pendencias.length
-                    : 0
-              }
-            );
-
-          }
-          catch (debugErro) {}
-
-resolve(
-            dados || {}
-          );
-
-        };
-
-      window[
-        callbackName
-      ] =
-      finalizar;
-
-      script.onerror =
-        function() {
-
-          finalizar({
-            sucesso:false,
-            pendencias:[],
-            total:0
+        /*
+         * A tela já fica pronta; a atualização nova
+         * é feita em background.
+         */
+        if (
+          !carregandoPendenciasPromise
+        ) {
+          consultarPendenciasAntesDaMaquina({
+            forcarAtualizacao:
+              true,
+            silencioso:
+              true
           });
+        }
 
-        };
+        return Promise.resolve(
+          salvo.data
+        );
 
-      script.src =
-        URL_APPS_SCRIPT +
-        '?status=pendenciasInspecao' +
-        '&callback=' +
-        encodeURIComponent(
-          callbackName
-        ) +
-        '&_=' +
-        Date.now();
-
-      script.async =
-        true;
-
-      document.head.appendChild(
-        script
-      );
-
-      setTimeout(
-        function() {
-
-          finalizar({
-            sucesso:false,
-            pendencias:[],
-            total:0
-          });
-
-        },
-        5000
-      );
+      }
 
     }
-  );
+    catch (erroCache) {}
+
+  }
+
+  carregandoPendenciasPromise =
+    new Promise(
+      function(resolve) {
+
+        const callbackName =
+          'pendenciasMaquinas_' +
+          Date.now() +
+          '_' +
+          Math.random()
+            .toString(36)
+            .substring(
+              2,
+              8
+            );
+
+        const script =
+          document.createElement(
+            'script'
+          );
+
+        let finalizado =
+          false;
+
+        let timeout =
+          null;
+
+        const finalizar =
+          function(
+            dados
+          ) {
+
+            if (
+              finalizado
+            ) {
+              return;
+            }
+
+            finalizado =
+              true;
+
+            if (timeout) {
+              clearTimeout(
+                timeout
+              );
+            }
+
+            try {
+              delete window[
+                callbackName
+              ];
+            }
+            catch (erro) {}
+
+            try {
+
+              if (
+                script.parentNode
+              ) {
+
+                script.parentNode.removeChild(
+                  script
+                );
+
+              }
+
+            }
+            catch (erro) {}
+
+            const resposta =
+              dados &&
+              typeof dados ===
+                'object'
+                ? dados
+                : {
+                    sucesso:
+                      false,
+                    pendencias:
+                      [],
+                    total:
+                      0
+                  };
+
+            cachePendenciasGlobais =
+              {
+                at:
+                  Date.now(),
+                data:
+                  resposta
+              };
+
+            try {
+
+              localStorage.setItem(
+                CACHE_PENDENCIAS_STORAGE_KEY,
+                JSON.stringify(
+                  cachePendenciasGlobais
+                )
+              );
+
+            }
+            catch (erroCache) {}
+
+            ultimaRespostaPendenciasGlobal =
+              resposta;
+
+            atualizarPainelPendenciasAntesDaMaquina(
+              resposta
+            );
+
+            try {
+
+              debugUploadCliente(
+                'ALARME_PENDENCIAS_GLOBAIS',
+                {
+                  mediaType:
+                    'ALARM'
+                },
+                {
+                  total:
+                    Number(
+                      resposta.total ||
+                      0
+                    ),
+                  origem:
+                    'NETWORK_CACHE_V13_41'
+                }
+              );
+
+            }
+            catch (debugErro) {}
+
+            resolve(
+              resposta
+            );
+
+          };
+
+        window[
+          callbackName
+        ] =
+        finalizar;
+
+        script.async =
+          true;
+
+        script.src =
+          URL_APPS_SCRIPT +
+          '?status=pendenciasInspecao' +
+          '&callback=' +
+          encodeURIComponent(
+            callbackName
+          ) +
+          '&_=' +
+          Date.now();
+
+        script.onerror =
+          function() {
+
+            finalizar({
+              sucesso:
+                false,
+              pendencias:
+                [],
+              total:
+                0,
+              erro:
+                'Falha de comunicação com o Apps Script.'
+            });
+
+          };
+
+        timeout =
+          setTimeout(
+            function() {
+
+              finalizar({
+                sucesso:
+                  false,
+                pendencias:
+                  [],
+                total:
+                  0,
+                erro:
+                  'Tempo excedido ao carregar inspeções pendentes.'
+              });
+
+            },
+            5000
+          );
+
+        document.head.appendChild(
+          script
+        );
+
+      }
+    )
+    .finally(
+      function() {
+
+        carregandoPendenciasPromise =
+          null;
+
+      }
+    );
+
+  return carregandoPendenciasPromise;
 
 }
+
 
 
 
@@ -12095,58 +12282,9 @@ async function carregarDados(opcoes) {
       );
     }
 
-    dadosCadastrosEmMemoria =
-      dados;
-
-    operadores =
-      Array.isArray(dados.operadores)
-        ? dados.operadores
-            .map(
-              function(item) {
-                return typeof item === 'string'
-                  ? item
-                  : item.nome || '';
-              }
-            )
-            .filter(Boolean)
-        : [];
-
-    produtos =
-      Array.isArray(dados.produtos)
-        ? dados.produtos
-            .map(
-              function(item) {
-                return typeof item === 'string'
-                  ? {
-                      nome:item,
-                      ciclo:0
-                    }
-                  : {
-                      nome:item.nome || '',
-                      ciclo:Number(item.ciclo || 0),
-                      codigoInterno:item.codigoInterno || ''
-                    };
-              }
-            )
-            .filter(
-              function(item) {
-                return Boolean(item.nome);
-              }
-            )
-        : [];
-
-    TEMPO_MAX_AUDIO =
-      Math.max(
-        1,
-        Number(
-          dados.tempoMaxAudio || 30
-        )
-      );
-
-    preencherSelecoes();
-    preencherOperadoresStatus();
-    atualizarObrigatoriedadeAudioStatus();
-    verificarFormulario();
+    aplicarCadastrosNoFormulario_(
+      dados
+    );
 
     /*
      * As consultas secundárias não bloqueiam o carregamento do formulário.
@@ -12385,6 +12523,99 @@ function salvarCacheCadastrosLocal(
 
   }
   catch (erro) {}
+
+}
+
+
+function aplicarCadastrosNoFormulario_(
+  dados
+) {
+
+  if (
+    !dados ||
+    !dados.sucesso
+  ) {
+    return false;
+  }
+
+  dadosCadastrosEmMemoria =
+    dados;
+
+  operadores =
+    Array.isArray(
+      dados.operadores
+    )
+      ? dados.operadores
+          .map(
+            function(item) {
+              return typeof item ===
+                'string'
+                  ? item
+                  : (
+                      item.nome ||
+                      ''
+                    );
+            }
+          )
+          .filter(
+            Boolean
+          )
+      : [];
+
+  produtos =
+    Array.isArray(
+      dados.produtos
+    )
+      ? dados.produtos
+          .map(
+            function(item) {
+              return typeof item ===
+                'string'
+                  ? {
+                      nome:
+                        item,
+                      ciclo:
+                        0
+                    }
+                  : {
+                      nome:
+                        item.nome ||
+                        '',
+                      ciclo:
+                        Number(
+                          item.ciclo ||
+                          0
+                        ),
+                      codigoInterno:
+                        item.codigoInterno ||
+                        ''
+                    };
+            }
+          )
+          .filter(
+            function(item) {
+              return Boolean(
+                item.nome
+              );
+            }
+          )
+      : [];
+
+  TEMPO_MAX_AUDIO =
+    Math.max(
+      1,
+      Number(
+        dados.tempoMaxAudio ||
+        30
+      )
+    );
+
+  preencherSelecoes();
+  preencherOperadoresStatus();
+  atualizarObrigatoriedadeAudioStatus();
+  verificarFormulario();
+
+  return true;
 
 }
 
@@ -17922,7 +18153,14 @@ document.addEventListener(
     consultarPendenciasAntesDaMaquina();
     pendenciasGlobaisTimer =
       setInterval(
-        consultarPendenciasAntesDaMaquina,
+        function() {
+          consultarPendenciasAntesDaMaquina({
+            forcarAtualizacao:
+              true,
+            silencioso:
+              true
+          });
+        },
         30000
       );
 
@@ -18076,9 +18314,10 @@ document.addEventListener(
         false;
 
       /*
-       * V13.34:
-       * Carrega os cadastros uma única vez, mesmo antes da seleção.
-       * Assim, ao tocar numa pendência, operador/produtos já estão prontos.
+       * V13.40:
+       * Prepara os operadores/produtos ANTES da seleção da máquina.
+       * Isso elimina o caso em que o cartão STATUS aparece, mas o
+       * operador ainda está vazio.
        */
       try {
 
@@ -18091,73 +18330,31 @@ document.addEventListener(
           dadosIniciais.sucesso
         ) {
 
-          dadosCadastrosEmMemoria =
-            dadosIniciais;
-
-          operadores =
-            Array.isArray(
-              dadosIniciais.operadores
-            )
-              ? dadosIniciais.operadores
-                  .map(
-                    function(item) {
-                      return typeof item ===
-                        'string'
-                          ? item
-                          : (
-                              item.nome ||
-                              ''
-                            );
-                    }
-                  )
-                  .filter(Boolean)
-              : [];
-
-          produtos =
-            Array.isArray(
-              dadosIniciais.produtos
-            )
-              ? dadosIniciais.produtos
-                  .map(
-                    function(item) {
-                      return typeof item ===
-                        'string'
-                          ? {
-                              nome:item,
-                              ciclo:0
-                            }
-                          : {
-                              nome:item.nome || '',
-                              ciclo:Number(
-                                item.ciclo || 0
-                              ),
-                              codigoInterno:
-                                item.codigoInterno || ''
-                            };
-                    }
-                  )
-                  .filter(
-                    function(item) {
-                      return Boolean(
-                        item.nome
-                      );
-                    }
-                  )
-              : [];
-
-          preencherSelecoes();
-          preencherOperadoresStatus();
+          aplicarCadastrosNoFormulario_(
+            dadosIniciais
+          );
 
         }
         else {
 
-          carregarDados()
+          carregarDadosRemotos()
+            .then(
+              function(dados) {
+
+                aplicarCadastrosNoFormulario_(
+                  dados
+                );
+
+              }
+            )
             .catch(
               function(erro) {
+
                 console.warn(
-                  'Falha ao pré-carregar cadastros:',
+                  'Falha ao pré-carregar operadores/produtos:',
                   erro
                 );
+
               }
             );
 
