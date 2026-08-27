@@ -8717,6 +8717,255 @@ function liberarObrigatoriedadeStatusAposSalvar() {
 
 
 
+function enviarStatusAudioPorFormulario(
+  params,
+  uploadId
+) {
+
+  return new Promise(
+    function(
+      resolve,
+      reject
+    ) {
+
+      const iframe =
+        document.createElement(
+          'iframe'
+        );
+
+      const frameName =
+        'statusAudio_' +
+        Date.now() +
+        '_' +
+        Math.random()
+          .toString(36)
+          .substring(
+            2,
+            9
+          );
+
+      iframe.name =
+        frameName;
+
+      iframe.style.display =
+        'none';
+
+      document.body.appendChild(
+        iframe
+      );
+
+      const formulario =
+        document.createElement(
+          'form'
+        );
+
+      formulario.method =
+        'POST';
+
+      formulario.action =
+        URL_APPS_SCRIPT;
+
+      formulario.target =
+        frameName;
+
+      formulario.style.display =
+        'none';
+
+      params.forEach(
+        function(
+          valor,
+          chave
+        ) {
+
+          const campo =
+            document.createElement(
+              'input'
+            );
+
+          campo.type =
+            'hidden';
+
+          campo.name =
+            chave;
+
+          campo.value =
+            valor == null
+              ? ''
+              : String(
+                  valor
+                );
+
+          formulario.appendChild(
+            campo
+          );
+
+        }
+      );
+
+      let finalizado =
+        false;
+
+      const limpar =
+        function() {
+
+          try {
+
+            if (
+              formulario.parentNode
+            ) {
+
+              formulario.parentNode
+                .removeChild(
+                  formulario
+                );
+
+            }
+
+          }
+          catch (erro) {}
+
+          setTimeout(
+            function() {
+
+              try {
+
+                if (
+                  iframe.parentNode
+                ) {
+
+                  iframe.parentNode
+                    .removeChild(
+                      iframe
+                    );
+
+                }
+
+              }
+              catch (erro) {}
+
+            },
+            30000
+          );
+
+        };
+
+      const timeout =
+        setTimeout(
+          function() {
+
+            if (
+              finalizado
+            ) {
+              return;
+            }
+
+            finalizado =
+              true;
+
+            limpar();
+
+            reject(
+              new Error(
+                'Tempo excedido ao enviar a justificativa de áudio.'
+              )
+            );
+
+          },
+          15000
+        );
+
+      iframe.onload =
+        function() {
+
+          if (
+            finalizado
+          ) {
+            return;
+          }
+
+          finalizado =
+            true;
+
+          clearTimeout(
+            timeout
+          );
+
+          limpar();
+
+          resolve({
+            enviado:
+              true,
+            uploadId:
+              uploadId
+          });
+
+        };
+
+      iframe.onerror =
+        function() {
+
+          if (
+            finalizado
+          ) {
+            return;
+          }
+
+          finalizado =
+            true;
+
+          clearTimeout(
+            timeout
+          );
+
+          limpar();
+
+          reject(
+            new Error(
+              'Falha de rede ao enviar a justificativa de áudio.'
+            )
+          );
+
+        };
+
+      document.body.appendChild(
+        formulario
+      );
+
+      debugUploadCliente(
+        'STATUS_AUDIO_FORM_POST_INICIO',
+        {
+          uploadId:
+            uploadId,
+          mediaType:
+            'STATUS_AUDIO'
+        },
+        {
+          tamanhoParametros:
+            params.toString().length
+        }
+      );
+
+      formulario.submit();
+
+      debugUploadCliente(
+        'STATUS_AUDIO_FORM_POST_SUBMETIDO',
+        {
+          uploadId:
+            uploadId,
+          mediaType:
+            'STATUS_AUDIO'
+        },
+        {
+          transporte:
+            'FORM_IFRAME'
+        }
+      );
+
+    }
+  );
+
+}
+
 async function iniciarEnvioAudioStatusEmSegundoPlano() {
 
   if (
@@ -8812,92 +9061,13 @@ async function iniciarEnvioAudioStatusEmSegundoPlano() {
   );
 
   /*
-   * CORREÇÃO V13.35:
-   * Não usamos mais um POST "fire-and-forget".
-   * O status só prossegue depois que o navegador concluir
-   * a requisição do áudio. A resposta pode ser opaca (no-cors),
-   * mas isso garante que o POST foi aguardado pelo navegador.
+   * V13.36:
+   * FORM + IFRAME oculto para o envio do base64 do áudio.
    */
-  try {
-
-    await fetch(
-      URL_APPS_SCRIPT,
-      {
-        method:
-          'POST',
-
-        mode:
-          'no-cors',
-
-        cache:
-          'no-store',
-
-        credentials:
-          'omit',
-
-        headers:
-          {
-            'Content-Type':
-              'application/x-www-form-urlencoded;charset=UTF-8'
-          },
-
-        body:
-          params.toString(),
-
-        keepalive:
-          true
-      }
-    );
-
-    debugUploadCliente(
-      'STATUS_AUDIO_POST_ENVIADO',
-      {
-        uploadId:
-          uploadId,
-        mediaType:
-          'STATUS_AUDIO'
-      },
-      {
-        modo:
-          'POST_AGUARDADO'
-      }
-    );
-
-  }
-  catch (erroPost) {
-
-    debugUploadCliente(
-      'STATUS_AUDIO_POST_ERRO',
-      {
-        uploadId:
-          uploadId,
-        mediaType:
-          'STATUS_AUDIO'
-      },
-      {
-        erro:
-          erroPost &&
-          erroPost.message
-            ? erroPost.message
-            : String(
-                erroPost
-              )
-      }
-    );
-
-    throw new Error(
-      'Não foi possível enviar a justificativa de áudio ao servidor: ' +
-      (
-        erroPost &&
-        erroPost.message
-          ? erroPost.message
-          : String(
-              erroPost
-            )
-      )
-    );
-
-  }
+  await enviarStatusAudioPorFormulario(
+    params,
+    uploadId
+  );
 
   /*
    * Aguarda a confirmação do arquivo no Drive.
