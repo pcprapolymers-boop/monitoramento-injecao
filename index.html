@@ -5710,27 +5710,25 @@ async function selecionarMaquinaPendenteDoPainel(
       'machineSelector'
     );
 
-  if (!seletor) {
-    return;
-  }
-
-  seletor.value =
-    novaMaquina;
-
-  await selecionarMaquinaProvisoria();
-
-  /*
-   * Ao tocar na máquina atrasada, o fluxo deve levar
-   * o operador diretamente ao cartão de STATUS.
-   */
   const statusCard =
     document.getElementById(
       'machineStatusCard'
     );
 
-  if (
-    statusCard
-  ) {
+  /*
+   * Resposta imediata para o operador:
+   * seleciona a máquina e leva o viewport ao cartão de status
+   * sem aguardar nenhuma consulta ao servidor.
+   */
+  if (seletor) {
+    seletor.value =
+      novaMaquina;
+  }
+
+  if (statusCard) {
+
+    statusCard.style.display =
+      'block';
 
     statusCard.scrollIntoView({
       behavior:
@@ -5738,6 +5736,43 @@ async function selecionarMaquinaPendenteDoPainel(
       block:
         'start'
     });
+
+  }
+
+  /*
+   * O carregamento real da máquina continua em segundo plano.
+   */
+  try {
+
+    const resultado =
+      selecionarMaquinaProvisoria();
+
+    if (
+      resultado &&
+      typeof resultado.then ===
+      'function'
+    ) {
+
+      resultado.catch(
+        function(erro) {
+
+          console.warn(
+            'Falha ao carregar máquina pendente:',
+            erro
+          );
+
+        }
+      );
+
+    }
+
+  }
+  catch (erro) {
+
+    console.warn(
+      'Falha ao selecionar máquina pendente:',
+      erro
+    );
 
   }
 
@@ -5761,10 +5796,11 @@ async function selecionarMaquinaPendenteDoPainel(
       }
 
     },
-    350
+    150
   );
 
 }
+
 
 
 async function selecionarMaquinaProvisoria() {
