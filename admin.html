@@ -482,11 +482,51 @@ tr:nth-child(even) td {
 </div>
 <div class="card hidden" id="painelAdmin">
 
-  <div class="admin-section">
-    <h2>📊 Histórico de Inspeções</h2>
+  <div
+    class="admin-history-tabs"
+    role="tablist"
+    aria-label="Tipo de histórico"
+  >
+    <button
+      id="btnTabInspecoes"
+      class="btn btn-primary admin-tab active"
+      type="button"
+      role="tab"
+      aria-selected="true"
+      onclick="mostrarHistoricoAdmin('inspecoes')"
+    >
+      📋 INSPEÇÕES
+    </button>
+
+    <button
+      id="btnTabStatus"
+      class="btn btn-secondary admin-tab"
+      type="button"
+      role="tab"
+      aria-selected="false"
+      onclick="mostrarHistoricoAdmin('status')"
+    >
+      🏭 STATUS DAS MÁQUINAS
+    </button>
+  </div>
+
+  <div
+    id="historicoInspecoesView"
+    class="admin-history-view"
+  >
+
+    <h2>📋 Histórico de Inspeções</h2>
 
     <div class="filters">
-      <input aria-label="Data da inspeção" id="data" type="date"/>
+      <label>
+        Data inicial
+        <input aria-label="Data inicial das inspeções" id="dataInicial" type="date"/>
+      </label>
+
+      <label>
+        Data final
+        <input aria-label="Data final das inspeções" id="dataFinal" type="date"/>
+      </label>
 
       <select id="maquina">
         <option value="">Todas as máquinas</option>
@@ -519,11 +559,16 @@ tr:nth-child(even) td {
       </button>
 
       <button class="btn btn-secondary" type="button" onclick="limparFiltrosInspecoes()">
-        ♻️ LIMPAR FILTROS
+        ♻️ LIMPAR
       </button>
 
-      <button class="btn btn-secondary" id="btnAtualizarInspecoes" type="button" onclick="atualizarHistoricoInspecoes()">
-        🔄 ATUALIZAR INSPEÇÕES
+      <button
+        class="btn btn-secondary"
+        id="btnAtualizarInspecoes"
+        type="button"
+        onclick="atualizarHistoricoInspecoes()"
+      >
+        🔄 ATUALIZAR
       </button>
     </div>
 
@@ -537,7 +582,7 @@ tr:nth-child(even) td {
     ></div>
 
     <div style="margin:8px 0 12px;color:var(--muted);font-size:13px;">
-      🎙️ Quando houver áudio associado à inspeção, <strong>OUVIR</strong> abre a gravação do Google Drive.
+      🎙️ Quando houver áudio associado à inspeção, <strong>OUVIR</strong> abre a gravação armazenada no Google Drive.
     </div>
 
     <div class="table-wrap">
@@ -558,25 +603,33 @@ tr:nth-child(even) td {
         </thead>
         <tbody id="tabela">
           <tr>
-            <td colspan="10" style="text-align:center;padding:20px;">Faça uma consulta.</td>
+            <td colspan="10" style="text-align:center;padding:20px;">
+              Faça uma consulta.
+            </td>
           </tr>
         </tbody>
       </table>
     </div>
+
   </div>
 
   <div
-    class="admin-section"
-    id="statusHistoryPanel"
-    style="margin-top:24px;"
+    id="historicoStatusView"
+    class="admin-history-view hidden"
   >
 
-    <div style="font-size:20px;font-weight:800;margin-bottom:6px;">
-      🏭 Histórico de Status das Máquinas
-    </div>
+    <h2>🏭 Histórico de Status das Máquinas</h2>
 
     <div class="filters">
-      <input aria-label="Data do status" id="statusData" type="date"/>
+      <label>
+        Data inicial
+        <input aria-label="Data inicial dos status" id="statusDataInicial" type="date"/>
+      </label>
+
+      <label>
+        Data final
+        <input aria-label="Data final dos status" id="statusDataFinal" type="date"/>
+      </label>
 
       <select id="statusMaquina">
         <option value="">Todas as máquinas</option>
@@ -609,11 +662,16 @@ tr:nth-child(even) td {
       </button>
 
       <button class="btn btn-secondary" type="button" onclick="limparFiltrosStatus()">
-        ♻️ LIMPAR FILTROS
+        ♻️ LIMPAR
       </button>
 
-      <button class="btn btn-secondary" id="btnAtualizarStatusHistorico" type="button" onclick="atualizarHistoricoStatus()">
-        🔄 ATUALIZAR STATUS
+      <button
+        class="btn btn-secondary"
+        id="btnAtualizarStatusHistorico"
+        type="button"
+        onclick="atualizarHistoricoStatus()"
+      >
+        🔄 ATUALIZAR
       </button>
     </div>
 
@@ -642,7 +700,9 @@ tr:nth-child(even) td {
         </thead>
         <tbody id="statusHistoricoTabela">
           <tr>
-            <td colspan="8" style="text-align:center;padding:20px;">Faça uma consulta.</td>
+            <td colspan="8" style="text-align:center;padding:20px;">
+              Faça uma consulta.
+            </td>
           </tr>
         </tbody>
       </table>
@@ -1163,6 +1223,7 @@ function limparFiltros() {
 
 
 
+
 function construirUrlAudioDrive(
   audioId,
   audioUrl
@@ -1268,7 +1329,13 @@ async function carregarHistoricoStatusMaquinas(
             adminToken,
 
           data:
-            dataBRStatus,
+            dataInicialBR,
+
+          dataInicial:
+            dataInicialBR,
+
+          dataFinal:
+            dataFinalBR,
 
           maquina:
             document.getElementById(
@@ -1453,138 +1520,9 @@ async function carregarHistoricoStatusMaquinas(
 
 
 async function atualizarLancamentos() {
-
-  if (
-    !adminToken
-  ) {
-
-    return;
-
-  }
-
-  const botao =
-    document.getElementById(
-      'btnAtualizarLancamentos'
-    );
-
-  const resumo =
-    document.getElementById(
-      'summary'
-    );
-
-  const ultima =
-    document.getElementById(
-      'ultimaAtualizacaoLancamentos'
-    );
-
-  const textoOriginal =
-    botao
-      ? botao.textContent
-      : '';
-
-  if (
-    botao
-  ) {
-
-    botao.disabled =
-      true;
-
-    botao.textContent =
-      '⏳ ATUALIZANDO...';
-
-  }
-
-  if (
-    ultima
-  ) {
-
-    ultima.textContent =
-      '🔄 Atualizando lançamentos...';
-
-  }
-
-  try {
-
-    /*
-     * Reutiliza exatamente os filtros que já estão
-     * preenchidos na tela. Não há reload da página.
-     */
-    await carregarHistorico();
-
-    const agora =
-      new Date();
-
-    const hora =
-      agora.toLocaleTimeString(
-        'pt-BR',
-        {
-          hour:
-            '2-digit',
-          minute:
-            '2-digit',
-          second:
-            '2-digit'
-        }
-      );
-
-    if (
-      ultima
-    ) {
-
-      ultima.textContent =
-        '✅ Última atualização: ' +
-        hora;
-
-    }
-
-  }
-  catch (erro) {
-
-    if (
-      ultima
-    ) {
-
-      ultima.textContent =
-        '⚠️ Falha ao atualizar os lançamentos.';
-
-    }
-
-    if (
-      resumo
-    ) {
-
-      resumo.textContent =
-        '⚠️ ' +
-        (
-          erro &&
-          erro.message
-            ? erro.message
-            : String(
-                erro
-              )
-        );
-
-    }
-
-  }
-  finally {
-
-    if (
-      botao
-    ) {
-
-      botao.disabled =
-        false;
-
-      botao.textContent =
-        textoOriginal ||
-        '🔄 ATUALIZAR LANÇAMENTOS';
-
-    }
-
-  }
-
+  await atualizarHistoricoInspecoes();
 }
+
 
 
 async function carregarHistorico() {
@@ -1610,20 +1548,35 @@ async function carregarHistorico() {
 
   try {
 
-    const data =
+    const dataInicial =
       document.getElementById(
-        'data'
+        'dataInicial'
       ).value;
 
+    const dataFinal =
+      document.getElementById(
+        'dataFinal'
+      ).value;
 
-    const dataBR =
-      data
+    const dataInicialBR =
+      dataInicial
         ? (
-            data.split('-')[2] +
+            dataInicial.split('-')[2] +
             '/' +
-            data.split('-')[1] +
+            dataInicial.split('-')[1] +
             '/' +
-            data.split('-')[0]
+            dataInicial.split('-')[0]
+          )
+        : '';
+
+    const dataFinalBR =
+      dataFinal
+        ? (
+            dataFinal.split('-')[2] +
+            '/' +
+            dataFinal.split('-')[1] +
+            '/' +
+            dataFinal.split('-')[0]
           )
         : '';
 
@@ -1639,7 +1592,13 @@ async function carregarHistorico() {
             adminToken,
 
           data:
-            dataBR,
+            dataInicialBR,
+
+          dataInicial:
+            dataInicialBR,
+
+          dataFinal:
+            dataFinalBR,
 
           maquina:
             document.getElementById(
@@ -2260,6 +2219,267 @@ if (lembrarSenha) {
 
     }
   );
+
+}
+
+
+function mostrarHistoricoAdmin(
+  tipo
+) {
+
+  const inspecoes =
+    tipo !== 'status';
+
+  const viewInspecoes =
+    document.getElementById(
+      'historicoInspecoesView'
+    );
+
+  const viewStatus =
+    document.getElementById(
+      'historicoStatusView'
+    );
+
+  const btnInspecoes =
+    document.getElementById(
+      'btnTabInspecoes'
+    );
+
+  const btnStatus =
+    document.getElementById(
+      'btnTabStatus'
+    );
+
+  if (viewInspecoes) {
+    viewInspecoes.classList.toggle(
+      'hidden',
+      !inspecoes
+    );
+  }
+
+  if (viewStatus) {
+    viewStatus.classList.toggle(
+      'hidden',
+      inspecoes
+    );
+  }
+
+  if (btnInspecoes) {
+
+    btnInspecoes.classList.toggle(
+      'btn-primary',
+      inspecoes
+    );
+
+    btnInspecoes.classList.toggle(
+      'btn-secondary',
+      !inspecoes
+    );
+
+    btnInspecoes.setAttribute(
+      'aria-selected',
+      inspecoes
+        ? 'true'
+        : 'false'
+    );
+
+  }
+
+  if (btnStatus) {
+
+    btnStatus.classList.toggle(
+      'btn-primary',
+      !inspecoes
+    );
+
+    btnStatus.classList.toggle(
+      'btn-secondary',
+      inspecoes
+    );
+
+    btnStatus.setAttribute(
+      'aria-selected',
+      !inspecoes
+        ? 'true'
+        : 'false'
+    );
+
+  }
+
+}
+
+
+function limparFiltrosInspecoes() {
+
+  [
+    'dataInicial',
+    'dataFinal',
+    'maquina',
+    'operador',
+    'produto',
+    'conforme'
+  ].forEach(
+    function(id) {
+
+      const el =
+        document.getElementById(
+          id
+        );
+
+      if (el) {
+        el.value = '';
+      }
+
+    }
+  );
+
+  document.getElementById(
+    'summary'
+  ).textContent =
+    'Filtros limpos.';
+
+}
+
+
+function limparFiltrosStatus() {
+
+  [
+    'statusDataInicial',
+    'statusDataFinal',
+    'statusMaquina',
+    'statusOperador',
+    'statusFiltro'
+  ].forEach(
+    function(id) {
+
+      const el =
+        document.getElementById(
+          id
+        );
+
+      if (el) {
+        el.value = '';
+      }
+
+    }
+  );
+
+  document.getElementById(
+    'statusHistorySummary'
+  ).textContent =
+    'Filtros limpos.';
+
+}
+
+
+async function atualizarHistoricoInspecoes() {
+
+  const botao =
+    document.getElementById(
+      'btnAtualizarInspecoes'
+    );
+
+  const ultimo =
+    document.getElementById(
+      'ultimaAtualizacaoInspecoes'
+    );
+
+  if (botao) {
+    botao.disabled = true;
+    botao.textContent =
+      '⏳ ATUALIZANDO...';
+  }
+
+  try {
+
+    await carregarHistorico();
+
+    if (ultimo) {
+      ultimo.textContent =
+        '✅ Atualizado às ' +
+        new Date().toLocaleTimeString(
+          'pt-BR'
+        );
+    }
+
+  }
+  catch (erro) {
+
+    if (ultimo) {
+      ultimo.textContent =
+        '⚠️ ' +
+        (
+          erro.message ||
+          String(erro)
+        );
+    }
+
+  }
+  finally {
+
+    if (botao) {
+      botao.disabled = false;
+      botao.textContent =
+        '🔄 ATUALIZAR';
+    }
+
+  }
+
+}
+
+
+async function atualizarHistoricoStatus() {
+
+  const botao =
+    document.getElementById(
+      'btnAtualizarStatusHistorico'
+    );
+
+  const ultimo =
+    document.getElementById(
+      'ultimaAtualizacaoStatus'
+    );
+
+  if (botao) {
+    botao.disabled = true;
+    botao.textContent =
+      '⏳ ATUALIZANDO...';
+  }
+
+  try {
+
+    await carregarHistoricoStatusMaquinas();
+
+    if (ultimo) {
+      ultimo.textContent =
+        '✅ Atualizado às ' +
+        new Date().toLocaleTimeString(
+          'pt-BR'
+        );
+    }
+
+  }
+  catch (erro) {
+
+    if (ultimo) {
+      ultimo.textContent =
+        '⚠️ ' +
+        (
+          erro.message ||
+          String(erro)
+        );
+    }
+
+  }
+  finally {
+
+    if (botao) {
+      botao.disabled = false;
+      botao.textContent =
+        '🔄 ATUALIZAR';
+    }
+
+  }
 
 }
 
