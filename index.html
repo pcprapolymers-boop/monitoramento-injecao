@@ -2811,6 +2811,7 @@ let carregandoCadastrosPromise = null;
 const CACHE_MAQUINA_TTL_MS =
   60000;
 
+/* V13.41 — cache rápido das inspeções pendentes */
 const CACHE_PENDENCIAS_TTL_MS =
   15000;
 
@@ -6561,7 +6562,6 @@ function consultarPendenciasAntesDaMaquina(
   return carregandoPendenciasPromise;
 
 }
-
 
 
 
@@ -18150,17 +18150,69 @@ document.addEventListener(
     atualizarStatusPushUI_();
 
     atualizarSeletorMaquina();
+
+    /*
+     * V13.41 — pré-carga reforçada dos cadastros.
+     * Não depende da máquina selecionada.
+     */
+    try {
+
+      const cadastrosProntos =
+        dadosCadastrosEmMemoria ||
+        lerCacheCadastrosLocal();
+
+      if (
+        cadastrosProntos &&
+        cadastrosProntos.sucesso
+      ) {
+
+        dadosCadastrosEmMemoria =
+          cadastrosProntos;
+
+        aplicarCadastrosNoFormulario_(
+          cadastrosProntos
+        );
+
+      }
+      else {
+
+        carregarDadosRemotos()
+          .then(
+            function(dados) {
+
+              aplicarCadastrosNoFormulario_(
+                dados
+              );
+
+            }
+          )
+          .catch(
+            function(erro) {
+
+              console.warn(
+                'Pré-carga de operadores/produtos falhou:',
+                erro
+              );
+
+            }
+          );
+
+      }
+
+    }
+    catch (erroPreCarga) {
+
+      console.warn(
+        'Falha na pré-carga reforçada:',
+        erroPreCarga
+      );
+
+    }
+
     consultarPendenciasAntesDaMaquina();
     pendenciasGlobaisTimer =
       setInterval(
-        function() {
-          consultarPendenciasAntesDaMaquina({
-            forcarAtualizacao:
-              true,
-            silencioso:
-              true
-          });
-        },
+        consultarPendenciasAntesDaMaquina,
         30000
       );
 
