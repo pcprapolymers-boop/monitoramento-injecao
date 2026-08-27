@@ -8723,9 +8723,11 @@ async function iniciarEnvioAudioStatusEmSegundoPlano() {
     !statusAudioBlob ||
     !statusAudioBlob.size
   ) {
+
     throw new Error(
       'A justificativa em áudio de 15 segundos é obrigatória.'
     );
+
   }
 
   const uploadId =
@@ -8792,7 +8794,7 @@ async function iniciarEnvioAudioStatusEmSegundoPlano() {
   );
 
   debugUploadCliente(
-    'STATUS_AUDIO_BACKGROUND_INICIO',
+    'STATUS_AUDIO_POST_INICIO',
     {
       uploadId:
         uploadId,
@@ -8803,210 +8805,132 @@ async function iniciarEnvioAudioStatusEmSegundoPlano() {
       base64Chars:
         base64.length,
       status:
-        statusSelecionado
+        statusSelecionado,
+      modo:
+        'POST_AGUARDADO'
     }
   );
 
   /*
-   * O POST é disparado agora, mas NÃO aguardamos
-   * a resposta nem a criação do arquivo no Drive.
+   * CORREÇÃO V13.35:
+   * Não usamos mais um POST "fire-and-forget".
+   * O status só prossegue depois que o navegador concluir
+   * a requisição do áudio. A resposta pode ser opaca (no-cors),
+   * mas isso garante que o POST foi aguardado pelo navegador.
    */
-  fetch(
-    URL_APPS_SCRIPT,
-    {
-      method:
-        'POST',
+  try {
 
-      mode:
-        'no-cors',
+    await fetch(
+      URL_APPS_SCRIPT,
+      {
+        method:
+          'POST',
 
-      cache:
-        'no-store',
+        mode:
+          'no-cors',
 
-      credentials:
-        'omit',
+        cache:
+          'no-store',
 
-      headers: {
-        'Content-Type':
-          'application/x-www-form-urlencoded;charset=UTF-8'
-      },
+        credentials:
+          'omit',
 
-      body:
-        params.toString(),
-
-      keepalive:
-        true
-
-    }
-  )
-  .then(
-    function() {
-
-      debugUploadCliente(
-        'STATUS_AUDIO_BACKGROUND_POST_ENVIADO',
-        {
-          uploadId:
-            uploadId,
-          mediaType:
-            'STATUS_AUDIO'
-        },
-        {}
-      );
-
-    }
-  )
-  .catch(
-    function(erro) {
-
-      debugUploadCliente(
-        'STATUS_AUDIO_BACKGROUND_POST_ERRO',
-        {
-          uploadId:
-            uploadId,
-          mediaType:
-            'STATUS_AUDIO'
-        },
-        {
-          erro:
-            erro &&
-            erro.message
-              ? erro.message
-              : String(
-                  erro
-                )
-        }
-      );
-
-    }
-  );
-
-  /*
-   * Começa a consulta em background.
-   * Ela não bloqueia o fluxo da inspeção.
-   */
-  aguardarAudioStatusResultado(
-    uploadId,
-    maquina,
-    operadorGravado,
-    statusSelecionado
-  )
-  .then(
-    async function(resultado) {
-
-      debugUploadCliente(
-        'STATUS_AUDIO_BACKGROUND_OK',
-        {
-          uploadId:
-            uploadId,
-          mediaType:
-            'STATUS_AUDIO'
-        },
-        {
-          idArquivo:
-            resultado &&
-            resultado.idArquivo
-              ? resultado.idArquivo
-              : '',
-          url:
-            Boolean(
-              resultado &&
-              resultado.url
-            )
-        }
-      );
-
-      try {
-
-        /*
-         * Depois que o Drive confirmar o arquivo,
-         * substituímos o marcador PENDENTE na STATUS_MAQUINAS.
-         */
-        await vincularAudioStatusAoRegistro(
-          uploadId,
-          resultado.url ||
-            '',
-          resultado.idArquivo ||
-            ''
-        );
-
-        const msg =
-          document.getElementById(
-            'machineStatusSaveMessage'
-          );
-
-        if (
-          msg &&
-          document.visibilityState !==
-            'hidden'
-        ) {
-
-          msg.textContent =
-            '✅ Status confirmado. Justificativa gravada no Drive.';
-
-        }
-
-      }
-      catch (erroVinculo) {
-
-        debugUploadCliente(
-          'STATUS_AUDIO_VINCULO_ERRO',
+        headers:
           {
-            uploadId:
-              uploadId,
-            mediaType:
-              'STATUS_AUDIO'
+            'Content-Type':
+              'application/x-www-form-urlencoded;charset=UTF-8'
           },
-          {
-            erro:
-              erroVinculo &&
-              erroVinculo.message
-                ? erroVinculo.message
-                : String(
-                    erroVinculo
-                  )
-          }
-        );
 
+        body:
+          params.toString(),
+
+        keepalive:
+          true
       }
+    );
 
-    }
-  )
-  .catch(
-    function(erro) {
-
-      debugUploadCliente(
-        'STATUS_AUDIO_BACKGROUND_ERRO',
-        {
-          uploadId:
-            uploadId,
-          mediaType:
-            'STATUS_AUDIO'
-        },
-        {
-          erro:
-            erro &&
-            erro.message
-              ? erro.message
-              : String(
-                  erro
-                )
-        }
-      );
-
-      const msg =
-        document.getElementById(
-          'machineStatusSaveMessage'
-        );
-
-      if (
-        msg
-      ) {
-
-        msg.textContent =
-          '⚠️ Status salvo. A justificativa ainda está sendo enviada.';
-
+    debugUploadCliente(
+      'STATUS_AUDIO_POST_ENVIADO',
+      {
+        uploadId:
+          uploadId,
+        mediaType:
+          'STATUS_AUDIO'
+      },
+      {
+        modo:
+          'POST_AGUARDADO'
       }
+    );
 
+  }
+  catch (erroPost) {
+
+    debugUploadCliente(
+      'STATUS_AUDIO_POST_ERRO',
+      {
+        uploadId:
+          uploadId,
+        mediaType:
+          'STATUS_AUDIO'
+      },
+      {
+        erro:
+          erroPost &&
+          erroPost.message
+            ? erroPost.message
+            : String(
+                erroPost
+              )
+      }
+    );
+
+    throw new Error(
+      'Não foi possível enviar a justificativa de áudio ao servidor: ' +
+      (
+        erroPost &&
+        erroPost.message
+          ? erroPost.message
+          : String(
+              erroPost
+            )
+      )
+    );
+
+  }
+
+  /*
+   * Aguarda a confirmação do arquivo no Drive.
+   * Diferentemente da versão anterior, isso acontece antes
+   * de liberar o salvamento do status.
+   */
+  const resultado =
+    await aguardarAudioStatusResultado(
+      uploadId,
+      maquina,
+      operadorGravado,
+      statusSelecionado
+    );
+
+  debugUploadCliente(
+    'STATUS_AUDIO_BACKGROUND_OK',
+    {
+      uploadId:
+        uploadId,
+      mediaType:
+        'STATUS_AUDIO'
+    },
+    {
+      idArquivo:
+        resultado &&
+        resultado.idArquivo
+          ? resultado.idArquivo
+          : '',
+      url:
+        Boolean(
+          resultado &&
+          resultado.url
+        )
     }
   );
 
@@ -9015,15 +8939,27 @@ async function iniciarEnvioAudioStatusEmSegundoPlano() {
       uploadId,
 
     pendingUrl:
-      'PENDENTE_AUDIO:' +
-      uploadId,
+      resultado.url ||
+      '',
 
     pendingId:
-      'PENDENTE_AUDIO:' +
-      uploadId
+      resultado.idArquivo ||
+      '',
+
+    url:
+      resultado.url ||
+      '',
+
+    idArquivo:
+      resultado.idArquivo ||
+      '',
+
+    pronto:
+      true
   };
 
 }
+
 
 
 function vincularAudioStatusAoRegistro(
@@ -9493,18 +9429,20 @@ async function salvarStatusMaquina() {
     ) {
 
       /*
-       * Para parada/quebra, o áudio já é disparado
-       * em segundo plano e o status também será salvo
-       * em segundo plano.
+       * Agora aguardamos o áudio ficar realmente confirmado no Drive
+       * antes de registrar o status. Assim a linha já nasce com
+       * Audio URL + Audio ID reais.
        */
       const envio =
         await iniciarEnvioAudioStatusEmSegundoPlano();
 
       audioUrl =
-        envio.pendingUrl;
+        envio.url ||
+        '';
 
       audioId =
-        envio.pendingId;
+        envio.idArquivo ||
+        '';
 
     }
 
@@ -9605,7 +9543,7 @@ async function salvarStatusMaquina() {
         statusNovo ===
         'PRODUZINDO'
           ? '✅ Status PRODUZINDO atualizado.'
-          : '⏳ Enviando status ao servidor...';
+          : '⏳ Salvando status e justificativa de áudio...';
 
     }
 
@@ -9638,75 +9576,6 @@ async function salvarStatusMaquina() {
       'ALTERAR_STATUS',
       operacaoId
     );
-
-    /*
-     * Fallback de vinculação:
-     * se o áudio terminar no Drive após o status ter sido gravado,
-     * tenta fazer a ligação novamente no servidor.
-     */
-    if (
-      statusNovo !== 'PRODUZINDO' &&
-      audioId &&
-      audioId.indexOf(
-        'PENDENTE_AUDIO:'
-      ) === 0
-    ) {
-
-      const pendingUploadId =
-        audioId.substring(
-          'PENDENTE_AUDIO:'.length
-        );
-
-      setTimeout(
-        function() {
-
-          aguardarAudioStatusResultado(
-            pendingUploadId,
-            maquina,
-            operadorStatusSelecionado,
-            statusNovo
-          )
-          .then(
-            function(resultado) {
-
-              return vincularAudioStatusAoRegistro(
-                pendingUploadId,
-                resultado.url || '',
-                resultado.idArquivo || ''
-              );
-
-            }
-          )
-          .catch(
-            function(erro) {
-
-              debugUploadCliente(
-                'STATUS_AUDIO_VINCULO_RETRY_ERRO',
-                {
-                  uploadId:
-                    pendingUploadId,
-                  mediaType:
-                    'STATUS_AUDIO'
-                },
-                {
-                  erro:
-                    erro &&
-                    erro.message
-                      ? erro.message
-                      : String(
-                          erro
-                        )
-                }
-              );
-
-            }
-          );
-
-        },
-        5000
-      );
-
-    }
 
     /*
      * Confirmação assíncrona após o servidor ter tido
