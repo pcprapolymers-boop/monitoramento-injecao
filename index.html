@@ -1058,6 +1058,20 @@
         "
       ></div>
 
+      <div
+        id="statusDiagnosticMessage"
+        style="
+          display:none;
+          margin-top:8px;
+          padding:8px 10px;
+          border-radius:8px;
+          background:#FFF3CD;
+          color:#664D03;
+          font-size:11px;
+          line-height:1.35;
+        "
+      ></div>
+
     </div>
 
 
@@ -4400,6 +4414,40 @@ async function processarFilaStatus() {
         /*
          * Atualiza o estado da interface após confirmação.
          */
+        const mensagemStatusConfirmado =
+          document.getElementById(
+            'machineStatusSaveMessage'
+          );
+
+        if (
+          mensagemStatusConfirmado
+        ) {
+
+          mensagemStatusConfirmado.textContent =
+            '✅ Status gravado no servidor e confirmado na planilha.';
+
+          const diagnosticoStatusConfirmado =
+            document.getElementById(
+              'statusDiagnosticMessage'
+            );
+
+          if (
+            diagnosticoStatusConfirmado
+          ) {
+
+            diagnosticoStatusConfirmado.style.display =
+              'none';
+
+            diagnosticoStatusConfirmado.textContent =
+              '';
+
+          }
+
+          mensagemStatusConfirmado.style.color =
+            '#1B5E20';
+
+        }
+
         try {
           carregarStatusMaquina();
         }
@@ -4426,6 +4474,14 @@ async function processarFilaStatus() {
           item
         );
 
+        const mensagemErroStatus =
+          erro &&
+          erro.message
+            ? erro.message
+            : String(
+                erro
+              );
+
         debugUploadCliente(
           'STATUS_SERVIDOR_REJEITOU',
           {
@@ -4438,17 +4494,54 @@ async function processarFilaStatus() {
             tentativa:
               item.attempts,
             erro:
-              erro &&
-              erro.message
-                ? erro.message
-                : String(
-                    erro
-                  )
+              mensagemErroStatus
           }
         );
 
+        const mensagemStatus =
+          document.getElementById(
+            'machineStatusSaveMessage'
+          );
+
+        if (
+          mensagemStatus
+        ) {
+
+          mensagemStatus.textContent =
+            '❌ O status não foi confirmado pelo servidor: ' +
+            mensagemErroStatus +
+            ' | A tentativa ficará na fila para novo envio.';
+
+          mensagemStatus.style.color =
+            '#B71C1C';
+
+        }
+
+        const diagnosticoStatus =
+          document.getElementById(
+            'statusDiagnosticMessage'
+          );
+
+        if (
+          diagnosticoStatus
+        ) {
+
+          diagnosticoStatus.style.display =
+            'block';
+
+          diagnosticoStatus.textContent =
+            '🔎 Diagnóstico: operação ' +
+            item.operacaoId +
+            ' • tentativa ' +
+            item.attempts +
+            ' • erro: ' +
+            mensagemErroStatus;
+
+        }
+
         /*
          * Mantém na fila para tentar novamente.
+         * Não perde a alteração.
          */
         break;
 
@@ -9033,7 +9126,7 @@ async function salvarStatusMaquina() {
         statusNovo ===
         'PRODUZINDO'
           ? '✅ Status PRODUZINDO atualizado.'
-          : '⏳ Status colocado na fila. A gravação será confirmada pelo servidor em segundo plano.';
+          : '⏳ Enviando status ao servidor...';
 
     }
 
