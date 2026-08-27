@@ -8802,10 +8802,20 @@ function enviarStatusAudioPorFormulario(
         }
       );
 
-      let finalizado =
+      /*
+       * IMPORTANTE:
+       * Não esperamos iframe.onload.
+       *
+       * Em Android/Brave o POST pode ser aceito pelo Apps Script
+       * sem que o iframe entregue um evento onload confiável.
+       *
+       * A confirmação verdadeira é feita por:
+       * aguardarAudioStatusResultado().
+       */
+      let enviado =
         false;
 
-      const limpar =
+      const limparFormulario =
         function() {
 
           try {
@@ -8824,147 +8834,135 @@ function enviarStatusAudioPorFormulario(
           }
           catch (erro) {}
 
-          setTimeout(
-            function() {
-
-              try {
-
-                if (
-                  iframe.parentNode
-                ) {
-
-                  iframe.parentNode
-                    .removeChild(
-                      iframe
-                    );
-
-                }
-
-              }
-              catch (erro) {}
-
-            },
-            30000
-          );
-
         };
 
-      const timeout =
-        setTimeout(
-          function() {
+      const removerIframe =
+        function() {
+
+          try {
 
             if (
-              finalizado
+              iframe.parentNode
             ) {
-              return;
+
+              iframe.parentNode
+                .removeChild(
+                  iframe
+                );
+
             }
 
-            finalizado =
-              true;
-
-            limpar();
-
-            reject(
-              new Error(
-                'Tempo excedido ao enviar a justificativa de áudio.'
-              )
-            );
-
-          },
-          15000
-        );
-
-      iframe.onload =
-        function() {
-
-          if (
-            finalizado
-          ) {
-            return;
           }
-
-          finalizado =
-            true;
-
-          clearTimeout(
-            timeout
-          );
-
-          limpar();
-
-          resolve({
-            enviado:
-              true,
-            uploadId:
-              uploadId
-          });
+          catch (erro) {}
 
         };
 
-      iframe.onerror =
-        function() {
+      /*
+       * O navegador já devolveu o controle ao script após submit().
+       * Não usamos timeout para decidir se o servidor recebeu.
+       */
+      try {
 
-          if (
-            finalizado
-          ) {
-            return;
+        document.body.appendChild(
+          formulario
+        );
+
+        debugUploadCliente(
+          'STATUS_AUDIO_FORM_POST_INICIO',
+          {
+            uploadId:
+              uploadId,
+            mediaType:
+              'STATUS_AUDIO'
+          },
+          {
+            tamanhoParametros:
+              params.toString().length
           }
+        );
 
-          finalizado =
-            true;
+        formulario.submit();
 
-          clearTimeout(
-            timeout
-          );
+        enviado =
+          true;
 
-          limpar();
+        debugUploadCliente(
+          'STATUS_AUDIO_FORM_POST_SUBMETIDO',
+          {
+            uploadId:
+              uploadId,
+            mediaType:
+              'STATUS_AUDIO'
+          },
+          {
+            transporte:
+              'FORM_IFRAME_SEM_ONLOAD'
+          }
+        );
+
+        /*
+         * Removemos o form imediatamente.
+         * Mantemos o iframe por 30 s para deixar a navegação
+         * do POST completar no navegador.
+         */
+        limparFormulario();
+
+        setTimeout(
+          removerIframe,
+          30000
+        );
+
+        resolve({
+          enviado:
+            true,
+
+          uploadId:
+            uploadId
+        });
+
+      }
+      catch (erro) {
+
+        limparFormulario();
+        removerIframe();
+
+        if (
+          !enviado
+        ) {
 
           reject(
             new Error(
-              'Falha de rede ao enviar a justificativa de áudio.'
+              'Não foi possível iniciar o envio da justificativa de áudio: ' +
+              (
+                erro &&
+                erro.message
+                  ? erro.message
+                  : String(
+                      erro
+                    )
+              )
             )
           );
 
-        };
+          return;
 
-      document.body.appendChild(
-        formulario
-      );
-
-      debugUploadCliente(
-        'STATUS_AUDIO_FORM_POST_INICIO',
-        {
-          uploadId:
-            uploadId,
-          mediaType:
-            'STATUS_AUDIO'
-        },
-        {
-          tamanhoParametros:
-            params.toString().length
         }
-      );
 
-      formulario.submit();
+        resolve({
+          enviado:
+            true,
 
-      debugUploadCliente(
-        'STATUS_AUDIO_FORM_POST_SUBMETIDO',
-        {
           uploadId:
-            uploadId,
-          mediaType:
-            'STATUS_AUDIO'
-        },
-        {
-          transporte:
-            'FORM_IFRAME'
-        }
-      );
+            uploadId
+        });
+
+      }
 
     }
   );
 
 }
+
 
 async function iniciarEnvioAudioStatusEmSegundoPlano() {
 
@@ -9071,8 +9069,8 @@ async function iniciarEnvioAudioStatusEmSegundoPlano() {
 
   /*
    * Aguarda a confirmação do arquivo no Drive.
-   * Diferentemente da versão anterior, isso acontece antes
-   * de liberar o salvamento do status.
+   * O POST já foi disparado pelo FORM; agora o servidor
+   * é consultado até o arquivo realmente existir.
    */
   const resultado =
     await aguardarAudioStatusResultado(
