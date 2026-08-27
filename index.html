@@ -1058,6 +1058,20 @@
         "
       ></div>
 
+      <button
+        id="btnTesteStatusNavegador"
+        type="button"
+        style="
+          display:none;
+          width:100%;
+          min-height:40px;
+          margin-top:8px;
+        "
+        onclick="testarStatusDiretoNoNavegador()"
+      >
+        🧪 TESTAR GRAVAÇÃO DIRETA
+      </button>
+
       <div
         id="statusDiagnosticMessage"
         style="
@@ -3912,6 +3926,20 @@ function ativarDebugLocalSeSolicitado() {
 
   }
 
+  const botaoTesteStatus =
+    document.getElementById(
+      'btnTesteStatusNavegador'
+    );
+
+  if (
+    botaoTesteStatus
+  ) {
+
+    botaoTesteStatus.style.display =
+      'block';
+
+  }
+
 }
 
 
@@ -4108,6 +4136,10 @@ async function processarFilaStatus() {
     const itens =
       await listarStatusOutboxLocais();
 
+    if (!itens.length) {
+      return;
+    }
+
     for (
       const item
       of itens
@@ -4139,248 +4171,30 @@ async function processarFilaStatus() {
         item
       );
 
-      /*
-       * V13.28:
-       * O envio anterior usava fetch POST com no-cors e apagava
-       * a fila sem conseguir ler a resposta do Apps Script.
-       *
-       * Agora usamos a mesma rota JSONP machineStatusSet.
-       * Assim sabemos se o backend realmente gravou ou devolveu erro.
-       */
+      const mensagem =
+        document.getElementById(
+          'machineStatusSaveMessage'
+        );
+
+      if (mensagem) {
+        mensagem.textContent =
+          '⏳ Enviando status ao servidor...';
+        mensagem.style.color =
+          '#795548';
+      }
+
       try {
 
+        /*
+         * V13.30:
+         * Chamada JSONP isolada e rastreável.
+         * O callback é colocado no window ANTES de injetar o script.
+         */
         const resposta =
-          await new Promise(
-            function(
-              resolve,
-              reject
-            ) {
-
-              const callbackName =
-                'statusSet_' +
-                Date.now() +
-                '_' +
-                Math.random()
-                  .toString(36)
-                  .substring(
-                    2,
-                    8
-                  );
-
-              const script =
-                document.createElement(
-                  'script'
-                );
-
-              let terminou =
-                false;
-
-              const limpar =
-                function() {
-
-                  try {
-                    delete window[
-                      callbackName
-                    ];
-                  }
-                  catch (erro) {}
-
-                  try {
-
-                    if (
-                      script.parentNode
-                    ) {
-
-                      script.parentNode
-                        .removeChild(
-                          script
-                        );
-
-                    }
-
-                  }
-                  catch (erro) {}
-
-                };
-
-              const timeout =
-                setTimeout(
-                  function() {
-
-                    if (
-                      terminou
-                    ) {
-                      return;
-                    }
-
-                    terminou =
-                      true;
-
-                    limpar();
-
-                    reject(
-                      new Error(
-                        'Tempo excedido ao salvar o status no Apps Script.'
-                      )
-                    );
-
-                  },
-                  15000
-                );
-
-              window[
-                callbackName
-              ] =
-              function(
-                dados
-              ) {
-
-                if (
-                  terminou
-                ) {
-                  return;
-                }
-
-                terminou =
-                  true;
-
-                clearTimeout(
-                  timeout
-                );
-
-                limpar();
-
-                if (
-                  dados &&
-                  dados.sucesso
-                ) {
-
-                  resolve(
-                    dados
-                  );
-
-                }
-                else {
-
-                  reject(
-                    new Error(
-                      dados &&
-                      dados.erro
-                        ? dados.erro
-                        : 'O Apps Script não confirmou a gravação do status.'
-                    )
-                  );
-
-                }
-
-              };
-
-              const params =
-                new URLSearchParams();
-
-              params.set(
-                'status',
-                'machineStatusSet'
-              );
-
-              params.set(
-                'm',
-                item.maquina
-              );
-
-              params.set(
-                'novoStatus',
-                item.novoStatus
-              );
-
-              params.set(
-                'operador',
-                item.operador
-              );
-
-              params.set(
-                'observacao',
-                item.observacao ||
-                ''
-              );
-
-              params.set(
-                'audioUrl',
-                item.audioUrl ||
-                ''
-              );
-
-              params.set(
-                'audioId',
-                item.audioId ||
-                ''
-              );
-
-              params.set(
-                'acao',
-                item.acao ||
-                'ALTERAR_STATUS'
-              );
-
-              params.set(
-                'operacaoId',
-                item.operacaoId
-              );
-
-              params.set(
-                'callback',
-                callbackName
-              );
-
-              params.set(
-                '_',
-                Date.now()
-              );
-
-              script.src =
-                URL_APPS_SCRIPT +
-                '?' +
-                params.toString();
-
-              script.async =
-                true;
-
-              script.onerror =
-                function() {
-
-                  if (
-                    terminou
-                  ) {
-                    return;
-                  }
-
-                  terminou =
-                    true;
-
-                  clearTimeout(
-                    timeout
-                  );
-
-                  limpar();
-
-                  reject(
-                    new Error(
-                      'Falha de rede ao enviar o status para o Apps Script.'
-                    )
-                  );
-
-                };
-
-              document.head.appendChild(
-                script
-              );
-
-            }
+          await enviarStatusMaquinaJsonp_(
+            item
           );
 
-        /*
-         * Só removemos da fila depois da confirmação explícita.
-         */
         await removerStatusOutboxLocal(
           item.operacaoId
         );
@@ -4398,52 +4212,17 @@ async function processarFilaStatus() {
               item.attempts,
             status:
               item.novoStatus,
-            sucesso:
-              Boolean(
-                resposta &&
-                resposta.sucesso
-              ),
-            audioId:
-              resposta &&
-              resposta.audioId
-                ? resposta.audioId
-                : ''
+            resposta:
+              resposta
           }
         );
 
-        /*
-         * Atualiza o estado da interface após confirmação.
-         */
-        const mensagemStatusConfirmado =
-          document.getElementById(
-            'machineStatusSaveMessage'
-          );
+        if (mensagem) {
 
-        if (
-          mensagemStatusConfirmado
-        ) {
+          mensagem.textContent =
+            '✅ Status gravado e confirmado pelo servidor.';
 
-          mensagemStatusConfirmado.textContent =
-            '✅ Status gravado no servidor e confirmado na planilha.';
-
-          const diagnosticoStatusConfirmado =
-            document.getElementById(
-              'statusDiagnosticMessage'
-            );
-
-          if (
-            diagnosticoStatusConfirmado
-          ) {
-
-            diagnosticoStatusConfirmado.style.display =
-              'none';
-
-            diagnosticoStatusConfirmado.textContent =
-              '';
-
-          }
-
-          mensagemStatusConfirmado.style.color =
+          mensagem.style.color =
             '#1B5E20';
 
         }
@@ -4456,31 +4235,24 @@ async function processarFilaStatus() {
       }
       catch (erro) {
 
-        item.status =
-          'queued';
-
-        item.nextAttemptAt =
-          Date.now() +
-          Math.min(
-            60000,
-            Math.max(
-              3000,
-              item.attempts *
-              5000
-            )
-          );
-
-        await salvarStatusOutboxLocal(
-          item
-        );
-
-        const mensagemErroStatus =
+        const mensagemErro =
           erro &&
           erro.message
             ? erro.message
             : String(
                 erro
               );
+
+        item.status =
+          'queued';
+
+        item.nextAttemptAt =
+          Date.now() +
+          10000;
+
+        await salvarStatusOutboxLocal(
+          item
+        );
 
         debugUploadCliente(
           'STATUS_SERVIDOR_REJEITOU',
@@ -4494,55 +4266,41 @@ async function processarFilaStatus() {
             tentativa:
               item.attempts,
             erro:
-              mensagemErroStatus
+              mensagemErro
           }
         );
 
-        const mensagemStatus =
-          document.getElementById(
-            'machineStatusSaveMessage'
-          );
+        if (mensagem) {
 
-        if (
-          mensagemStatus
-        ) {
+          mensagem.textContent =
+            '❌ Falha ao gravar status: ' +
+            mensagemErro;
 
-          mensagemStatus.textContent =
-            '❌ O status não foi confirmado pelo servidor: ' +
-            mensagemErroStatus +
-            ' | A tentativa ficará na fila para novo envio.';
-
-          mensagemStatus.style.color =
+          mensagem.style.color =
             '#B71C1C';
 
         }
 
-        const diagnosticoStatus =
+        const diag =
           document.getElementById(
             'statusDiagnosticMessage'
           );
 
-        if (
-          diagnosticoStatus
-        ) {
+        if (diag) {
 
-          diagnosticoStatus.style.display =
+          diag.style.display =
             'block';
 
-          diagnosticoStatus.textContent =
-            '🔎 Diagnóstico: operação ' +
+          diag.textContent =
+            '🔎 Operação ' +
             item.operacaoId +
             ' • tentativa ' +
             item.attempts +
-            ' • erro: ' +
-            mensagemErroStatus;
+            ' • ' +
+            mensagemErro;
 
         }
 
-        /*
-         * Mantém na fila para tentar novamente.
-         * Não perde a alteração.
-         */
         break;
 
       }
@@ -4551,6 +4309,29 @@ async function processarFilaStatus() {
 
   }
   catch (erro) {
+
+    const mensagem =
+      document.getElementById(
+        'machineStatusSaveMessage'
+      );
+
+    if (mensagem) {
+
+      mensagem.textContent =
+        '❌ Erro na fila de status: ' +
+        (
+          erro &&
+          erro.message
+            ? erro.message
+            : String(
+                erro
+              )
+        );
+
+      mensagem.style.color =
+        '#B71C1C';
+
+    }
 
     debugUploadCliente(
       'STATUS_OUTBOX_PROCESSAMENTO_ERRO',
@@ -4578,6 +4359,365 @@ async function processarFilaStatus() {
   }
 
 }
+
+
+function enviarStatusMaquinaJsonp_(
+  item
+) {
+
+  return new Promise(
+    function(
+      resolve,
+      reject
+    ) {
+
+      const callbackName =
+        'statusSetTest_' +
+        Date.now() +
+        '_' +
+        Math.random()
+          .toString(36)
+          .substring(
+            2,
+            9
+          );
+
+      const script =
+        document.createElement(
+          'script'
+        );
+
+      let finalizado =
+        false;
+
+      const timeoutId =
+        setTimeout(
+          function() {
+
+            if (
+              finalizado
+            ) {
+              return;
+            }
+
+            finalizado =
+              true;
+
+            limpar();
+
+            reject(
+              new Error(
+                'O Apps Script não respondeu em 15 segundos. Verifique se a implantação atual do Web App é a mesma URL usada no GitHub.'
+              )
+            );
+
+          },
+          15000
+        );
+
+      function limpar() {
+
+        clearTimeout(
+          timeoutId
+        );
+
+        try {
+          delete window[
+            callbackName
+          ];
+        }
+        catch (erro) {}
+
+        try {
+
+          if (
+            script.parentNode
+          ) {
+
+            script.parentNode
+              .removeChild(
+                script
+              );
+
+          }
+
+        }
+        catch (erro) {}
+
+      }
+
+      window[
+        callbackName
+      ] =
+      function(
+        dados
+      ) {
+
+        if (
+          finalizado
+        ) {
+          return;
+        }
+
+        finalizado =
+          true;
+
+        limpar();
+
+        if (
+          dados &&
+          dados.sucesso
+        ) {
+
+          resolve(
+            dados
+          );
+
+        }
+        else {
+
+          reject(
+            new Error(
+              dados &&
+              dados.erro
+                ? dados.erro
+                : 'Apps Script respondeu sem confirmação de sucesso.'
+            )
+          );
+
+        }
+
+      };
+
+      script.onerror =
+        function() {
+
+          if (
+            finalizado
+          ) {
+            return;
+          }
+
+          finalizado =
+            true;
+
+          limpar();
+
+          reject(
+            new Error(
+              'O navegador não conseguiu carregar a resposta JSONP do Apps Script.'
+            )
+          );
+
+        };
+
+      const params =
+        new URLSearchParams();
+
+      params.set(
+        'status',
+        'machineStatusSet'
+      );
+
+      params.set(
+        'm',
+        item.maquina ||
+        ''
+      );
+
+      params.set(
+        'novoStatus',
+        item.novoStatus ||
+        ''
+      );
+
+      params.set(
+        'operador',
+        item.operador ||
+        ''
+      );
+
+      params.set(
+        'observacao',
+        item.observacao ||
+        ''
+      );
+
+      params.set(
+        'audioUrl',
+        item.audioUrl ||
+        ''
+      );
+
+      params.set(
+        'audioId',
+        item.audioId ||
+        ''
+      );
+
+      params.set(
+        'acao',
+        item.acao ||
+        'ALTERAR_STATUS'
+      );
+
+      params.set(
+        'operacaoId',
+        item.operacaoId ||
+        (
+          'STATUS_' +
+          Date.now()
+        )
+      );
+
+      params.set(
+        'callback',
+        callbackName
+      );
+
+      params.set(
+        '_',
+        Date.now()
+      );
+
+      const url =
+        URL_APPS_SCRIPT +
+        '?' +
+        params.toString();
+
+      debugUploadCliente(
+        'STATUS_JSONP_ENVIANDO',
+        {
+          uploadId:
+            item.operacaoId,
+          mediaType:
+            'STATUS'
+        },
+        {
+          url:
+            url,
+          callback:
+            callbackName,
+          maquina:
+            item.maquina,
+          status:
+            item.novoStatus,
+          operador:
+            item.operador
+        }
+      );
+
+      script.src =
+        url;
+
+      script.async =
+        true;
+
+      document.head.appendChild(
+        script
+      );
+
+    }
+  );
+
+}
+
+
+function testarStatusDiretoNoNavegador() {
+
+  const item = {
+    maquina:
+      'M1',
+    novoStatus:
+      'PRODUZINDO',
+    operador:
+      'TESTE_NAVEGADOR',
+    observacao:
+      'TESTE DIRETO DO NAVEGADOR — SERÁ REMOVIDO',
+    audioUrl:
+      '',
+    audioId:
+      '',
+    acao:
+      'ALTERAR_STATUS',
+    operacaoId:
+      'BROWSER_TEST_' +
+      Date.now()
+  };
+
+  return enviarStatusMaquinaJsonp_(
+    item
+  )
+    .then(
+      function(resposta) {
+
+        const diag =
+          document.getElementById(
+            'statusDiagnosticMessage'
+          );
+
+        if (diag) {
+
+          diag.style.display =
+            'block';
+
+          diag.style.background =
+            '#E8F5E9';
+
+          diag.style.color =
+            '#1B5E20';
+
+          diag.textContent =
+            '✅ TESTE DIRETO OK: ' +
+            JSON.stringify(
+              resposta
+            );
+
+        }
+
+        return resposta;
+
+      }
+    )
+    .catch(
+      function(erro) {
+
+        const diag =
+          document.getElementById(
+            'statusDiagnosticMessage'
+          );
+
+        if (diag) {
+
+          diag.style.display =
+            'block';
+
+          diag.style.background =
+            '#FFEBEE';
+
+          diag.style.color =
+            '#B71C1C';
+
+          diag.textContent =
+            '❌ TESTE DIRETO FALHOU: ' +
+            (
+              erro &&
+              erro.message
+                ? erro.message
+                : String(
+                    erro
+                  )
+            );
+
+        }
+
+        throw erro;
+
+      }
+    );
+
+}
+
 
 
 
