@@ -607,6 +607,12 @@
   scroll-behavior: smooth;
 }
 
+
+/* V13.42 — transições mais rápidas */
+.v13-42-transition {
+  transition: opacity .08s linear;
+}
+
 </style>
 
   <link rel="preconnect" href="https://script.google.com">
@@ -13257,14 +13263,12 @@ async function prepararInspecao() {
 
   limparMensagem();
 
-
   const operador =
     document
       .getElementById(
         'operador'
       )
       .value;
-
 
   if (!operador) {
 
@@ -13277,7 +13281,6 @@ async function prepararInspecao() {
 
   }
 
-
   if (!produtoAtual) {
 
     mostrarMensagem(
@@ -13288,7 +13291,6 @@ async function prepararInspecao() {
     return;
 
   }
-
 
   if (!conformidade) {
 
@@ -13301,41 +13303,38 @@ async function prepararInspecao() {
 
   }
 
-
-  document
-    .getElementById(
+  const telaPrincipal =
+    document.getElementById(
       'mainForm'
-    )
-    .classList
-    .add(
-      'hidden'
     );
 
-
-  document
-    .getElementById(
+  const telaInspecao =
+    document.getElementById(
       'inspectionScreen'
-    )
-    .classList
-    .remove(
-      'hidden'
     );
-
-
-  await solicitarWakeLock();
-
-  const cameraPronta =
-    await iniciarCamera();
 
   const cameraBlock =
     document.getElementById(
       'cameraBlock'
     );
 
-  if (
-    cameraPronta &&
-    cameraBlock
-  ) {
+  /*
+   * V13.42 — transição imediata:
+   * a troca de tela não espera WakeLock nem câmera.
+   */
+  if (telaPrincipal) {
+    telaPrincipal.classList.add(
+      'hidden'
+    );
+  }
+
+  if (telaInspecao) {
+    telaInspecao.classList.remove(
+      'hidden'
+    );
+  }
+
+  if (cameraBlock) {
 
     cameraBlock.classList.remove(
       'hidden'
@@ -13346,33 +13345,110 @@ async function prepararInspecao() {
 
   }
 
-  if (
-    !cameraPronta
-  ) {
+  const cameraStatus =
+    document.getElementById(
+      'inspectionStatus'
+    );
 
-    document
-      .getElementById(
-        'mainForm'
-      )
-      .classList
-      .remove(
-        'hidden'
+  if (cameraStatus) {
+
+    cameraStatus.textContent =
+      '⏳ Preparando câmera...';
+
+  }
+
+  /*
+   * WakeLock e câmera começam juntos.
+   */
+  const wakePromise =
+    Promise.resolve()
+      .then(
+        function() {
+          return solicitarWakeLock();
+        }
       );
 
-    document
-      .getElementById(
-        'inspectionScreen'
-      )
-      .classList
-      .add(
-        'hidden'
+  const cameraPromise =
+    Promise.resolve()
+      .then(
+        function() {
+          return iniciarCamera();
+        }
       );
+
+  let cameraPronta =
+    false;
+
+  try {
+
+    const resultados =
+      await Promise.all(
+        [
+          wakePromise,
+          cameraPromise
+        ]
+      );
+
+    cameraPronta =
+      Boolean(
+        resultados[1]
+      );
+
+  }
+  catch (erro) {
+
+    console.warn(
+      'Falha ao preparar inspeção:',
+      erro
+    );
+
+    cameraPronta =
+      false;
+
+  }
+
+  if (cameraPronta) {
+
+    if (cameraStatus) {
+
+      cameraStatus.textContent =
+        '✅ Câmera pronta. Inicie a inspeção.';
+
+    }
 
     return;
 
   }
 
+  /*
+   * Só volta à tela anterior se a câmera realmente não puder ser usada.
+   */
+  if (telaPrincipal) {
+    telaPrincipal.classList.remove(
+      'hidden'
+    );
+  }
+
+  if (telaInspecao) {
+    telaInspecao.classList.add(
+      'hidden'
+    );
+  }
+
+  if (cameraStatus) {
+
+    cameraStatus.textContent =
+      '❌ Não foi possível iniciar a câmera.';
+
+  }
+
+  mostrarMensagem(
+    'Não foi possível iniciar a câmera. Verifique a permissão do navegador.',
+    'error'
+  );
+
 }
+
 
 
 /* =====================================================
@@ -18431,11 +18507,38 @@ document.addEventListener(
 
     }
 
-    inicializarFilaUploads();
+    /*
+     * V13.42 — a primeira pintura da tela vem antes da manutenção
+     * das filas de upload/status.
+     */
+    setTimeout(
+      function() {
 
-    iniciarFilaStatusPeriodica();
+        inicializarFilaUploads()
+          .catch(
+            function(erro) {
+              console.warn(
+                'Falha ao inicializar fila de uploads:',
+                erro
+              );
+            }
+          );
 
-    processarFilaStatus();
+        iniciarFilaStatusPeriodica();
+
+        processarFilaStatus()
+          .catch(
+            function(erro) {
+              console.warn(
+                'Falha ao processar fila de status:',
+                erro
+              );
+            }
+          );
+
+      },
+      250
+    );
 
 
 
