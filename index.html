@@ -3086,6 +3086,13 @@ let alarmeInspecaoInterval = null;
 let alarmeInspecaoAtivo = false;
 let alarmeAtrasoMinutos = 0;
 
+/*
+ * V13.48 — bloqueia o alarme durante a transição
+ * para a gravação de vídeo, inclusive os milissegundos
+ * anteriores ao MediaRecorder entrar em "recording".
+ */
+let videoEmPreparacaoOuGravacao = false;
+
 const INTERVALO_INSPECAO_MS =
   60 * 60 * 1000;
 
@@ -7785,6 +7792,7 @@ function gravacaoAtivaBloqueiaAlarme() {
     );
 
   return (
+    videoEmPreparacaoOuGravacao ||
     videoAtivo ||
     audioInspecaoAtivo ||
     audioStatusAtivo
@@ -14913,6 +14921,19 @@ function escolherMimeType() {
 
 function iniciarGravacao() {
 
+  /*
+   * V13.48:
+   * trava o alarme ANTES de qualquer operação assíncrona ou
+   * de criar/iniciar o MediaRecorder. Isso elimina o toque
+   * momentâneo observado ao começar a gravação.
+   */
+  videoEmPreparacaoOuGravacao =
+    true;
+
+  pararAlarmePendenciaGlobal();
+
+  pararAlarmeInspecaoContinuo();
+
   const camera =
     document.getElementById(
       'cameraPreview'
@@ -14958,10 +14979,6 @@ function iniciarGravacao() {
     return;
 
   }
-
-  pararAlarmeInspecaoContinuo();
-
-
 
   partesVideo =
     [];
@@ -15078,6 +15095,9 @@ function iniciarGravacao() {
       'error'
     );
 
+    videoEmPreparacaoOuGravacao =
+      false;
+
     fecharInspecao();
     return;
 
@@ -15155,6 +15175,12 @@ function iniciarGravacao() {
 
   mediaRecorder.onstop =
     async function() {
+
+      /*
+       * MediaRecorder já está inativo, mas mantemos o bloqueio durante
+       * a finalização local dos chunks para evitar qualquer disparo
+       * no meio da transição. Ele só é liberado depois da proteção.
+       */
 
       fimGravacao =
         new Date();
@@ -15328,6 +15354,9 @@ function iniciarGravacao() {
 
 
       }
+
+      videoEmPreparacaoOuGravacao =
+        false;
 
       document
         .getElementById(
