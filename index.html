@@ -3176,6 +3176,238 @@ const CACHE_MAQUINA_TTL_MS =
 const STORAGE_VIDEO_PROCESSANDO_LOCAL =
   'ra_polymers_video_processando_v1';
 
+const STORAGE_INSPECAO_CONCLUIDA_LOCAL =
+  'ra_polymers_inspecao_concluida_local_v1';
+
+const TEMPO_INSPECAO_CONCLUIDA_LOCAL_MS =
+  2 * 60 * 60 * 1000;
+
+let inspecoesConcluidasLocalmente =
+  {};
+
+
+function carregarInspecoesConcluidasLocal_() {
+
+  try {
+
+    const salvo =
+      JSON.parse(
+        localStorage.getItem(
+          STORAGE_INSPECAO_CONCLUIDA_LOCAL
+        ) ||
+        '{}'
+      );
+
+    const agora =
+      Date.now();
+
+    const limpo =
+      {};
+
+    Object.keys(
+      salvo || {}
+    ).forEach(
+      function(chave) {
+
+        const item =
+          salvo[chave];
+
+        if (
+          item &&
+          Number(
+            item.concluidaEm ||
+            0
+          ) +
+          TEMPO_INSPECAO_CONCLUIDA_LOCAL_MS >
+          agora
+        ) {
+
+          limpo[chave] =
+            item;
+
+        }
+
+      }
+    );
+
+    inspecoesConcluidasLocalmente =
+      limpo;
+
+    localStorage.setItem(
+      STORAGE_INSPECAO_CONCLUIDA_LOCAL,
+      JSON.stringify(
+        limpo
+      )
+    );
+
+  }
+  catch (erro) {
+
+    inspecoesConcluidasLocalmente =
+      {};
+
+  }
+
+}
+
+
+function salvarInspecoesConcluidasLocal_() {
+
+  try {
+
+    localStorage.setItem(
+      STORAGE_INSPECAO_CONCLUIDA_LOCAL,
+      JSON.stringify(
+        inspecoesConcluidasLocalmente
+      )
+    );
+
+  }
+  catch (erro) {}
+
+}
+
+
+function marcarInspecaoConcluidaLocal_(
+  maquinaValor,
+  instanteMs
+) {
+
+  const chave =
+    normalizarMaquinaChave_(
+      maquinaValor
+    );
+
+  if (!chave) {
+    return;
+  }
+
+  inspecoesConcluidasLocalmente[
+    chave
+  ] = {
+    concluidaEm:
+      Number(
+        instanteMs ||
+        Date.now()
+      )
+  };
+
+  salvarInspecoesConcluidasLocal_();
+
+}
+
+
+function maquinaTemInspecaoConcluidaLocal_(
+  maquinaValor
+) {
+
+  const chave =
+    normalizarMaquinaChave_(
+      maquinaValor
+    );
+
+  if (!chave) {
+    return false;
+  }
+
+  const item =
+    inspecoesConcluidasLocalmente[
+      chave
+    ];
+
+  if (!item) {
+    return false;
+  }
+
+  if (
+    Number(
+      item.concluidaEm ||
+      0
+    ) +
+    TEMPO_INSPECAO_CONCLUIDA_LOCAL_MS <=
+    Date.now()
+  ) {
+
+    delete inspecoesConcluidasLocalmente[
+      chave
+    ];
+
+    salvarInspecoesConcluidasLocal_();
+
+    return false;
+
+  }
+
+  return true;
+
+}
+
+
+function confirmarInspecaoServidorLocal_(
+  maquinaValor,
+  ultimaInspecaoMs
+) {
+
+  const chave =
+    normalizarMaquinaChave_(
+      maquinaValor
+    );
+
+  if (!chave) {
+    return;
+  }
+
+  const item =
+    inspecoesConcluidasLocalmente[
+      chave
+    ];
+
+  if (!item) {
+    return;
+  }
+
+  if (
+    Number(
+      ultimaInspecaoMs ||
+      0
+    ) >=
+    Number(
+      item.concluidaEm ||
+      0
+    )
+  ) {
+
+    delete inspecoesConcluidasLocalmente[
+      chave
+    ];
+
+    salvarInspecoesConcluidasLocal_();
+
+  }
+
+}
+
+
+function atualizarAlarmeGlobalAposMudancaLocal_() {
+
+  /*
+   * Reavalia o alarme com a resposta que já existe no aparelho.
+   * A rede pode levar alguns segundos, mas o alarme não precisa
+   * esperar para parar de cobrar a máquina recém-concluída.
+   */
+  try {
+
+    atualizarPainelPendenciasAntesDaMaquina(
+      ultimaRespostaPendenciasGlobal ||
+      {}
+    );
+
+  }
+  catch (erro) {}
+
+}
+
+
 const TEMPO_VIDEO_PROCESSANDO_LOCAL_MS =
   10 * 60 * 1000;
 
@@ -7129,6 +7361,53 @@ function consultarPendenciasAntesDaMaquina(
             ultimaRespostaPendenciasGlobal =
               resposta;
 
+            /*
+             * Se o servidor já registrou a nova inspeção, libera
+             * o marcador local. Enquanto a resposta ainda estiver
+             * atrasada, o marcador continua impedindo que a máquina
+             * volte a ser cobrada visualmente.
+             */
+            if (
+              resposta &&
+              Array.isArray(
+                resposta.pendencias
+              )
+            ) {
+
+              resposta.pendencias.forEach(
+                function(item) {
+
+                  if (
+                    item &&
+                    item.maquina &&
+                    item.ultimaInspecao
+                  ) {
+
+                    const instanteServidor =
+                      new Date(
+                        item.ultimaInspecao
+                      ).getTime();
+
+                    if (
+                      !isNaN(
+                        instanteServidor
+                      )
+                    ) {
+
+                      confirmarInspecaoServidorLocal_(
+                        item.maquina,
+                        instanteServidor
+                      );
+
+                    }
+
+                  }
+
+                }
+              );
+
+            }
+
             atualizarPainelPendenciasAntesDaMaquina(
               resposta
             );
@@ -9123,6 +9402,16 @@ function marcarInspecaoComoConcluida(
         )
       : new Date();
 
+  /*
+   * V13.49 — atualização local imediata.
+   * A máquina deixa de ser uma cobrança no mesmo instante em que
+   * a inspeção é concluída, sem aguardar o Apps Script.
+   */
+  marcarInspecaoConcluidaLocal_(
+    maquina,
+    data.getTime()
+  );
+
   if (
     isNaN(
       data.getTime()
@@ -9166,9 +9455,24 @@ function marcarInspecaoComoConcluida(
 
   atualizarAlarmeInspecaoUI();
 
+  /*
+   * Reavalia primeiro usando os dados locais.
+   * Depois a consulta remota confirma o registro no servidor.
+   */
   try {
-    consultarPendenciasAntesDaMaquina();
-  } catch (erro) {}
+    atualizarAlarmeGlobalAposMudancaLocal_();
+  }
+  catch (erroLocal) {}
+
+  try {
+    consultarPendenciasAntesDaMaquina({
+      forcarAtualizacao:
+        true,
+      silencioso:
+        true
+    });
+  }
+  catch (erro) {}
 
   try {
     debugUploadCliente(
@@ -19000,6 +19304,8 @@ document.addEventListener(
   async function() {
 
     atualizarStatusPushUI_();
+
+    carregarInspecoesConcluidasLocal_();
 
     carregarVideosProcessandoLocal_();
 
