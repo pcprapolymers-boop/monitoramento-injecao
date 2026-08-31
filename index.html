@@ -607,12 +607,6 @@
   scroll-behavior: smooth;
 }
 
-
-/* V13.42 — transições mais rápidas */
-.v13-42-transition {
-  transition: opacity .08s linear;
-}
-
 </style>
 
   <link rel="preconnect" href="https://script.google.com">
@@ -6710,6 +6704,10 @@ async function selecionarMaquinaPendenteDoPainel(
 
 async function selecionarMaquinaProvisoria() {
 
+  garantirOperadoresDisponiveis_();
+
+
+
   const maquinaAnterior =
     maquina;
 
@@ -12626,6 +12624,75 @@ function aplicarCadastrosNoFormulario_(
 }
 
 
+function garantirOperadoresDisponiveis_() {
+
+  const select =
+    document.getElementById(
+      'operador'
+    );
+
+  if (!select) {
+    return;
+  }
+
+  if (
+    Array.isArray(
+      operadores
+    ) &&
+    operadores.length
+  ) {
+
+    preencherSelecoes();
+    preencherOperadoresStatus();
+    return;
+
+  }
+
+  try {
+
+    const cache =
+      lerCacheCadastrosLocal();
+
+    if (
+      cache &&
+      cache.sucesso
+    ) {
+
+      aplicarCadastrosNoFormulario_(
+        cache
+      );
+
+      return;
+
+    }
+
+  }
+  catch (erroCache) {}
+
+  carregarDadosRemotos()
+    .then(
+      function(dados) {
+
+        aplicarCadastrosNoFormulario_(
+          dados
+        );
+
+      }
+    )
+    .catch(
+      function(erro) {
+
+        console.warn(
+          'Pré-carga de operadores falhou:',
+          erro
+        );
+
+      }
+    );
+
+}
+
+
 function carregarDadosRemotos() {
 
   if (carregandoCadastrosPromise) {
@@ -13267,8 +13334,7 @@ async function prepararInspecao() {
     document
       .getElementById(
         'operador'
-      )
-      .value;
+      ).value;
 
   if (!operador) {
 
@@ -13319,8 +13385,7 @@ async function prepararInspecao() {
     );
 
   /*
-   * V13.42 — transição imediata:
-   * a troca de tela não espera WakeLock nem câmera.
+   * V13.43 — muda a tela imediatamente.
    */
   if (telaPrincipal) {
     telaPrincipal.classList.add(
@@ -13351,41 +13416,33 @@ async function prepararInspecao() {
     );
 
   if (cameraStatus) {
-
     cameraStatus.textContent =
       '⏳ Preparando câmera...';
-
   }
 
   /*
-   * WakeLock e câmera começam juntos.
+   * Inicializa WakeLock e câmera em paralelo.
    */
-  const wakePromise =
-    Promise.resolve()
-      .then(
-        function() {
-          return solicitarWakeLock();
-        }
-      );
-
-  const cameraPromise =
-    Promise.resolve()
-      .then(
-        function() {
-          return iniciarCamera();
-        }
-      );
-
-  let cameraPronta =
-    false;
+  let cameraPronta = false;
 
   try {
 
     const resultados =
       await Promise.all(
         [
-          wakePromise,
-          cameraPromise
+          Promise.resolve()
+            .then(
+              function() {
+                return solicitarWakeLock();
+              }
+            ),
+
+          Promise.resolve()
+            .then(
+              function() {
+                return iniciarCamera();
+              }
+            )
         ]
       );
 
@@ -13410,19 +13467,14 @@ async function prepararInspecao() {
   if (cameraPronta) {
 
     if (cameraStatus) {
-
       cameraStatus.textContent =
         '✅ Câmera pronta. Inicie a inspeção.';
-
     }
 
     return;
 
   }
 
-  /*
-   * Só volta à tela anterior se a câmera realmente não puder ser usada.
-   */
   if (telaPrincipal) {
     telaPrincipal.classList.remove(
       'hidden'
@@ -13433,13 +13485,6 @@ async function prepararInspecao() {
     telaInspecao.classList.add(
       'hidden'
     );
-  }
-
-  if (cameraStatus) {
-
-    cameraStatus.textContent =
-      '❌ Não foi possível iniciar a câmera.';
-
   }
 
   mostrarMensagem(
@@ -18227,6 +18272,8 @@ document.addEventListener(
 
     atualizarSeletorMaquina();
 
+    garantirOperadoresDisponiveis_();
+
     /*
      * V13.41 — pré-carga reforçada dos cadastros.
      * Não depende da máquina selecionada.
@@ -18507,10 +18554,6 @@ document.addEventListener(
 
     }
 
-    /*
-     * V13.42 — a primeira pintura da tela vem antes da manutenção
-     * das filas de upload/status.
-     */
     setTimeout(
       function() {
 
