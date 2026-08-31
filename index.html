@@ -607,6 +607,315 @@
   scroll-behavior: smooth;
 }
 
+
+/* V13.47 — interface Clean / operação por toque */
+:root {
+  --clean-blue: #174A78;
+  --clean-blue-2: #0F3556;
+  --clean-border: #D8E2EA;
+  --clean-muted: #617383;
+  --clean-bg: #F5F8FA;
+}
+
+body {
+  background: var(--clean-bg);
+}
+
+.app {
+  max-width: 760px;
+  padding-bottom: 28px;
+}
+
+.card {
+  border-radius: 20px;
+  padding: 18px;
+  margin-bottom: 14px;
+  border: 1px solid rgba(25, 63, 92, .08);
+  box-shadow: 0 3px 12px rgba(17, 52, 79, .08);
+}
+
+.card + .card {
+  margin-top: 0;
+}
+
+label {
+  display: block;
+  margin: 0 0 9px;
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--clean-blue-2);
+}
+
+select {
+  width: 100%;
+  min-height: 66px !important;
+  padding: 14px 16px !important;
+  border: 2px solid var(--clean-border) !important;
+  border-radius: 16px !important;
+  background: #fff !important;
+  font-size: 20px !important;
+  font-weight: 700;
+  color: #19364E;
+  box-sizing: border-box;
+}
+
+select:focus {
+  outline: none;
+  border-color: var(--clean-blue) !important;
+  box-shadow: 0 0 0 4px rgba(23, 74, 120, .12);
+}
+
+button {
+  min-height: 66px !important;
+  border-radius: 16px !important;
+  font-size: 20px !important;
+  padding: 12px 16px !important;
+}
+
+button:active {
+  transform: scale(.985);
+}
+
+.btn-primary,
+.btn-sim,
+.btn-nao,
+.btn-secondary {
+  box-shadow: none;
+}
+
+.clean-step-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 7px;
+  font-size: 19px;
+  font-weight: 900;
+  color: var(--clean-blue-2);
+}
+
+.clean-step-number {
+  min-width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--clean-blue);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.clean-subtitle {
+  color: var(--clean-muted);
+  font-size: 14px;
+  line-height: 1.45;
+  margin-bottom: 14px;
+}
+
+.clean-required {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 2px 9px;
+  margin-left: 6px;
+  border-radius: 999px;
+  background: #EEF3F7;
+  color: #50677A;
+  font-size: 11px;
+  font-weight: 900;
+  vertical-align: middle;
+  text-transform: uppercase;
+}
+
+.clean-field {
+  margin-top: 14px;
+}
+
+.clean-field + .clean-field {
+  margin-top: 16px;
+}
+
+.clean-help {
+  margin-top: 7px;
+  color: var(--clean-muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+#machineSelectionCard {
+  border: 2px solid #BFD4E3;
+  background: #FBFDFE;
+}
+
+#machineStatusCard {
+  border-width: 2px;
+}
+
+#machineStatusCard .clean-status-current {
+  margin: -2px 0 13px;
+}
+
+#machineStatusCard .machine-status-badge {
+  padding: 7px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+}
+
+#machineStatusSelector {
+  min-height: 68px !important;
+}
+
+#btnGravarStatusAudio,
+#btnRegravarStatusAudio,
+#btnSaveMachineStatus,
+#btnManterStatus {
+  min-height: 62px !important;
+}
+
+#btnSaveMachineStatus {
+  margin-top: 10px;
+  background: var(--clean-blue) !important;
+  color: #fff !important;
+}
+
+#btnManterStatus {
+  background: #E7EEF4 !important;
+}
+
+#machineStatusAudioCard {
+  border-radius: 16px !important;
+  padding: 14px !important;
+  margin-top: 12px !important;
+}
+
+#machineStatusAudioTimer {
+  font-size: 32px !important;
+  padding: 4px 0;
+}
+
+#preMachineAlarmCard .alarm-pending-machine {
+  min-height: 62px !important;
+  border-radius: 14px !important;
+  padding: 12px 14px !important;
+  font-size: 14px !important;
+}
+
+#preMachineAlarmCard .alarm-overview-open {
+  font-size: 13px;
+  font-weight: 900;
+}
+
+#inspectionAlarmCard {
+  border-radius: 18px;
+}
+
+#inspectionAlarmCountdown {
+  font-size: 34px !important;
+}
+
+#cycleBox {
+  margin-top: 12px;
+  padding: 14px;
+  border-radius: 16px;
+}
+
+#conformidadeCard .conformidade {
+  gap: 14px;
+}
+
+#conformidadeCard button {
+  min-height: 78px !important;
+  font-size: 23px !important;
+}
+
+#startCard {
+  background: linear-gradient(180deg, #FFFFFF 0%, #F7FAFC 100%);
+}
+
+#btnIniciar {
+  min-height: 78px !important;
+  font-size: 22px !important;
+}
+
+#startCard .info-line {
+  text-align: center;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+#videoResult .video-actions {
+  gap: 12px;
+}
+
+#btnRegravar,
+#btnNovaInspecaoVideo,
+#btnGravarAudio,
+#btnPararAudio,
+#btnSemAudio {
+  min-height: 68px !important;
+}
+
+#audioPanel {
+  border-radius: 18px !important;
+}
+
+#audioPanelTitle {
+  font-size: 20px !important;
+}
+
+#audioTimer {
+  font-size: 38px !important;
+}
+
+#successScreen button {
+  min-height: 74px !important;
+}
+
+/* Retira controles técnicos da operação normal */
+#btnTesteStatusNavegador,
+#statusDiagnosticMessage {
+  display: none !important;
+}
+
+/* A linha explicativa do botão de diagnóstico também deixa de aparecer */
+#machineStatusCard .status-diagnostic-explanation {
+  display: none !important;
+}
+
+@media (max-width: 600px) {
+  .app {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  .header {
+    margin-bottom: 12px;
+  }
+
+  .card {
+    padding: 16px;
+    margin-bottom: 12px;
+  }
+
+  select {
+    min-height: 68px !important;
+    font-size: 19px !important;
+  }
+
+  #conformidadeCard .conformidade {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  #conformidadeCard button {
+    min-height: 82px !important;
+  }
+}
+
+
+#alarmTestCard {
+  display: none !important;
+}
 </style>
 
   <link rel="preconnect" href="https://script.google.com">
@@ -827,57 +1136,37 @@
 
     <div class="card" id="machineSelectionCard">
 
-      <div
-        style="
-          font-size:18px;
-          font-weight:700;
-          margin-bottom:8px;
-        "
-      >
-        1️⃣ 🏭 SELECIONE A MÁQUINA
+      <div class="clean-step-title">
+        <span class="clean-step-number">1</span>
+        <span>🏭 SELECIONE A MÁQUINA <span class="clean-required">obrigatório</span></span>
       </div>
 
-      <div
-        style="
-          margin-bottom:8px;
-          font-size:13px;
-          color:#536777;
-        "
-      >
-        Primeiro selecione a máquina. Depois confirme o status operacional.
+      <div class="clean-subtitle">
+        Escolha a máquina que será inspecionada.
       </div>
 
-      <label for="machineSelector">
-        Máquina
-      </label>
+      <div class="clean-field">
+        <label for="machineSelector">Máquina</label>
 
-      <select
-        id="machineSelector"
-        onchange="selecionarMaquinaProvisoria()"
-      >
-        <option value="">Selecione a máquina</option>
-        <option value="M1">M-1</option>
-        <option value="M2">M-2</option>
-        <option value="M3">M-3</option>
-        <option value="M4">M-4</option>
-        <option value="M5">M-5</option>
-        <option value="M6">M-6</option>
-      </select>
+        <select
+          id="machineSelector"
+          onchange="selecionarMaquinaProvisoria()"
+        >
+          <option value="">Selecione a máquina</option>
+          <option value="M1">M-1</option>
+          <option value="M2">M-2</option>
+          <option value="M3">M-3</option>
+          <option value="M4">M-4</option>
+          <option value="M5">M-5</option>
+          <option value="M6">M-6</option>
+        </select>
 
-      <div
-        style="
-          margin-top:6px;
-          font-size:12px;
-          color:#536777;
-        "
-      >
-        Seleção provisória. Posteriormente será substituída
-        pela identificação automática via NFC.
+        <div class="clean-help">
+          A máquina selecionada ficará vinculada à inspeção e ao status informado.
+        </div>
       </div>
 
     </div>
-
-
 
 
     <!-- STATUS OPERACIONAL DA MÁQUINA -->
@@ -1206,29 +1495,34 @@
 
     <!-- PRODUTO -->
 
-    <div class="card">
+    <div class="card" id="productCard">
 
-      <label>
-        📦 Produto
-      </label>
+      <div class="clean-step-title">
+        <span class="clean-step-number">3</span>
+        <span>📦 PRODUTO <span class="clean-required">obrigatório</span></span>
+      </div>
 
-      <select
-        id="produto"
-        onchange="produtoSelecionado()"
-      >
+      <div class="clean-subtitle">
+        Selecione o produto que está sendo produzido.
+      </div>
 
-        <option value="">
-          Selecione o produto
-        </option>
+      <div class="clean-field">
+        <label for="produto">Produto</label>
 
-      </select>
-
+        <select
+          id="produto"
+          onchange="produtoSelecionado()"
+        >
+          <option value="">
+            Selecione o produto
+          </option>
+        </select>
+      </div>
 
       <div
         id="cycleBox"
         class="cycle hidden"
       >
-
         <div class="cycle-title">
           CICLO PROGRAMADO
         </div>
@@ -1239,7 +1533,6 @@
         >
           00:00
         </div>
-
       </div>
 
     </div>
@@ -1252,29 +1545,31 @@
       class="card hidden"
     >
 
-      <label>
-        🔎 O processo/peça está conforme?
-      </label>
+      <div class="clean-step-title">
+        <span class="clean-step-number">4</span>
+        <span>🔎 CONFORMIDADE <span class="clean-required">obrigatório</span></span>
+      </div>
 
+      <div class="clean-subtitle">
+        O processo ou peça está conforme?
+      </div>
 
       <div class="conformidade">
-
         <button
-          id="btnSim"
           class="btn-sim"
+          id="btnSim"
           onclick="selecionarConformidade('SIM')"
         >
           ✅ SIM
         </button>
 
         <button
-          id="btnNao"
           class="btn-nao"
+          id="btnNao"
           onclick="selecionarConformidade('NÃO')"
         >
           ❌ NÃO
         </button>
-
       </div>
 
     </div>
@@ -1287,19 +1582,29 @@
       class="card hidden"
     >
 
+      <div class="clean-step-title">
+        <span class="clean-step-number">5</span>
+        <span>🎥 PRONTO PARA INSPECIONAR</span>
+      </div>
+
+      <div class="clean-subtitle">
+        Posicione o telefone para mostrar o ciclo e toque no botão abaixo.
+      </div>
+
       <button
-        id="btnIniciar"
         class="btn-primary"
-        onclick="prepararInspecao()"
         disabled
+        id="btnIniciar"
+        onclick="prepararInspecao()"
       >
         🎥 INICIAR INSPEÇÃO
       </button>
 
       <div class="info-line">
-        Posicione o telefone para mostrar o ciclo.
-        A gravação será encerrada automaticamente.
+        A gravação será encerrada automaticamente ao final do ciclo.
       </div>
+
+    </div>
 
     </div>
 
@@ -2856,6 +3161,189 @@ const CACHE_MAQUINA_TTL_MS =
   60000;
 
 /* V13.41 — cache rápido das inspeções pendentes */
+
+/*
+ * V13.45 — inspeção cujo vídeo já foi gravado localmente e está
+ * aguardando envio/finalização no servidor.
+ */
+const STORAGE_VIDEO_PROCESSANDO_LOCAL =
+  'ra_polymers_video_processando_v1';
+
+const TEMPO_VIDEO_PROCESSANDO_LOCAL_MS =
+  10 * 60 * 1000;
+
+let videosProcessandoLocal =
+  {};
+
+function carregarVideosProcessandoLocal_() {
+
+  try {
+
+    const dados =
+      JSON.parse(
+        localStorage.getItem(
+          STORAGE_VIDEO_PROCESSANDO_LOCAL
+        ) ||
+        '{}'
+      );
+
+    const agora =
+      Date.now();
+
+    const limpos = {};
+
+    Object.keys(
+      dados || {}
+    ).forEach(
+      function(chave) {
+
+        const item =
+          dados[chave];
+
+        if (
+          item &&
+          Number(item.at || 0) +
+            TEMPO_VIDEO_PROCESSANDO_LOCAL_MS >
+          agora
+        ) {
+
+          limpos[chave] =
+            item;
+
+        }
+
+      }
+    );
+
+    videosProcessandoLocal =
+      limpos;
+
+    localStorage.setItem(
+      STORAGE_VIDEO_PROCESSANDO_LOCAL,
+      JSON.stringify(
+        limpos
+      )
+    );
+
+  }
+  catch (erro) {
+    videosProcessandoLocal = {};
+  }
+
+}
+
+function salvarVideosProcessandoLocal_() {
+
+  try {
+
+    localStorage.setItem(
+      STORAGE_VIDEO_PROCESSANDO_LOCAL,
+      JSON.stringify(
+        videosProcessandoLocal
+      )
+    );
+
+  }
+  catch (erro) {}
+
+}
+
+function marcarVideoEmProcessamentoLocal_(
+  maquinaValor,
+  uploadId
+) {
+
+  const chave =
+    normalizarMaquinaChave_(
+      maquinaValor
+    );
+
+  if (!chave) return;
+
+  videosProcessandoLocal[chave] = {
+    uploadId:
+      uploadId || '',
+    at:
+      Date.now()
+  };
+
+  salvarVideosProcessandoLocal_();
+
+}
+
+function limparVideoEmProcessamentoLocal_(
+  maquinaValor,
+  uploadId
+) {
+
+  const chave =
+    normalizarMaquinaChave_(
+      maquinaValor
+    );
+
+  if (!chave) return;
+
+  const item =
+    videosProcessandoLocal[chave];
+
+  if (
+    item &&
+    uploadId &&
+    item.uploadId !== uploadId
+  ) {
+    return;
+  }
+
+  delete videosProcessandoLocal[chave];
+  salvarVideosProcessandoLocal_();
+
+}
+
+function maquinaTemVideoEmProcessamentoLocal_(
+  maquinaValor
+) {
+
+  const chave =
+    normalizarMaquinaChave_(
+      maquinaValor
+    );
+
+  const item =
+    chave
+      ? videosProcessandoLocal[chave]
+      : null;
+
+  if (!item) return false;
+
+  if (
+    Number(item.at || 0) +
+      TEMPO_VIDEO_PROCESSANDO_LOCAL_MS <=
+    Date.now()
+  ) {
+
+    delete videosProcessandoLocal[chave];
+    salvarVideosProcessandoLocal_();
+    return false;
+
+  }
+
+  return true;
+
+}
+
+function atualizarPendenciasAposVideoLocal_() {
+
+  try {
+
+    atualizarPainelPendenciasAntesDaMaquina(
+      ultimaRespostaPendenciasGlobal || {}
+    );
+
+  }
+  catch (erro) {}
+
+}
+
 const CACHE_PENDENCIAS_TTL_MS =
   15000;
 
@@ -5491,6 +5979,61 @@ async function processarJobUpload(
       job.uploadId
     );
 
+      if (
+        job.mediaType === 'VIDEO'
+      ) {
+
+        /*
+         * V13.45 — finalização confirmada pelo servidor.
+         */
+        limparVideoEmProcessamentoLocal_(
+          job.maquina,
+          job.uploadId
+        );
+
+        try {
+
+          cacheUltimaInspecaoPorMaquina.delete(
+            normalizarMaquinaChave_(
+              job.maquina
+            )
+          );
+
+        }
+        catch (erroCache) {}
+
+        /*
+         * Força a atualização das pendências imediatamente,
+         * sem esperar o TTL normal do cache.
+         */
+        setTimeout(
+          function() {
+
+            consultarPendenciasAntesDaMaquina({
+              forcarAtualizacao:
+                true,
+              silencioso:
+                true
+            })
+            .catch(
+              function(erroPendencias) {
+
+                console.warn(
+                  'Falha ao atualizar pendências após finalização:',
+                  erroPendencias
+                );
+
+              }
+            );
+
+          },
+          0
+        );
+
+      }
+
+
+
 
     if (
       job.mediaType === 'AUDIO'
@@ -5576,6 +6119,23 @@ async function processarJobUpload(
         ) +
         '. O vídeo continua protegido no aparelho.',
         'warning'
+      );
+
+    }
+
+
+    if (
+      job.mediaType === 'VIDEO'
+    ) {
+
+      limparVideoEmProcessamentoLocal_(
+        job.maquina,
+        job.uploadId
+      );
+
+      setTimeout(
+        atualizarPendenciasAposVideoLocal_,
+        0
       );
 
     }
@@ -5895,13 +6455,49 @@ function atualizarPainelPendenciasAntesDaMaquina(
     return;
   }
 
-  const pendencias =
+  const pendenciasServidor =
     resposta &&
     Array.isArray(
       resposta.pendencias
     )
       ? resposta.pendencias
       : [];
+
+  const adiadasPorStatus =
+    resposta &&
+    Array.isArray(
+      resposta.adiadasPorStatus
+    )
+      ? resposta.adiadasPorStatus
+      : [];
+
+  const pendencias =
+    pendenciasServidor.filter(
+      function(item) {
+
+        return !maquinaTemVideoEmProcessamentoLocal_(
+          item &&
+          item.maquina
+            ? item.maquina
+            : ''
+        );
+
+      }
+    );
+
+  const processando =
+    pendenciasServidor.filter(
+      function(item) {
+
+        return maquinaTemVideoEmProcessamentoLocal_(
+          item &&
+          item.maquina
+            ? item.maquina
+            : ''
+        );
+
+      }
+    );
 
   const atrasadas =
     pendencias.filter(
@@ -5935,12 +6531,25 @@ function atualizarPainelPendenciasAntesDaMaquina(
                 : ' INSPEÇÕES PENDENTES'
             )
           )
-        : '✅ INSPEÇÕES EM DIA';
+        : (
+            processando.length
+              ? (
+                  '⏳ ' +
+                  processando.length +
+                  (
+                    processando.length === 1
+                      ? ' INSPEÇÃO EM FINALIZAÇÃO'
+                      : ' INSPEÇÕES EM FINALIZAÇÃO'
+                  )
+                )
+              : '✅ INSPEÇÕES EM DIA'
+          );
 
   }
 
   if (
-    !pendencias.length
+    !pendencias.length &&
+    !processando.length
   ) {
 
     card.style.display =
@@ -5980,6 +6589,16 @@ function atualizarPainelPendenciasAntesDaMaquina(
             atrasadas.length +
             ' inspeções ATRASADAS. O alarme é apenas um lembrete. Confira abaixo quais máquinas estão atrasadas.'
           );
+
+  }
+  else if (
+    processando.length
+  ) {
+
+    pararAlarmePendenciaGlobal();
+
+    text.textContent =
+      '⏳ A inspeção acabou de ser gravada neste aparelho e o vídeo está sendo finalizado. Ela não precisa ser refeita.';
 
   }
   else {
@@ -6510,6 +7129,32 @@ function consultarPendenciasAntesDaMaquina(
             try {
 
               debugUploadCliente(
+              'V13.46_COBRANCA_INSPECAO_REGRA_UNIFICADA',
+              {
+                mediaType:
+                  'ALARM'
+              },
+              {
+                totalCobrancas:
+                  Number(
+                    resposta.total ||
+                    0
+                  ),
+                totalAdiadoPorStatus:
+                  Number(
+                    resposta.totalAdiadoPorStatus ||
+                    (
+                      Array.isArray(
+                        resposta.adiadasPorStatus
+                      )
+                        ? resposta.adiadasPorStatus.length
+                        : 0
+                    )
+                  )
+              }
+            );
+
+            debugUploadCliente(
                 'ALARME_PENDENCIAS_GLOBAIS',
                 {
                   mediaType:
@@ -14669,6 +15314,19 @@ function iniciarGravacao() {
           job
         );
 
+      /*
+       * O vídeo já está protegido no aparelho. Para o painel local,
+       * a inspeção deixa de ser acionável enquanto aguarda a finalização.
+       */
+      marcarVideoEmProcessamentoLocal_(
+        maquina,
+        job.uploadId
+      );
+
+      atualizarPendenciasAposVideoLocal_();
+
+
+
       }
 
       document
@@ -18313,6 +18971,8 @@ document.addEventListener(
   async function() {
 
     atualizarStatusPushUI_();
+
+    carregarVideosProcessandoLocal_();
 
     atualizarSeletorMaquina();
 
