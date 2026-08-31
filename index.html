@@ -2807,6 +2807,50 @@ let produtos = [];
 let dadosCadastrosEmMemoria = null;
 let carregandoCadastrosPromise = null;
 
+
+/*
+ * V13.44 — normalização de máquina.
+ * Mantém M5, M-5, m5 e m-5 como a mesma chave M5.
+ */
+function normalizarMaquinaChave_(
+  valor
+) {
+
+  const texto =
+    String(
+      valor ||
+      ''
+    )
+    .trim()
+    .toUpperCase();
+
+  if (!texto) {
+    return '';
+  }
+
+  const match =
+    texto.match(
+      /^M[-\s]?(\d+)$/
+    );
+
+  if (match) {
+
+    return (
+      'M' +
+      match[1]
+    );
+
+  }
+
+  return texto
+    .replace(
+      /\s+/g,
+      ''
+    );
+
+}
+
+
 /* V13.38 — cache rápido por máquina */
 const CACHE_MAQUINA_TTL_MS =
   60000;
