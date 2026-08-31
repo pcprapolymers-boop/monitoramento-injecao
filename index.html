@@ -916,6 +916,41 @@ button:active {
 #alarmTestCard {
   display: none !important;
 }
+
+/* V13.50 — estados visuais de áudio */
+#btnGravarStatusAudio {
+  background: #1976D2 !important;
+  color: #FFFFFF !important;
+  font-weight: 900 !important;
+}
+
+#btnSaveMachineStatus:disabled {
+  background: #B8BEC4 !important;
+  color: #5B636B !important;
+  opacity: .75 !important;
+  cursor: not-allowed !important;
+}
+
+#btnSaveMachineStatus:not(:disabled) {
+  background: #1976D2 !important;
+  color: #FFFFFF !important;
+  opacity: 1 !important;
+}
+
+
+/* V13.51 — botões de status unificados */
+#btnGravarStatusAudio,
+#btnRegravarStatusAudio,
+#btnManterStatus,
+#btnSaveMachineStatus {
+  font-weight: 900 !important;
+}
+
+#btnSaveMachineStatus:disabled,
+#btnManterStatus:disabled {
+  box-shadow: none !important;
+}
+
 </style>
 
   <link rel="preconnect" href="https://script.google.com">
@@ -1353,52 +1388,7 @@ button:active {
           font-size:12px;
           font-weight:700;
         "
-      ></div>
-
-      <div
-        style="
-          margin-top:8px;
-          font-size:11px;
-          color:#795548;
-          line-height:1.35;
-        "
-      >
-        🔎 Este botão é temporário para diagnóstico da gravação de status.
-      </div>
-
-      <button
-        id="btnTesteStatusNavegador"
-        type="button"
-        style="
-          display:block;
-          width:100%;
-          min-height:40px;
-          margin-top:8px;
-          background:#FFF3CD;
-          color:#664D03;
-          border:1px solid #D6B656;
-          font-weight:800;
-        "
-        onclick="testarStatusDiretoNoNavegador()"
-      >
-        🧪 TESTAR GRAVAÇÃO DIRETA
-      </button>
-
-      <div
-        id="statusDiagnosticMessage"
-        style="
-          display:none;
-          margin-top:8px;
-          padding:8px 10px;
-          border-radius:8px;
-          background:#FFF3CD;
-          color:#664D03;
-          font-size:11px;
-          line-height:1.35;
-        "
-      ></div>
-
-    </div>
+      ></div></div>
 
 
     <!-- ALARME DE INSPEÇÃO HORÁRIA -->
@@ -12002,7 +11992,7 @@ function atualizarObrigatoriedadeAudioStatus() {
 
   const botaoSalvar =
     document.getElementById(
-      'btnSalvarMachineStatus'
+      'btnSaveMachineStatus'
     );
 
   if (!seletor) return;
@@ -12032,18 +12022,33 @@ function atualizarObrigatoriedadeAudioStatus() {
   }
 
   if (precisaAudio) {
-    statusAudioConcluido = false;
-    statusAudioBlob = null;
+
+    /*
+     * Ao escolher um status não produtivo, o operador precisa
+     * gravar a justificativa antes de poder atualizar o status.
+     */
+    statusAudioConcluido =
+      false;
+
+    statusAudioBlob =
+      null;
+
   }
   else {
-    statusAudioConcluido = true;
+
+    /*
+     * PRODUZINDO não exige áudio.
+     */
+    statusAudioConcluido =
+      true;
+
   }
 
   if (botaoSalvar) {
+
     botaoSalvar.disabled =
-      precisaAudio
-        ? !statusAudioConcluido
-        : false;
+      !statusAudioConcluido;
+
   }
 
   atualizarStatusAudioUI();
@@ -12068,12 +12073,28 @@ function atualizarStatusAudioUI() {
       'btnPararStatusAudio'
     );
 
+  const btnSalvar =
+    document.getElementById(
+      'btnSaveMachineStatus'
+    );
+
+  const btnManter =
+    document.getElementById(
+      'btnManterStatus'
+    );
+
+  const btnRegravar =
+    document.getElementById(
+      'btnRegravarStatusAudio'
+    );
+
   const mensagem =
     document.getElementById(
       'machineStatusAudioMessage'
     );
 
   if (timer) {
+
     timer.textContent =
       String(
         Math.min(
@@ -12081,21 +12102,210 @@ function atualizarStatusAudioUI() {
           statusAudioSegundos
         )
       ).padStart(
-        2,'0'
+        2,
+        '0'
       ) +
       ' / 15s';
+
   }
 
+  /*
+   * GRAVAR:
+   * azul = pode gravar
+   * vermelho = gravando
+   * verde = áudio pronto
+   */
   if (btnGravar) {
-    btnGravar.disabled =
-      statusAudioGravando;
+
+    if (
+      statusAudioGravando
+    ) {
+
+      btnGravar.disabled =
+        true;
+
+      btnGravar.style.background =
+        '#C62828';
+
+      btnGravar.style.color =
+        '#FFFFFF';
+
+      btnGravar.textContent =
+        '🔴 GRAVANDO...';
+
+    }
+    else if (
+      statusAudioConcluido
+    ) {
+
+      btnGravar.disabled =
+        true;
+
+      btnGravar.style.background =
+        '#2E7D32';
+
+      btnGravar.style.color =
+        '#FFFFFF';
+
+      btnGravar.textContent =
+        '✅ ÁUDIO GRAVADO';
+
+    }
+    else {
+
+      btnGravar.disabled =
+        false;
+
+      btnGravar.style.background =
+        '#1976D2';
+
+      btnGravar.style.color =
+        '#FFFFFF';
+
+      btnGravar.textContent =
+        '🎙️ GRAVAR JUSTIFICATIVA';
+
+    }
+
+  }
+
+  /*
+   * ATUALIZAR:
+   * sem áudio pronto = cinza/travado
+   * com áudio pronto = azul/liberado
+   *
+   * Para PRODUZINDO, statusAudioConcluido já é TRUE.
+   */
+  if (btnSalvar) {
+
+    btnSalvar.disabled =
+      !statusAudioConcluido;
+
+    btnSalvar.style.background =
+      statusAudioConcluido
+        ? '#1976D2'
+        : '#B8BEC4';
+
+    btnSalvar.style.color =
+      statusAudioConcluido
+        ? '#FFFFFF'
+        : '#5B636B';
+
+    btnSalvar.style.cursor =
+      statusAudioConcluido
+        ? 'pointer'
+        : 'not-allowed';
+
+    btnSalvar.style.opacity =
+      statusAudioConcluido
+        ? '1'
+        : '0.75';
+
+  }
+
+  /*
+   * MANTER STATUS:
+   * exatamente a mesma trava visual do ATUALIZAR.
+   */
+  if (btnManter) {
+
+    const statusAtual =
+      String(
+        statusOperacionalMaquina ||
+        'PRODUZINDO'
+      )
+        .trim()
+        .toUpperCase();
+
+    const mostrarManter =
+      Boolean(
+        maquina &&
+        statusAtual !==
+          'PRODUZINDO'
+      );
+
+    btnManter.style.display =
+      mostrarManter
+        ? 'block'
+        : 'none';
+
+    if (
+      mostrarManter
+    ) {
+
+      btnManter.disabled =
+        !statusAudioConcluido;
+
+      btnManter.style.background =
+        statusAudioConcluido
+          ? '#1976D2'
+          : '#B8BEC4';
+
+      btnManter.style.color =
+        statusAudioConcluido
+          ? '#FFFFFF'
+          : '#5B636B';
+
+      btnManter.style.cursor =
+        statusAudioConcluido
+          ? 'pointer'
+          : 'not-allowed';
+
+      btnManter.style.opacity =
+        statusAudioConcluido
+          ? '1'
+          : '0.75';
+
+    }
+
+  }
+
+  /*
+   * REGRAVAR só aparece após um áudio pronto.
+   * Quando disponível, é uma nova ação azul.
+   */
+  if (btnRegravar) {
+
+    const visivel =
+      btnRegravar.style.display !==
+      'none';
+
+    if (visivel) {
+
+      btnRegravar.disabled =
+        statusAudioGravando;
+
+      btnRegravar.style.background =
+        statusAudioGravando
+          ? '#B8BEC4'
+          : '#1976D2';
+
+      btnRegravar.style.color =
+        statusAudioGravando
+          ? '#5B636B'
+          : '#FFFFFF';
+
+      btnRegravar.style.cursor =
+        statusAudioGravando
+          ? 'not-allowed'
+          : 'pointer';
+
+      btnRegravar.style.opacity =
+        statusAudioGravando
+          ? '0.75'
+          : '1';
+
+    }
+
   }
 
   if (btnParar) {
+
     btnParar.classList.toggle(
       'hidden',
       !statusAudioGravando
     );
+
     btnParar.textContent =
       '⏱️ AGUARDE ' +
       Math.max(
@@ -12104,9 +12314,11 @@ function atualizarStatusAudioUI() {
         statusAudioSegundos
       ) +
       's';
+
   }
 
   if (mensagem) {
+
     mensagem.textContent =
       statusAudioGravando
         ? '🔴 Gravando justificativa...'
@@ -12115,9 +12327,11 @@ function atualizarStatusAudioUI() {
               ? '✅ Áudio de justificativa pronto.'
               : '⚠️ Áudio de 15 segundos obrigatório.'
           );
+
   }
 
 }
+
 
 
 
@@ -12167,6 +12381,44 @@ async function gravarAudioStatus() {
   if (statusGravado === 'PRODUZINDO') return;
 
   try {
+
+    /*
+     * Antes de pedir o microfone, deixa TODAS as ações de confirmação
+     * cinza/travadas. O único botão que permanece acionável é GRAVAR.
+     */
+    const botoesConfirmacaoAntesAudio = [
+      document.getElementById(
+        'btnSaveMachineStatus'
+      ),
+      document.getElementById(
+        'btnManterStatus'
+      )
+    ];
+
+    botoesConfirmacaoAntesAudio.forEach(
+      function(botao) {
+
+        if (!botao) {
+          return;
+        }
+
+        botao.disabled =
+          true;
+
+        botao.style.background =
+          '#B8BEC4';
+
+        botao.style.color =
+          '#5B636B';
+
+        botao.style.cursor =
+          'not-allowed';
+
+        botao.style.opacity =
+          '0.75';
+
+      }
+    );
 
     /*
      * Trava ANTES de pedir o microfone.
@@ -12295,6 +12547,8 @@ async function gravarAudioStatus() {
               : 'none';
         }
 
+        atualizarStatusAudioUI();
+
         try {
           debugUploadCliente(
             'STATUS_AUDIO_GRAVACAO_FIM',
@@ -12317,10 +12571,11 @@ async function gravarAudioStatus() {
           );
 
         if (salvar) {
+
           salvar.disabled =
             !statusAudioConcluido;
-        }
 
+        }
         /*
          * Mantém operador e status travados.
          * Só REGRAVAR permite editar novamente.
@@ -12825,21 +13080,66 @@ function atualizarBotoesManterStatus() {
       'btnManterStatus'
     );
 
-  if (!botao) return;
+  if (!botao) {
+    return;
+  }
 
   const statusAtual =
     String(
       statusOperacionalMaquina ||
       'PRODUZINDO'
-    ).trim().toUpperCase();
+    )
+      .trim()
+      .toUpperCase();
+
+  const deveMostrar =
+    Boolean(
+      maquina &&
+      statusAtual !==
+        'PRODUZINDO'
+    );
 
   botao.style.display =
-    maquina &&
-    statusAtual !== 'PRODUZINDO'
+    deveMostrar
       ? 'block'
       : 'none';
 
+  if (!deveMostrar) {
+    return;
+  }
+
+  /*
+   * MANTER STATUS segue exatamente a mesma regra visual do
+   * ATUALIZAR STATUS:
+   *
+   * sem áudio pronto -> cinza/travado
+   * áudio pronto     -> azul/liberado
+   */
+  botao.disabled =
+    !statusAudioConcluido;
+
+  botao.style.background =
+    statusAudioConcluido
+      ? '#1976D2'
+      : '#B8BEC4';
+
+  botao.style.color =
+    statusAudioConcluido
+      ? '#FFFFFF'
+      : '#5B636B';
+
+  botao.style.cursor =
+    statusAudioConcluido
+      ? 'pointer'
+      : 'not-allowed';
+
+  botao.style.opacity =
+    statusAudioConcluido
+      ? '1'
+      : '0.75';
+
 }
+
 
 
 function atualizarTravamentoCamposStatusAudio(
@@ -12924,6 +13224,7 @@ function iniciarRegravacaoStatusAudio() {
   }
 
   atualizarObrigatoriedadeAudioStatus();
+  atualizarStatusAudioUI();
 
   try {
     debugUploadCliente(
