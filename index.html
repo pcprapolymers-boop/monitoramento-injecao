@@ -1257,6 +1257,26 @@ button:active {
     >
 
       <div
+        id="machineTransitionBanner"
+        style="
+          display:none;
+          position:sticky;
+          top:6px;
+          z-index:50;
+          margin:0 0 10px;
+          padding:10px 12px;
+          border-radius:10px;
+          background:#E3F2FD;
+          border:2px solid #1976D2;
+          color:#0D47A1;
+          font-size:14px;
+          font-weight:900;
+          text-align:center;
+          box-shadow:0 3px 12px rgba(0,0,0,.10);
+        "
+      ></div>
+
+      <div
         style="
           display:flex;
           align-items:center;
@@ -3052,8 +3072,25 @@ let maquina =
   .trim()
   .toUpperCase();
 
+/* V13.61 — captura de vídeo otimizada para reduzir lag em Android. */
 let statusOperacionalMaquina =
   'PRODUZINDO';
+
+/* V13.60 — separa status salvo, status selecionado e transição. */
+let statusAnteriorMaquina =
+  'PRODUZINDO';
+let statusSelecionadoMaquina =
+  'PRODUZINDO';
+let statusAtualizacaoEmAndamento =
+  false;
+let statusTrocaMaquinaEmAndamento =
+  false;
+let statusTrocaMaquinaDestino =
+  '';
+let statusPreCarregadoProximaMaquina =
+  null;
+let contadorTransicaoMaquina =
+  0;
 
 
 let statusAtualizadoEm =
@@ -7458,6 +7495,9 @@ function atualizarPainelPendenciasAntesDaMaquina(
                 'data-maquina="' +
                 maquinaChave +
                 '" ' +
+                'data-status="' +
+                status +
+                '" ' +
                 'onclick="selecionarMaquinaPendenteDoPainel(this)" ' +
                 'title="Toque para abrir a máquina">' +
 
@@ -8440,6 +8480,92 @@ function limparDependentesAoTrocarMaquina_() {
 
 
 
+/* =====================================================
+   V13.60 — ESTADO DE STATUS / TRANSIÇÃO DE MÁQUINA
+   ===================================================== */
+
+function normalizarStatusMaquinaUI_(valor) {
+  return String(valor || 'PRODUZINDO').trim().toUpperCase();
+}
+
+function iniciarTransicaoMaquinaUI_(destino, statusPreCarregado) {
+  contadorTransicaoMaquina++;
+  statusTrocaMaquinaEmAndamento = true;
+  statusTrocaMaquinaDestino = normalizarMaquinaTela(destino || '');
+  statusPreCarregadoProximaMaquina = statusPreCarregado
+    ? normalizarStatusMaquinaUI_(statusPreCarregado)
+    : null;
+  const banner = document.getElementById('machineTransitionBanner');
+  const botao = document.getElementById('btnSaveMachineStatus');
+  if (banner) {
+    banner.style.display = statusTrocaMaquinaDestino ? 'block' : 'none';
+    banner.textContent = statusTrocaMaquinaDestino
+      ? '➡️ PRÓXIMA MÁQUINA: M-' + statusTrocaMaquinaDestino.substring(1)
+      : '➡️ PRÓXIMA MÁQUINA: CARREGANDO';
+  }
+  if (botao) {
+    botao.disabled = true;
+    botao.style.background = '#B8BEC4';
+    botao.style.color = '#5B636B';
+    botao.style.cursor = 'not-allowed';
+    botao.style.opacity = '0.75';
+    botao.textContent = '⏳ ATUALIZANDO STATUS...';
+  }
+}
+
+function aplicarStatusPreCarregadoDaProximaMaquina_(status) {
+  const normalizado = normalizarStatusMaquinaUI_(status);
+  try {
+    const chave = normalizarMaquinaChave_(maquina);
+    if (chave) {
+      const existente = cacheStatusPorMaquina.get(chave);
+      const dadosExistentes = existente && existente.data ? existente.data : {};
+      cacheStatusPorMaquina.set(chave, {
+        at: Date.now(),
+        data: Object.assign({}, dadosExistentes, {
+          sucesso: true,
+          status: normalizado
+        })
+      });
+    }
+  } catch (erroCachePreload) {}
+  statusAnteriorMaquina = normalizado;
+  statusSelecionadoMaquina = normalizado;
+  statusOperacionalMaquina = normalizado;
+  statusAudioConcluido = normalizado === 'PRODUZINDO';
+  statusAudioBlob = null;
+  const seletor = document.getElementById('machineStatusSelector');
+  if (seletor) seletor.value = normalizado;
+  atualizarStatusMaquinaUI();
+  atualizarObrigatoriedadeAudioStatus();
+  atualizarStatusAudioUI();
+}
+
+function finalizarTransicaoMaquinaUI_(maquinaConfirmada, sucesso) {
+  if (
+    maquinaConfirmada &&
+    statusTrocaMaquinaDestino &&
+    normalizarMaquinaChave_(maquinaConfirmada) !== normalizarMaquinaChave_(statusTrocaMaquinaDestino)
+  ) return;
+  statusTrocaMaquinaEmAndamento = false;
+  statusTrocaMaquinaDestino = '';
+  statusPreCarregadoProximaMaquina = null;
+  statusAtualizacaoEmAndamento = false;
+  const banner = document.getElementById('machineTransitionBanner');
+  if (banner) {
+    banner.style.display = 'block';
+    banner.textContent = sucesso
+      ? '✅ MÁQUINA CARREGADA: ' + (maquina ? 'M-' + maquina.substring(1) : '')
+      : '⚠️ STATUS NÃO CONFIRMADO. VERIFIQUE A MÁQUINA.';
+    const numeroBanner = contadorTransicaoMaquina;
+    setTimeout(function() {
+      if (numeroBanner !== contadorTransicaoMaquina || statusTrocaMaquinaEmAndamento) return;
+      banner.style.display = 'none';
+    }, 1400);
+  }
+  atualizarStatusAudioUI();
+}
+
 async function selecionarMaquinaPendenteDoPainel(
   elemento
 ) {
@@ -8456,6 +8582,12 @@ async function selecionarMaquinaPendenteDoPainel(
     return;
   }
 
+  const statusPreCarregado =
+    elemento &&
+    elemento.dataset
+      ? elemento.dataset.status
+      : '';
+
   const seletor =
     document.getElementById(
       'machineSelector'
@@ -8465,6 +8597,11 @@ async function selecionarMaquinaPendenteDoPainel(
     document.getElementById(
       'machineStatusCard'
     );
+
+  iniciarTransicaoMaquinaUI_(
+    novaMaquina,
+    statusPreCarregado
+  );
 
   /*
    * Resposta imediata para o operador:
@@ -8491,7 +8628,9 @@ async function selecionarMaquinaPendenteDoPainel(
         infoStatus
       ) {
         infoStatus.textContent =
-          '⏳ Carregando status da máquina...';
+          statusPreCarregado
+            ? '⚡ Status pré-carregado. Confirmando em segundo plano...'
+            : '⏳ Carregando status da máquina...';
       }
     }
     catch (erroStatus) {}
@@ -8654,7 +8793,29 @@ async function selecionarMaquinaProvisoria() {
     novaMaquina
   ) {
 
+    const transicaoAtivaAntesDaLimpeza =
+      statusTrocaMaquinaEmAndamento;
+    const atualizacaoAtivaAntesDaLimpeza =
+      statusAtualizacaoEmAndamento;
+    const destinoAntesDaLimpeza =
+      statusTrocaMaquinaDestino;
+    const statusAntesDaLimpeza =
+      statusPreCarregadoProximaMaquina;
+
     limparDependentesAoTrocarMaquina_();
+
+    if (
+      transicaoAtivaAntesDaLimpeza ||
+      destinoAntesDaLimpeza ||
+      statusAntesDaLimpeza
+    ) {
+      iniciarTransicaoMaquinaUI_(
+        destinoAntesDaLimpeza || novaMaquina,
+        statusAntesDaLimpeza || ''
+      );
+      statusAtualizacaoEmAndamento =
+        atualizacaoAtivaAntesDaLimpeza;
+    }
 
   }
 
@@ -8664,9 +8825,16 @@ async function selecionarMaquinaProvisoria() {
   maquinaValida =
     true;
 
+  if (statusPreCarregadoProximaMaquina) {
+    aplicarStatusPreCarregadoDaProximaMaquina_(
+      statusPreCarregadoProximaMaquina
+    );
+  }
+
   /*
-   * V13.39 — mostra o cartão de STATUS imediatamente.
-   * A consulta ao servidor atualiza os valores em paralelo.
+   * V13.60 — mostra o cartão de STATUS imediatamente.
+   * Se veio da fila de pendências, o último status conhecido
+   * é exibido antes da confirmação real no servidor.
    */
   const statusCardImediato =
     document.getElementById(
@@ -8741,7 +8909,9 @@ async function selecionarMaquinaProvisoria() {
   atualizarObrigatoriedadeAudioStatus();
 
   const statusPromise =
-    carregarStatusMaquina();
+    carregarStatusMaquina(
+      Boolean(statusTrocaMaquinaEmAndamento)
+    );
 
   Promise.allSettled(
     [
@@ -10696,7 +10866,7 @@ function atualizarStatusMaquinaUI() {
 }
 
 
-function carregarStatusMaquina() {
+function carregarStatusMaquina(forcarRede) {
 
   return new Promise(
     function(
@@ -10727,6 +10897,7 @@ function carregarStatusMaquina() {
 
       if (
         cached &&
+        !forcarRede &&
         (
           agora -
           cached.at
@@ -10829,6 +11000,13 @@ function carregarStatusMaquina() {
                   limpar();
 
                   atualizarStatusMaquinaUI();
+
+                  if (statusTrocaMaquinaEmAndamento) {
+                    finalizarTransicaoMaquinaUI_(
+                      maquina,
+                      false
+                    );
+                  }
 
                   done(
                     null
@@ -10962,71 +11140,34 @@ function carregarStatusMaquina() {
 function aplicarDadosStatusNaTela_(
   dados
 ) {
+  if (!dados || !dados.sucesso) return;
 
-  if (
-    !dados ||
-    !dados.sucesso
-  ) {
-    return;
-  }
+  const statusServidor = normalizarStatusMaquinaUI_(dados.status || 'PRODUZINDO');
+  statusAnteriorMaquina = statusServidor;
+  statusSelecionadoMaquina = statusServidor;
+  statusOperacionalMaquina = statusServidor;
+  motivoParadaMaquina = dados.motivo || '';
+  inicioStatusMaquina = dados.inicioStatus || null;
+  statusAtualizadoEm = dados.atualizadoEm || null;
+  responsavelStatusMaquina = dados.responsavel || '';
+  observacaoStatusMaquina = dados.observacao || '';
 
-  statusOperacionalMaquina =
-    dados.status ||
-    'PRODUZINDO';
+  const responsavel = document.getElementById('machineStatusResponsible');
+  const observacao = document.getElementById('machineStatusNote');
+  if (responsavel) responsavel.value = responsavelStatusMaquina;
+  if (observacao) observacao.value = observacaoStatusMaquina;
 
-  motivoParadaMaquina =
-    dados.motivo ||
-    '';
-
-  inicioStatusMaquina =
-    dados.inicioStatus ||
-    null;
-
-  statusAtualizadoEm =
-    dados.atualizadoEm ||
-    null;
-
-  responsavelStatusMaquina =
-    dados.responsavel ||
-    '';
-
-  observacaoStatusMaquina =
-    dados.observacao ||
-    '';
-
-  const responsavel =
-    document.getElementById(
-      'machineStatusResponsible'
-    );
-
-  const observacao =
-    document.getElementById(
-      'machineStatusNote'
-    );
-
-  if (
-    responsavel
-  ) {
-
-    responsavel.value =
-      responsavelStatusMaquina;
-
-  }
-
-  if (
-    observacao
-  ) {
-
-    observacao.value =
-      observacaoStatusMaquina;
-
-  }
+  statusAudioConcluido = statusServidor === 'PRODUZINDO';
+  const seletor = document.getElementById('machineStatusSelector');
+  if (seletor) seletor.value = statusServidor;
 
   atualizarStatusMaquinaUI();
   atualizarBloqueioStatusObrigatorio_();
 
+  if (statusTrocaMaquinaEmAndamento) {
+    finalizarTransicaoMaquinaUI_(maquina, true);
+  }
 }
-
 
 
 
@@ -11888,187 +12029,112 @@ function avancarAposAtualizacaoStatus_(
 ) {
 
   const status =
-    String(
-      statusNovo ||
-      ''
-    )
-    .trim()
-    .toUpperCase();
+    normalizarStatusMaquinaUI_(
+      statusNovo
+    );
 
-  if (
-    status ===
-    'PRODUZINDO'
-  ) {
+  if (status === 'PRODUZINDO') {
+    statusAtualizacaoEmAndamento = false;
+    statusTrocaMaquinaEmAndamento = false;
+    statusTrocaMaquinaDestino = '';
+    atualizarStatusAudioUI();
 
-    const produto =
-      document.getElementById(
-        'produto'
-      );
-
+    const produto = document.getElementById('produto');
     const cardProduto =
-      document.getElementById(
-        'productCard'
-      ) ||
+      document.getElementById('productCard') ||
       produto;
 
     try {
-
       if (
         cardProduto &&
-        typeof cardProduto.scrollIntoView ===
-          'function'
+        typeof cardProduto.scrollIntoView === 'function'
       ) {
-
         cardProduto.scrollIntoView({
-          behavior:
-            'smooth',
-          block:
-            'center'
+          behavior: 'smooth',
+          block: 'center'
         });
-
       }
+    } catch (erroScroll) {}
 
-    }
-    catch (erroScroll) {}
-
-    setTimeout(
-      function() {
-
-        try {
-
-          if (
-            produto &&
-            !produto.disabled
-          ) {
-
-            produto.focus();
-
-          }
-
-        }
-        catch (erroFocus) {}
-
-      },
-      180
-    );
-
+    setTimeout(function() {
+      try {
+        if (produto && !produto.disabled) produto.focus();
+      } catch (erroFocus) {}
+    }, 180);
     return;
-
   }
 
   const pendencias =
     ultimaRespostaPendenciasGlobal &&
-    Array.isArray(
-      ultimaRespostaPendenciasGlobal.pendencias
-    )
+    Array.isArray(ultimaRespostaPendenciasGlobal.pendencias)
       ? ultimaRespostaPendenciasGlobal.pendencias
       : [];
 
   const chaveAtual =
-    normalizarMaquinaChave_(
-      maquinaAtual ||
-      ''
-    );
+    normalizarMaquinaChave_(maquinaAtual || '');
 
   const proxima =
-    pendencias.find(
-      function(item) {
+    pendencias.find(function(item) {
+      if (!item || !item.maquina) return false;
+      if (normalizarMaquinaChave_(item.maquina) === chaveAtual) return false;
+      return normalizarStatusMaquinaUI_(item.statusMaquina || 'PRODUZINDO') !== 'PRODUZINDO';
+    });
 
-        if (
-          !item ||
-          !item.maquina
-        ) {
-          return false;
-        }
-
-        if (
-          normalizarMaquinaChave_(
-            item.maquina
-          ) ===
-          chaveAtual
-        ) {
-          return false;
-        }
-
-        return (
-          String(
-            item.statusMaquina ||
-            'PRODUZINDO'
-          )
-          .trim()
-          .toUpperCase() !==
-          'PRODUZINDO'
-        );
-
-      }
+  if (proxima) {
+    iniciarTransicaoMaquinaUI_(
+      proxima.maquina,
+      proxima.statusMaquina || 'PRODUZINDO'
     );
 
-  if (
-    proxima &&
-    typeof selecionarMaquinaPendenteDoPainel ===
-      'function'
-  ) {
+    const botoes = Array.from(
+      document.querySelectorAll(
+        '#preMachineAlarmList [data-maquina]'
+      )
+    );
 
-    const botoes =
-      Array.from(
-        document.querySelectorAll(
-          '#preMachineAlarmList [data-maquina]'
-        )
-      );
-
-    const botao =
-      botoes.find(
-        function(el) {
-
-          return (
-            normalizarMaquinaChave_(
-              el.dataset.maquina ||
-              ''
-            ) ===
-            normalizarMaquinaChave_(
-              proxima.maquina
-            )
-          );
-
-        }
-      );
+    const botao = botoes.find(function(el) {
+      return normalizarMaquinaChave_(el.dataset.maquina || '') ===
+        normalizarMaquinaChave_(proxima.maquina);
+    });
 
     if (botao) {
-
-      selecionarMaquinaPendenteDoPainel(
-        botao
-      );
-
+      selecionarMaquinaPendenteDoPainel(botao);
       return;
-
     }
 
+    statusPreCarregadoProximaMaquina =
+      normalizarStatusMaquinaUI_(proxima.statusMaquina || 'PRODUZINDO');
   }
 
-  const seletor =
-    document.getElementById(
-      'machineSelector'
-    );
+  if (!proxima) {
+    statusAtualizacaoEmAndamento = false;
+    statusTrocaMaquinaEmAndamento = false;
+    statusTrocaMaquinaDestino = '';
+    atualizarStatusAudioUI();
 
-  if (seletor) {
-
-    try {
-
-      seletor.scrollIntoView({
-        behavior:
-          'smooth',
-        block:
-          'center'
-      });
-
-      seletor.focus();
-
+    const banner = document.getElementById('machineTransitionBanner');
+    if (banner) {
+      banner.style.display = 'block';
+      banner.textContent = '✅ STATUS ATUALIZADO. NENHUMA OUTRA MÁQUINA PENDENTE.';
+      const numeroBanner = contadorTransicaoMaquina;
+      setTimeout(function() {
+        if (numeroBanner === contadorTransicaoMaquina && !statusTrocaMaquinaEmAndamento) {
+          banner.style.display = 'none';
+        }
+      }, 1400);
     }
-    catch (erro) {}
 
+    const seletor = document.getElementById('machineSelector');
+    if (seletor) {
+      try {
+        seletor.scrollIntoView({behavior:'smooth',block:'center'});
+        seletor.focus();
+      } catch (erro) {}
+    }
   }
-
 }
+
+
 
 async function salvarStatusMaquina() {
 
@@ -12160,9 +12226,13 @@ async function salvarStatusMaquina() {
 
   }
 
-  if (
+  const statusMudou =
     statusNovo !==
-      'PRODUZINDO' &&
+    statusAnteriorMaquina;
+
+  if (
+    statusMudou &&
+    statusNovo !== 'PRODUZINDO' &&
     !statusAudioConcluido
   ) {
 
@@ -12175,9 +12245,16 @@ async function salvarStatusMaquina() {
 
   }
 
+  statusSelecionadoMaquina =
+    statusNovo;
+  statusAtualizacaoEmAndamento =
+    true;
+  atualizarStatusAudioUI();
+
   if (botao) {
-    botao.disabled =
-      true;
+    botao.disabled = true;
+    botao.textContent =
+      '⏳ ATUALIZANDO STATUS...';
   }
 
   try {
@@ -12226,6 +12303,12 @@ async function salvarStatusMaquina() {
      * pode seguir o fluxo sem aguardar a resposta do Apps Script.
      */
     statusOperacionalMaquina =
+      statusNovo;
+
+    statusAnteriorMaquina =
+      statusNovo;
+
+    statusSelecionadoMaquina =
       statusNovo;
 
     statusAtualizadoEm =
@@ -12439,7 +12522,7 @@ async function salvarStatusMaquina() {
           maquina
         );
       },
-      80
+      20
     );
 
     /*
@@ -12500,10 +12583,7 @@ async function salvarStatusMaquina() {
   }
   finally {
 
-    if (botao) {
-      botao.disabled =
-        false;
-    }
+    atualizarStatusAudioUI();
 
   }
 
@@ -13194,384 +13274,144 @@ function preencherOperadoresStatus() {
 
 
 function atualizarObrigatoriedadeAudioStatus() {
-
-  const seletor =
-    document.getElementById(
-      'machineStatusSelector'
-    );
-
-  const card =
-    document.getElementById(
-      'machineStatusAudioCard'
-    );
-
-  const info =
-    document.getElementById(
-      'machineStatusAudioInfo'
-    );
-
-  const botaoSalvar =
-    document.getElementById(
-      'btnSaveMachineStatus'
-    );
-
+  const seletor = document.getElementById('machineStatusSelector');
+  const card = document.getElementById('machineStatusAudioCard');
+  const info = document.getElementById('machineStatusAudioInfo');
   if (!seletor) return;
 
-  const status =
-    String(
-      seletor.value ||
-      'PRODUZINDO'
-    ).trim().toUpperCase();
+  const statusSelecionado = normalizarStatusMaquinaUI_(seletor.value);
+  statusSelecionadoMaquina = statusSelecionado;
+  const statusMudou = statusSelecionado !== statusAnteriorMaquina;
+  const precisaAudio = statusMudou && statusSelecionado !== 'PRODUZINDO';
 
-  const precisaAudio =
-    status !==
-    'PRODUZINDO';
-
-  if (card) {
-    card.style.display =
-      precisaAudio
-        ? 'block'
-        : 'none';
-  }
-
+  if (card) card.style.display = precisaAudio ? 'block' : 'none';
   if (info) {
-    info.textContent =
-      precisaAudio
-        ? '⚠️ Este status exige uma justificativa de áudio de exatamente 15 segundos.'
-        : 'Produzindo: áudio de justificativa não é necessário.';
+    info.textContent = precisaAudio
+      ? '⚠️ O novo status exige justificativa de áudio de exatamente 15 segundos.'
+      : (!statusMudou
+          ? (statusSelecionado === 'PRODUZINDO'
+              ? '✅ PRODUZINDO já é o status atual. Não é necessário alterar o status.'
+              : '✅ Status atual mantido. Use MANTER STATUS ATUAL para confirmar.')
+          : '✅ Retorno para PRODUZINDO: áudio de justificativa não é necessário.');
   }
 
   if (precisaAudio) {
-
-    /*
-     * Ao escolher um status não produtivo, o operador precisa
-     * gravar a justificativa antes de poder atualizar o status.
-     */
-    statusAudioConcluido =
-      false;
-
-    statusAudioBlob =
-      null;
-
+    statusAudioConcluido = false;
+    statusAudioBlob = null;
+  } else {
+    statusAudioConcluido = true;
+    if (!statusMudou) statusAudioBlob = null;
   }
-  else {
-
-    /*
-     * PRODUZINDO não exige áudio.
-     */
-    statusAudioConcluido =
-      true;
-
-  }
-
-  if (botaoSalvar) {
-
-    botaoSalvar.disabled =
-      !statusAudioConcluido;
-
-  }
-
   atualizarStatusAudioUI();
-
 }
+
 
 
 function atualizarStatusAudioUI() {
-
-  const timer =
-    document.getElementById(
-      'machineStatusAudioTimer'
-    );
-
-  const btnGravar =
-    document.getElementById(
-      'btnGravarStatusAudio'
-    );
-
-  const btnParar =
-    document.getElementById(
-      'btnPararStatusAudio'
-    );
-
-  const btnSalvar =
-    document.getElementById(
-      'btnSaveMachineStatus'
-    );
-
-  const btnManter =
-    document.getElementById(
-      'btnManterStatus'
-    );
-
-  const btnRegravar =
-    document.getElementById(
-      'btnRegravarStatusAudio'
-    );
-
-  const mensagem =
-    document.getElementById(
-      'machineStatusAudioMessage'
-    );
+  const timer = document.getElementById('machineStatusAudioTimer');
+  const btnGravar = document.getElementById('btnGravarStatusAudio');
+  const btnParar = document.getElementById('btnPararStatusAudio');
+  const btnSalvar = document.getElementById('btnSaveMachineStatus');
+  const btnManter = document.getElementById('btnManterStatus');
+  const btnRegravar = document.getElementById('btnRegravarStatusAudio');
+  const mensagem = document.getElementById('machineStatusAudioMessage');
 
   if (timer) {
-
-    timer.textContent =
-      String(
-        Math.min(
-          TEMPO_AUDIO_STATUS,
-          statusAudioSegundos
-        )
-      ).padStart(
-        2,
-        '0'
-      ) +
-      ' / 15s';
-
+    timer.textContent = String(Math.min(TEMPO_AUDIO_STATUS, statusAudioSegundos)).padStart(2,'0') + ' / 15s';
   }
 
-  /*
-   * GRAVAR:
-   * azul = ainda pode gravar
-   * vermelho = gravando
-   * verde = áudio pronto
-   */
+  const statusAnterior = normalizarStatusMaquinaUI_(statusAnteriorMaquina);
+  const statusSelecionado = normalizarStatusMaquinaUI_(
+    statusSelecionadoMaquina ||
+    (document.getElementById('machineStatusSelector') && document.getElementById('machineStatusSelector').value)
+  );
+  const statusMudou = statusSelecionado !== statusAnterior;
+  const statusNaoProdutivoSelecionado = statusSelecionado !== 'PRODUZINDO';
+  const bloqueioTransicao = statusAtualizacaoEmAndamento || statusTrocaMaquinaEmAndamento;
+
   if (btnGravar) {
-
-    if (
-      statusAudioGravando
-    ) {
-
-      btnGravar.disabled =
-        true;
-
-      btnGravar.style.background =
-        '#C62828';
-
-      btnGravar.style.color =
-        '#FFFFFF';
-
-      btnGravar.textContent =
-        '🔴 GRAVANDO...';
-
+    if (statusAudioGravando) {
+      btnGravar.disabled = true;
+      btnGravar.style.background = '#C62828';
+      btnGravar.style.color = '#FFFFFF';
+      btnGravar.textContent = '🔴 GRAVANDO...';
+    } else if (statusMudou && statusNaoProdutivoSelecionado && statusAudioConcluido) {
+      btnGravar.disabled = true;
+      btnGravar.style.background = '#2E7D32';
+      btnGravar.style.color = '#FFFFFF';
+      btnGravar.textContent = '✅ ÁUDIO GRAVADO';
+    } else if (statusMudou && statusNaoProdutivoSelecionado) {
+      btnGravar.disabled = bloqueioTransicao;
+      btnGravar.style.background = bloqueioTransicao ? '#B8BEC4' : '#1976D2';
+      btnGravar.style.color = bloqueioTransicao ? '#5B636B' : '#FFFFFF';
+      btnGravar.textContent = '🎙️ GRAVAR JUSTIFICATIVA';
+    } else {
+      btnGravar.disabled = true;
+      btnGravar.style.background = '#B8BEC4';
+      btnGravar.style.color = '#5B636B';
+      btnGravar.textContent = '🎙️ GRAVAR JUSTIFICATIVA';
     }
-    else if (
-      statusAudioConcluido
-    ) {
-
-      btnGravar.disabled =
-        true;
-
-      btnGravar.style.background =
-        '#2E7D32';
-
-      btnGravar.style.color =
-        '#FFFFFF';
-
-      btnGravar.textContent =
-        '✅ ÁUDIO GRAVADO';
-
-    }
-    else {
-
-      btnGravar.disabled =
-        false;
-
-      btnGravar.style.background =
-        '#1976D2';
-
-      btnGravar.style.color =
-        '#FFFFFF';
-
-      btnGravar.textContent =
-        '🎙️ GRAVAR JUSTIFICATIVA';
-
-    }
-
   }
-
-  /*
-   * STATUS NÃO PRODUTIVO:
-   *
-   * Antes de concluir um novo áudio:
-   *   MANTER STATUS = AZUL + habilitado
-   *   ATUALIZAR     = CINZA + travado
-   *
-   * Depois do áudio:
-   *   MANTER STATUS = CINZA + travado
-   *   ATUALIZAR     = AZUL + habilitado
-   *
-   * Para PRODUZINDO:
-   *   MANTER fica oculto e ATUALIZAR fica azul.
-   */
-  const statusAtual =
-    String(
-      statusOperacionalMaquina ||
-      (
-        document.getElementById(
-          'machineStatusSelector'
-        ) &&
-        document.getElementById(
-          'machineStatusSelector'
-        ).value
-      ) ||
-      'PRODUZINDO'
-    )
-    .trim()
-    .toUpperCase();
-
-  const statusNaoProdutivo =
-    statusAtual !==
-    'PRODUZINDO';
 
   if (btnManter) {
-
-    btnManter.style.display =
-      statusNaoProdutivo
-        ? 'block'
-        : 'none';
-
-    if (
-      statusNaoProdutivo
-    ) {
-
-      btnManter.disabled =
-        statusAudioConcluido;
-
-      btnManter.style.background =
-        statusAudioConcluido
-          ? '#B8BEC4'
-          : '#1976D2';
-
-      btnManter.style.color =
-        statusAudioConcluido
-          ? '#5B636B'
-          : '#FFFFFF';
-
-      btnManter.style.cursor =
-        statusAudioConcluido
-          ? 'not-allowed'
-          : 'pointer';
-
-      btnManter.style.opacity =
-        statusAudioConcluido
-          ? '0.75'
-          : '1';
-
-      btnManter.textContent =
-        '🔁 MANTER STATUS ATUAL';
-
-    }
-
+    const podeManter = statusNaoProdutivoSelecionado && !statusMudou && !bloqueioTransicao && !statusAudioGravando;
+    btnManter.style.display = statusNaoProdutivoSelecionado ? 'block' : 'none';
+    btnManter.disabled = !podeManter;
+    btnManter.style.background = podeManter ? '#1976D2' : '#B8BEC4';
+    btnManter.style.color = podeManter ? '#FFFFFF' : '#5B636B';
+    btnManter.style.cursor = podeManter ? 'pointer' : 'not-allowed';
+    btnManter.style.opacity = podeManter ? '1' : '0.75';
+    btnManter.textContent = '🔁 MANTER STATUS ATUAL';
   }
 
   if (btnSalvar) {
-
-    /*
-     * Para PRODUZINDO não existe áudio obrigatório.
-     * Para qualquer outro status, o áudio precisa estar concluído.
-     */
-    const liberarAtualizar =
-      statusAtual ===
-      'PRODUZINDO' ||
-      statusAudioConcluido;
-
-    btnSalvar.disabled =
-      !liberarAtualizar;
-
-    btnSalvar.style.background =
-      liberarAtualizar
-        ? '#1976D2'
-        : '#B8BEC4';
-
-    btnSalvar.style.color =
-      liberarAtualizar
-        ? '#FFFFFF'
-        : '#5B636B';
-
-    btnSalvar.style.cursor =
-      liberarAtualizar
-        ? 'pointer'
-        : 'not-allowed';
-
-    btnSalvar.style.opacity =
-      liberarAtualizar
-        ? '1'
-        : '0.75';
-
+    const podeAtualizar = !bloqueioTransicao && statusMudou && (statusSelecionado === 'PRODUZINDO' || statusAudioConcluido);
+    if (bloqueioTransicao) {
+      btnSalvar.disabled = true;
+      btnSalvar.style.background = '#B8BEC4';
+      btnSalvar.style.color = '#5B636B';
+      btnSalvar.style.cursor = 'not-allowed';
+      btnSalvar.style.opacity = '0.75';
+      btnSalvar.textContent = '⏳ ATUALIZANDO STATUS...';
+    } else {
+      btnSalvar.disabled = !podeAtualizar;
+      btnSalvar.style.background = podeAtualizar ? '#1976D2' : '#B8BEC4';
+      btnSalvar.style.color = podeAtualizar ? '#FFFFFF' : '#5B636B';
+      btnSalvar.style.cursor = podeAtualizar ? 'pointer' : 'not-allowed';
+      btnSalvar.style.opacity = podeAtualizar ? '1' : '0.75';
+      btnSalvar.textContent = '💾 ATUALIZAR STATUS';
+    }
   }
 
-  /*
-   * REGRAVAR só fica disponível depois do áudio concluído.
-   */
   if (btnRegravar) {
-
-    const visivel =
-      btnRegravar.style.display !==
-      'none';
-
+    const visivel = btnRegravar.style.display !== 'none';
     if (visivel) {
-
-      btnRegravar.disabled =
-        statusAudioGravando;
-
-      btnRegravar.style.background =
-        statusAudioGravando
-          ? '#B8BEC4'
-          : '#1976D2';
-
-      btnRegravar.style.color =
-        statusAudioGravando
-          ? '#5B636B'
-          : '#FFFFFF';
-
-      btnRegravar.style.cursor =
-        statusAudioGravando
-          ? 'not-allowed'
-          : 'pointer';
-
-      btnRegravar.style.opacity =
-        statusAudioGravando
-          ? '0.75'
-          : '1';
-
+      const podeRegravar = statusMudou && statusNaoProdutivoSelecionado && statusAudioConcluido && !statusAudioGravando && !bloqueioTransicao;
+      btnRegravar.disabled = !podeRegravar;
+      btnRegravar.style.background = podeRegravar ? '#1976D2' : '#B8BEC4';
+      btnRegravar.style.color = podeRegravar ? '#FFFFFF' : '#5B636B';
+      btnRegravar.style.cursor = podeRegravar ? 'pointer' : 'not-allowed';
+      btnRegravar.style.opacity = podeRegravar ? '1' : '0.75';
     }
-
   }
 
   if (btnParar) {
-
-    btnParar.classList.toggle(
-      'hidden',
-      !statusAudioGravando
-    );
-
-    btnParar.textContent =
-      '⏱️ AGUARDE ' +
-      Math.max(
-        0,
-        TEMPO_AUDIO_STATUS -
-        statusAudioSegundos
-      ) +
-      's';
-
+    btnParar.classList.toggle('hidden', !statusAudioGravando);
+    btnParar.textContent = '⏱️ AGUARDE ' + Math.max(0, TEMPO_AUDIO_STATUS - statusAudioSegundos) + 's';
   }
 
   if (mensagem) {
-
-    mensagem.textContent =
-      statusAudioGravando
-        ? '🔴 Gravando justificativa...'
-        : (
-            statusAudioConcluido
-              ? '✅ Áudio de justificativa pronto.'
-              : '⚠️ Áudio de 15 segundos obrigatório.'
-          );
-
+    mensagem.textContent = statusAudioGravando
+      ? '🔴 Gravando justificativa...'
+      : (bloqueioTransicao
+          ? '⏳ Atualizando a máquina...'
+          : (!statusMudou && statusNaoProdutivoSelecionado
+              ? '✅ Status atual pronto para ser mantido.'
+              : (statusMudou && statusNaoProdutivoSelecionado && !statusAudioConcluido
+                  ? '⚠️ Áudio de 15 segundos obrigatório.'
+                  : (statusMudou ? '✅ Novo status pronto para atualização.' : 'ℹ️ Selecione um novo status para alterar a máquina.'))));
   }
-
 }
-
-
 
 
 
@@ -14321,72 +14161,8 @@ function aguardarAudioStatusResultado(
 
 
 function atualizarBotoesManterStatus() {
-
-  const botao =
-    document.getElementById(
-      'btnManterStatus'
-    );
-
-  if (!botao) {
-    return;
-  }
-
-  const statusAtual =
-    String(
-      statusOperacionalMaquina ||
-      'PRODUZINDO'
-    )
-      .trim()
-      .toUpperCase();
-
-  const deveMostrar =
-    Boolean(
-      maquina &&
-      statusAtual !==
-        'PRODUZINDO'
-    );
-
-  botao.style.display =
-    deveMostrar
-      ? 'block'
-      : 'none';
-
-  if (!deveMostrar) {
-    return;
-  }
-
-  /*
-   * MANTER STATUS segue exatamente a mesma regra visual do
-   * ATUALIZAR STATUS:
-   *
-   * sem áudio pronto -> cinza/travado
-   * áudio pronto     -> azul/liberado
-   */
-  botao.disabled =
-    !statusAudioConcluido;
-
-  botao.style.background =
-    statusAudioConcluido
-      ? '#1976D2'
-      : '#B8BEC4';
-
-  botao.style.color =
-    statusAudioConcluido
-      ? '#FFFFFF'
-      : '#5B636B';
-
-  botao.style.cursor =
-    statusAudioConcluido
-      ? 'pointer'
-      : 'not-allowed';
-
-  botao.style.opacity =
-    statusAudioConcluido
-      ? '1'
-      : '0.75';
-
+  atualizarStatusAudioUI();
 }
-
 
 
 function atualizarTravamentoCamposStatusAudio(
@@ -14496,10 +14272,16 @@ function manterStatusAtual() {
     );
 
   const statusAtual =
-    String(
-      statusOperacionalMaquina ||
-      ''
-    ).trim().toUpperCase();
+    normalizarStatusMaquinaUI_(
+      statusAnteriorMaquina
+    );
+
+  const statusSelecionado =
+    normalizarStatusMaquinaUI_(
+      document.getElementById('machineStatusSelector')
+        ? document.getElementById('machineStatusSelector').value
+        : statusAtual
+    );
 
   const operador =
     String(
@@ -14515,6 +14297,14 @@ function manterStatusAtual() {
     if (mensagem) {
       mensagem.textContent =
         '⚠️ Selecione o operador antes de manter o status.';
+    }
+    return;
+  }
+
+  if (statusSelecionado !== statusAtual) {
+    if (mensagem) {
+      mensagem.textContent =
+        'ℹ️ Você escolheu outro status. Use ATUALIZAR STATUS.';
     }
     return;
   }
@@ -14547,8 +14337,14 @@ function manterStatusAtual() {
     operacaoId
   );
 
+  statusAnteriorMaquina =
+    statusAtual;
+  statusSelecionadoMaquina =
+    statusAtual;
   statusOperacionalMaquina =
     statusAtual;
+  statusAudioConcluido =
+    true;
 
   if (
     statusAtual ===
@@ -16124,12 +15920,11 @@ async function iniciarCamera() {
     }
 
     /*
-     * REGRA DO PROJETO:
-     * a câmera deve iniciar sempre na ampliação nativa / 1x.
-     *
-     * Não usamos zoom digital.
-     * Quando o navegador expõe zoom via MediaTrackCapabilities,
-     * forçamos 1x explicitamente.
+     * V13.61 — CAPTURA LEVE / ESTÁVEL:
+     * 720p como teto de captura, 24 fps como alvo e 30 fps como máximo.
+     * Mantemos a câmera em 1x e não usamos zoom digital.
+     * O objetivo é aliviar ISP/CPU/GPU/encoder do Android e eliminar
+     * travamentos causados por captura 1080p contínua.
      */
     const constraints = {
 
@@ -16142,26 +15937,35 @@ async function iniciarCamera() {
 
         width: {
           ideal:
-            1920,
+            1280,
+
+          max:
+            1280,
 
           min:
-            1280
+            640
         },
 
         height: {
           ideal:
-            1080,
+            720,
+
+          max:
+            720,
 
           min:
-            720
+            360
         },
 
         frameRate: {
           ideal:
-            30,
+            24,
 
           max:
-            30
+            30,
+
+          min:
+            15
         }
 
       },
@@ -16392,6 +16196,9 @@ async function iniciarCamera() {
             0,
           height:
             settings.height ||
+            0,
+          frameRate:
+            settings.frameRate ||
             0,
           zoom:
             typeof settings.zoom ===
@@ -17165,11 +16972,12 @@ function iniciarGravacao() {
 
   const opcoes = {
 
+    /* V13.61 — 720p/24-30fps com bitrate moderado para Android. */
     videoBitsPerSecond:
-      2200000,
+      1600000,
 
     audioBitsPerSecond:
-      128000
+      96000
 
   };
 
@@ -20548,8 +20356,24 @@ function limparTodosOsDadosNovaInspecao() {
   operadorStatusSelecionado =
     '';
 
-  statusOperacionalMaquina =
-    'PRODUZINDO';
+  if (!statusTrocaMaquinaEmAndamento) {
+    statusAnteriorMaquina =
+      'PRODUZINDO';
+    statusSelecionadoMaquina =
+      'PRODUZINDO';
+    statusOperacionalMaquina =
+      'PRODUZINDO';
+    statusAtualizacaoEmAndamento =
+      false;
+    statusTrocaMaquinaDestino =
+      '';
+    statusPreCarregadoProximaMaquina =
+      null;
+  }
+  else {
+    statusOperacionalMaquina =
+      'PRODUZINDO';
+  }
 
   statusAtualizadoEm =
     null;
@@ -21459,21 +21283,22 @@ document.addEventListener(
         'change',
         function() {
 
-          if (
-            statusAudioCamposTravados
-          ) {
-
+          if (statusAudioCamposTravados) {
             statusSelector.value =
-              statusOperacionalMaquina ||
-              statusSelector.value;
-
+              statusSelecionadoMaquina ||
+              statusAnteriorMaquina ||
+              'PRODUZINDO';
             return;
-
           }
 
-          atualizarObrigatoriedadeAudioStatus();
+          statusSelecionadoMaquina =
+            normalizarStatusMaquinaUI_(
+              statusSelector.value
+            );
 
-}
+          atualizarObrigatoriedadeAudioStatus();
+          atualizarStatusAudioUI();
+        }
       );
     }
 
