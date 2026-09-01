@@ -15,8 +15,123 @@ firebase.initializeApp(
   RA_POLYMERS_FIREBASE_CONFIG
 );
 
+
 const messaging =
   firebase.messaging();
+
+
+/*
+ * Alarme local solicitado pela página no instante em que a tela
+ * passa para hidden/bloqueada.
+ *
+ * Isso não depende de FCM nem de Apps Script. O Service Worker
+ * continua sendo executado e pode chamar showNotification().
+ */
+self.addEventListener(
+  'message',
+  function(event) {
+
+    const dados =
+      event &&
+      event.data
+        ? event.data
+        : {};
+
+    if (
+      !dados ||
+      dados.tipo !==
+        'ALARME_BLOQUEIO_TELA'
+    ) {
+
+      return;
+
+    }
+
+    const maquina =
+      String(
+        dados.maquina ||
+        ''
+      ).trim();
+
+    const titulo =
+      '🚨 INSPEÇÃO ATRASADA';
+
+    const corpo =
+      maquina
+        ? (
+            'Máquina ' +
+            maquina +
+            ': inspeção pendente. Toque para atender.'
+          )
+        : (
+            'Existe uma inspeção pendente. Toque para atender.'
+          );
+
+    const url =
+      dados.url ||
+      './';
+
+    event.waitUntil(
+      self.registration
+        .showNotification(
+          titulo,
+          {
+            body:
+              corpo,
+
+            icon:
+              './icons/icon-192.png',
+
+            badge:
+              './icons/icon-192.png',
+
+            tag:
+              'ra-polymers-bloqueio-' +
+              (
+                maquina ||
+                'geral'
+              ),
+
+            renotify:
+              true,
+
+            requireInteraction:
+              true,
+
+            silent:
+              false,
+
+            timestamp:
+              Date.now(),
+
+            vibrate:
+              [
+                700,
+                300,
+                700,
+                300,
+                1200,
+                700,
+                1200
+              ],
+
+            data:
+              {
+                url:
+                  url,
+
+                maquina:
+                  maquina,
+
+                tipo:
+                  'INSPECAO'
+              }
+          }
+        )
+    );
+
+  }
+);
 
 messaging.onBackgroundMessage(
   function(payload) {
