@@ -521,6 +521,26 @@
   color:#C62828;
 }
 
+/* V13.66 — inspeções atrasadas: topo da lista + destaque vermelho */
+#preMachineAlarmCard .alarm-pending-machine.alarm-pending-overdue {
+  background:#C62828 !important;
+  border:2px solid #8E0000 !important;
+  color:#FFFFFF !important;
+  box-shadow:0 3px 10px rgba(198,40,40,.22);
+}
+
+#preMachineAlarmCard .alarm-pending-machine.alarm-pending-overdue .alarm-overview-machine,
+#preMachineAlarmCard .alarm-pending-machine.alarm-pending-overdue .alarm-overview-delay,
+#preMachineAlarmCard .alarm-pending-machine.alarm-pending-overdue .clean-deferred-meta,
+#preMachineAlarmCard .alarm-pending-machine.alarm-pending-overdue .alarm-overview-open,
+#preMachineAlarmCard .alarm-pending-machine.alarm-pending-overdue [data-contador-proxima-inspecao] {
+  color:#FFFFFF !important;
+}
+
+#preMachineAlarmCard .alarm-pending-machine.alarm-pending-overdue:hover {
+  background:#B71C1C !important;
+}
+
 @media (max-width:760px) {
   .alarm-overview-item {
     align-items:flex-start;
@@ -3087,7 +3107,7 @@ let maquina =
 
 /* V13.61 — captura de vídeo otimizada para reduzir lag em Android. */
 /* V13.62 — contador individual da próxima inspeção na lista de pendências. */
-/* V13.65 — confirmação de PRODUZINDO + fila de status silenciosa. */
+/* V13.66 — confirmação de PRODUZINDO + fila de status silenciosa. */
 let statusOperacionalMaquina =
   'PRODUZINDO';
 
@@ -7266,10 +7286,20 @@ function atualizarContadoresPendenciasGlobal_() {
         texto.textContent =
           '⚠️ INSPEÇÃO IMEDIATAMENTE NECESSÁRIA';
         texto.classList.add('pendencia-contador-atrasado');
+
+        const itemSemPrazo = texto.closest('.alarm-pending-machine');
+        if (itemSemPrazo) {
+          itemSemPrazo.classList.add('alarm-pending-overdue');
+          const listaSemPrazo = document.getElementById('preMachineAlarmList');
+          if (listaSemPrazo && listaSemPrazo.firstElementChild !== itemSemPrazo) {
+            listaSemPrazo.insertBefore(itemSemPrazo, listaSemPrazo.firstElementChild);
+          }
+        }
         return;
       }
 
       const delta = proxima - agora;
+      const item = texto.closest('.alarm-pending-machine');
 
       if (delta > 0) {
 
@@ -7279,6 +7309,10 @@ function atualizarContadoresPendenciasGlobal_() {
 
         texto.classList.remove('pendencia-contador-atrasado');
 
+        if (item) {
+          item.classList.remove('alarm-pending-overdue');
+        }
+
       }
       else {
 
@@ -7287,6 +7321,17 @@ function atualizarContadoresPendenciasGlobal_() {
           formatarContagemPendencia_(-delta);
 
         texto.classList.add('pendencia-contador-atrasado');
+
+        if (item) {
+          item.classList.add('alarm-pending-overdue');
+
+          const lista =
+            document.getElementById('preMachineAlarmList');
+
+          if (lista && lista.firstElementChild !== item) {
+            lista.insertBefore(item, lista.firstElementChild);
+          }
+        }
 
       }
 
@@ -7552,8 +7597,69 @@ function atualizarPainelPendenciasAntesDaMaquina(
     let htmlLista =
       '';
 
-    htmlLista +=
+    /*
+     * V13.66 — inspeções atrasadas sempre vêm primeiro.
+     * Entre as atrasadas, a mais antiga fica no topo.
+     */
+    const agoraLista = Date.now();
+    const pendenciasOrdenadas =
       pendencias
+        .map(function(item, indice) {
+          let prazoMs =
+            item && item.proximaInspecao
+              ? new Date(item.proximaInspecao).getTime()
+              : 0;
+
+          if (!prazoMs && item && item.ultimaInspecao) {
+            prazoMs =
+              new Date(item.ultimaInspecao).getTime() +
+              (60 * 60 * 1000);
+          }
+
+          const atraso =
+            Number(item && item.atrasoMinutos || 0);
+
+          const atrasada =
+            String(item && item.status || '').trim().toUpperCase() === 'ATRASADA' ||
+            atraso > 0 ||
+            Boolean(
+              item &&
+              item.ultimaInspecao &&
+              prazoMs &&
+              prazoMs <= agoraLista
+            );
+
+          return {
+            item: item,
+            indice: indice,
+            atrasada: atrasada,
+            atraso: atraso,
+            prazoMs: prazoMs
+          };
+        })
+        .sort(function(a, b) {
+          if (a.atrasada !== b.atrasada) {
+            return a.atrasada ? -1 : 1;
+          }
+
+          if (a.atrasada && b.atrasada) {
+            if (a.atraso !== b.atraso) {
+              return b.atraso - a.atraso;
+            }
+
+            if (a.prazoMs && b.prazoMs && a.prazoMs !== b.prazoMs) {
+              return a.prazoMs - b.prazoMs;
+            }
+          }
+
+          return a.indice - b.indice;
+        })
+        .map(function(registro) {
+          return registro.item;
+        });
+
+    htmlLista +=
+      pendenciasOrdenadas
         .map(
           function(item) {
 
@@ -7625,12 +7731,26 @@ function atualizarPainelPendenciasAntesDaMaquina(
                 ''
               );
 
+            const atrasadaVisual =
+              String(item.status || '').trim().toUpperCase() === 'ATRASADA' ||
+              atraso > 0 ||
+              Boolean(
+                item.ultimaInspecao &&
+                proximaInspecaoMs &&
+                proximaInspecaoMs <= Date.now()
+              );
+
             return (
               '<button type="button" ' +
                 'class="alarm-overview-item alarm-pending-machine' +
                   (
                     silenciada
                       ? ' status-alarme-silenciado'
+                      : ''
+                  ) +
+                  (
+                    atrasadaVisual
+                      ? ' alarm-pending-overdue'
                       : ''
                   ) +
                 '" ' +
