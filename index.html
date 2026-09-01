@@ -953,6 +953,12 @@ button:active {
 
 /* V13.52 — upload mais rápido */
 #uploadStatus{font-size:12px;}
+
+/* V13.53 — FALTA DE MÃO DE OBRA */
+.status-mao-obra {
+  border-color: #8E6A2A !important;
+  background: #FFF8E7 !important;
+}
 </style>
 
   <link rel="preconnect" href="https://script.google.com">
@@ -1293,6 +1299,7 @@ button:active {
         <option value="QUEBRA">🔴 QUEBRA</option>
         <option value="MANUTENCAO">🔧 MANUTENÇÃO</option>
         <option value="FALTA_MATERIAL">📦 FALTA DE MATERIAL</option>
+        <option value="FALTA_MAO_OBRA">👷 FALTA DE MÃO DE OBRA</option>
         <option value="OUTROS">⚪ OUTROS</option>
       </select>
 
@@ -9887,6 +9894,9 @@ function obterClasseStatusMaquina_(
     case 'FALTA_MATERIAL':
       return 'status-material';
 
+
+    case 'FALTA_MAO_OBRA':
+      return 'status-mao-obra';
     case 'PARADA_PROGRAMADA':
     case 'OUTROS':
       return 'status-parada';
@@ -9916,6 +9926,9 @@ function obterLabelStatusMaquina_(
     case 'FALTA_MATERIAL':
       return '📦 FALTA DE MATERIAL';
 
+
+    case 'FALTA_MAO_OBRA':
+      return '👷 FALTA DE MÃO DE OBRA';
     case 'PARADA_PROGRAMADA':
       return '🟡 PARADA PROGRAMADA';
 
