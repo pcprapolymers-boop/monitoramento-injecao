@@ -951,6 +951,8 @@ button:active {
   box-shadow: none !important;
 }
 
+/* V13.52 — upload mais rápido */
+#uploadStatus{font-size:12px;}
 </style>
 
   <link rel="preconnect" href="https://script.google.com">
@@ -3677,6 +3679,18 @@ const TAMANHO_CHUNK =
 const TIMESLICE_GRAVACAO =
   2000;
 
+/*
+ * V13.52 — envio paralelo controlado.
+ * O primeiro chunk segue sozinho para garantir a inicialização segura
+ * da pasta temporária no Apps Script.
+ */
+const LIMITE_ENVIO_VIDEO_PARALELO =
+  2;
+
+const LIMITE_ENVIO_AUDIO_PARALELO =
+  3;
+
+
 let filaProcessando =
   false;
 
@@ -5992,139 +6006,52 @@ async function processarJobUpload(
       Date.now();
 
     job.retryCount =
-      Number(job.retryCount || 0);
+      Number(
+        job.retryCount ||
+        0
+      );
 
     job.nextAttemptAt =
       0;
 
-    await salvarJobLocal(job);
+    await salvarJobLocal(
+      job
+    );
 
     await solicitarWakeLock();
 
-    for (
-      let indice =
-        Number(job.nextChunk || 0);
-      indice <
-        Number(job.totalChunks || 0);
-      indice++
+    const mediaType =
+      job.mediaType ||
+      'VIDEO';
+
+    const limiteParalelo =
+      mediaType ===
+        'AUDIO'
+        ? LIMITE_ENVIO_AUDIO_PARALELO
+        : LIMITE_ENVIO_VIDEO_PARALELO;
+
+    /*
+     * O primeiro chunk é isolado. Depois que a pasta temporária existe,
+     * os próximos chunks podem viajar em paralelo sem alterar a ordem
+     * final, porque cada um possui chunkIndex próprio.
+     */
+    if (
+      Number(
+        job.nextChunk ||
+        0
+      ) === 0 &&
+      Number(
+        job.totalChunks ||
+        0
+      ) > 0
     ) {
 
-      if (navigator.onLine === false) {
-        throw new Error('SEM_INTERNET');
-      }
-
-      debugUploadCliente(
-        'CHUNK_LOCAL_BUSCA',
+      await processarChunkUploadOtimizado_(
         job,
-        {
-          indice:
-            indice
-        }
-      );
-
-      const registroChunk =
-        await obterChunkLocal(
-          job.uploadId,
-          indice
-        );
-
-      if (!registroChunk || !registroChunk.blob) {
-        throw new Error(
-          'Parte local ' +
-          (indice + 1) +
-          ' não encontrada.'
-        );
-      }
-
-      const base64 =
-        await blobParaBase64(
-          registroChunk.blob
-        );
-
-      mostrarMensagem(
-        (
-          job.mediaType === 'AUDIO'
-            ? '🎙️ Enviando áudio '
-            : '☁️ Enviando vídeo '
-        ) +
-        job.produto +
-        ' — parte ' +
-        (indice + 1) +
-        ' de ' +
-        job.totalChunks +
-        '...',
-        'warning'
-      );
-
-      debugUploadCliente(
-        'ANTES_ENVIAR_CHUNK',
-        job,
-        {
-          indice:
-            indice
-        }
-      );
-
-      await enviarChunk(
-        {
-
-          mediaType:
-            job.mediaType ||
-            'VIDEO',
-
-          uploadId:
-            job.uploadId,
-
-          chunkIndex:
-            indice,
-
-          totalChunks:
-            job.totalChunks,
-
-          chunkBase64:
-            base64,
-
-          mimeType:
-            job.mimeType,
-
-          maquina:
-            job.maquina,
-
-          operador:
-            job.operador,
-
-          produto:
-            job.produto,
-
-          conforme:
-            job.conforme,
-
-          ciclo:
-            job.ciclo,
-
-          duracaoReal:
-            job.duracaoReal,
-
-          inicioVideo:
-            job.inicioVideo,
-
-          fimVideo:
-            job.fimVideo
-
-        }
-      );
-
-      debugUploadCliente(
-        'CHUNK_CONFIRMADO',
-        job,
-        {
-          indice:
-            indice
-        }
+        0
       );
 
       job.nextChunk =
-        indice +
         1;
 
       job.updatedAt =
@@ -6136,9 +6063,233 @@ async function processarJobUpload(
           ? 'finalizing'
           : 'uploading';
 
-      await salvarJobLocal(job);
+      await salvarJobLocal(
+        job
+      );
 
       await atualizarFilaUI();
+
+    }
+
+    while (
+      Number(
+        job.nextChunk ||
+        0
+      ) <
+      Number(
+        job.totalChunks ||
+        0
+      )
+    ) {
+
+      if (
+        navigator.onLine ===
+        false
+      ) {
+
+        throw new Error(
+          'SEM_INTERNET'
+        );
+
+      }
+
+      const inicioLote =
+        Number(
+          job.nextChunk ||
+          0
+        );
+
+      const fimLote =
+        Math.min(
+          Number(
+            job.totalChunks ||
+            0
+          ),
+          inicioLote +
+            limiteParalelo
+        );
+
+      const indices =
+        [];
+
+      for (
+        let indice =
+          inicioLote;
+        indice <
+          fimLote;
+        indice++
+      ) {
+
+        indices.push(
+          indice
+        );
+
+      }
+
+      debugUploadCliente(
+        'LOTE_CHUNKS_INICIO',
+        job,
+        {
+          inicio:
+            inicioLote,
+          fim:
+            fimLote - 1,
+          quantidade:
+            indices.length,
+          paralelismo:
+            limiteParalelo
+        }
+      );
+
+      mostrarMensagem(
+        (
+          mediaType === 'AUDIO'
+            ? '🎙️ Enviando áudio '
+            : '☁️ Enviando vídeo '
+        ) +
+        (
+          job.produto ||
+          ''
+        ) +
+        ' — partes ' +
+        (
+          inicioLote + 1
+        ) +
+        ' a ' +
+        fimLote +
+        ' de ' +
+        job.totalChunks +
+        '...',
+        'warning'
+      );
+
+      const resultados =
+        await Promise.allSettled(
+          indices.map(
+            function(indice) {
+
+              return processarChunkUploadOtimizado_(
+                job,
+                indice
+              );
+
+            }
+          )
+        );
+
+      const concluidos =
+        new Set();
+
+      let primeiroErro =
+        null;
+
+      resultados.forEach(
+        function(
+          resultado,
+          posicao
+        ) {
+
+          const indice =
+            indices[
+              posicao
+            ];
+
+          if (
+            resultado.status ===
+              'fulfilled'
+          ) {
+
+            concluidos.add(
+              indice
+            );
+
+          }
+          else
+          if (
+            !primeiroErro
+          ) {
+
+            primeiroErro =
+              resultado.reason ||
+              new Error(
+                'Falha no envio da parte ' +
+                (
+                  indice + 1
+                ) +
+                '.'
+              );
+
+          }
+
+        }
+      );
+
+      /*
+       * Só avançamos o ponteiro sobre uma sequência contínua.
+       * Ex.: se 3 e 4 terminaram, mas 2 falhou, nextChunk continua 2.
+       * Na próxima tentativa o 2 será reenviado e os demais continuam
+       * idempotentes no servidor.
+       */
+      let ponteiro =
+        inicioLote;
+
+      while (
+        concluidos.has(
+          ponteiro
+        )
+      ) {
+
+        ponteiro++;
+
+      }
+
+      if (
+        ponteiro >
+        inicioLote
+      ) {
+
+        job.nextChunk =
+          ponteiro;
+
+        job.updatedAt =
+          Date.now();
+
+        job.status =
+          job.nextChunk >=
+            job.totalChunks
+            ? 'finalizing'
+            : 'uploading';
+
+        /*
+         * Uma gravação no IndexedDB e uma atualização visual por lote,
+         * em vez de por chunk.
+         */
+        await salvarJobLocal(
+          job
+        );
+
+        await atualizarFilaUI();
+
+      }
+
+      if (
+        primeiroErro
+      ) {
+
+        throw primeiroErro;
+
+      }
+
+      if (
+        ponteiro ===
+        inicioLote
+      ) {
+
+        throw new Error(
+          'O lote de envio não avançou.'
+        );
+
+      }
 
     }
 
@@ -6148,12 +6299,14 @@ async function processarJobUpload(
     job.updatedAt =
       Date.now();
 
-    await salvarJobLocal(job);
+    await salvarJobLocal(
+      job
+    );
 
     await atualizarFilaUI();
 
     mostrarMensagem(
-      job.mediaType === 'AUDIO'
+      mediaType === 'AUDIO'
         ? '🧩 Montando o áudio no Google Drive — aguarde...'
         : '🧩 Montando o vídeo no Google Drive — aguarde...',
       'warning'
@@ -6165,7 +6318,6 @@ async function processarJobUpload(
       {
         nextChunk:
           job.nextChunk,
-
         totalChunks:
           job.totalChunks
       }
@@ -6192,9 +6344,11 @@ async function processarJobUpload(
       !resultado ||
       !resultado.idArquivo
     ) {
+
       throw new Error(
         'CONFIRMACAO_FINAL_NAO_RECEBIDA'
       );
+
     }
 
     const idRegistro =
@@ -6203,69 +6357,60 @@ async function processarJobUpload(
         ? resultado.idRegistro
         : '';
 
-
     await apagarJobLocal(
       job.uploadId
     );
 
-      if (
-        job.mediaType === 'VIDEO'
-      ) {
+    if (
+      job.mediaType ===
+      'VIDEO'
+    ) {
 
-        /*
-         * V13.45 — finalização confirmada pelo servidor.
-         */
-        limparVideoEmProcessamentoLocal_(
-          job.maquina,
-          job.uploadId
-        );
+      limparVideoEmProcessamentoLocal_(
+        job.maquina,
+        job.uploadId
+      );
 
-        try {
+      try {
 
-          cacheUltimaInspecaoPorMaquina.delete(
-            normalizarMaquinaChave_(
-              job.maquina
-            )
-          );
-
-        }
-        catch (erroCache) {}
-
-        /*
-         * Força a atualização das pendências imediatamente,
-         * sem esperar o TTL normal do cache.
-         */
-        setTimeout(
-          function() {
-
-            consultarPendenciasAntesDaMaquina({
-              forcarAtualizacao:
-                true,
-              silencioso:
-                true
-            })
-            .catch(
-              function(erroPendencias) {
-
-                console.warn(
-                  'Falha ao atualizar pendências após finalização:',
-                  erroPendencias
-                );
-
-              }
-            );
-
-          },
-          0
+        cacheUltimaInspecaoPorMaquina.delete(
+          normalizarMaquinaChave_(
+            job.maquina
+          )
         );
 
       }
+      catch (erroCache) {}
 
+      setTimeout(
+        function() {
 
+          consultarPendenciasAntesDaMaquina({
+            forcarAtualizacao:
+              true,
+            silencioso:
+              true
+          })
+          .catch(
+            function(erroPendencias) {
 
+              console.warn(
+                'Falha ao atualizar pendências após vídeo:',
+                erroPendencias
+              );
+
+            }
+          );
+
+        },
+        0
+      );
+
+    }
 
     if (
-      job.mediaType === 'AUDIO'
+      job.mediaType ===
+      'AUDIO'
     ) {
 
       mostrarMensagem(
@@ -6313,7 +6458,6 @@ async function processarJobUpload(
             : String(
                 erro
               ),
-
         stack:
           erro &&
           erro.stack
@@ -6329,8 +6473,16 @@ async function processarJobUpload(
     );
 
     const falhouNaFinalizacao =
-      job.status === 'finalizing' ||
-      Number(job.nextChunk || 0) >= Number(job.totalChunks || 0);
+      job.status ===
+        'finalizing' ||
+      Number(
+        job.nextChunk ||
+        0
+      ) >=
+        Number(
+          job.totalChunks ||
+          0
+        );
 
     if (
       falhouNaFinalizacao
@@ -6346,15 +6498,15 @@ async function processarJobUpload(
                 erro
               )
         ) +
-        '. O vídeo continua protegido no aparelho.',
+        '. O arquivo continua protegido no aparelho.',
         'warning'
       );
 
     }
 
-
     if (
-      job.mediaType === 'VIDEO'
+      job.mediaType ===
+      'VIDEO'
     ) {
 
       limparVideoEmProcessamentoLocal_(
@@ -6373,8 +6525,10 @@ async function processarJobUpload(
       'paused';
 
     job.retryCount =
-      Number(job.retryCount || 0) +
-      1;
+      Number(
+        job.retryCount ||
+        0
+      ) + 1;
 
     const espera =
       Math.min(
@@ -6384,7 +6538,8 @@ async function processarJobUpload(
             2,
             Math.min(
               4,
-              job.retryCount - 1
+              job.retryCount -
+                1
             )
           )
       );
@@ -6396,7 +6551,9 @@ async function processarJobUpload(
     job.updatedAt =
       Date.now();
 
-    await salvarJobLocal(job);
+    await salvarJobLocal(
+      job
+    );
 
     await atualizarFilaUI();
 
@@ -6404,19 +6561,23 @@ async function processarJobUpload(
 
     if (
       erro &&
-      erro.message === 'SEM_INTERNET'
+      erro.message ===
+        'SEM_INTERNET'
     ) {
 
       mostrarMensagem(
-        '📡 Sem conexão. O vídeo ficou salvo e será retomado quando a internet voltar.',
+        '📡 Sem conexão. O arquivo ficou salvo e será retomado quando a internet voltar.',
         'warning'
       );
 
     }
-    else if (falhouNaFinalizacao) {
+    else
+    if (
+      falhouNaFinalizacao
+    ) {
 
       mostrarMensagem(
-        '⚠️ A montagem/confirmação do vídeo foi interrompida. O vídeo permanece salvo no aparelho e a montagem será tentada novamente automaticamente.',
+        '⚠️ A montagem/confirmação do arquivo foi interrompida. O arquivo permanece salvo no aparelho e será retomado automaticamente.',
         'warning'
       );
 
@@ -6424,7 +6585,7 @@ async function processarJobUpload(
     else {
 
       mostrarMensagem(
-        '⚠️ O envio foi pausado. O arquivo permanece salvo no aparelho. Para diagnóstico, abra esta página com ?debug=1.',
+        '⚠️ O envio foi pausado. O arquivo permanece salvo no aparelho e será retomado automaticamente.',
         'warning'
       );
 
@@ -6435,6 +6596,133 @@ async function processarJobUpload(
   }
 
 }
+
+
+async function processarChunkUploadOtimizado_(
+  job,
+  indice
+) {
+
+  if (
+    navigator.onLine ===
+    false
+  ) {
+
+    throw new Error(
+      'SEM_INTERNET'
+    );
+
+  }
+
+  const registroChunk =
+    await obterChunkLocal(
+      job.uploadId,
+      indice
+    );
+
+  if (
+    !registroChunk ||
+    !registroChunk.blob
+  ) {
+
+    throw new Error(
+      'Parte local ' +
+      (
+        indice + 1
+      ) +
+      ' não encontrada.'
+    );
+
+  }
+
+  const base64 =
+    await blobParaBase64(
+      registroChunk.blob
+    );
+
+  debugUploadCliente(
+    'ANTES_ENVIAR_CHUNK',
+    job,
+    {
+      indice:
+        indice
+    }
+  );
+
+  const resposta =
+    await enviarChunk(
+      {
+
+        mediaType:
+          job.mediaType ||
+          'VIDEO',
+
+        uploadId:
+          job.uploadId,
+
+        chunkIndex:
+          indice,
+
+        totalChunks:
+          job.totalChunks,
+
+        chunkBase64:
+          base64,
+
+        mimeType:
+          job.mimeType,
+
+        maquina:
+          job.maquina,
+
+        operador:
+          job.operador,
+
+        produto:
+          job.produto,
+
+        conforme:
+          job.conforme,
+
+        ciclo:
+          job.ciclo,
+
+        duracaoReal:
+          job.duracaoReal,
+
+        inicioVideo:
+          job.inicioVideo,
+
+        fimVideo:
+          job.fimVideo,
+
+        parentUploadId:
+          job.parentUploadId ||
+          '',
+
+        inicioAudio:
+          job.inicioAudio ||
+          ''
+
+      }
+    );
+
+  debugUploadCliente(
+    'CHUNK_CONFIRMADO',
+    job,
+    {
+      indice:
+        indice,
+      resposta:
+        resposta ||
+        null
+    }
+  );
+
+  return resposta;
+
+}
+
 
 
 async function inicializarFilaUploads() {
@@ -12863,7 +13151,9 @@ function aguardarAudioStatusResultado(
 
                 setTimeout(
                   consultar,
-                  2000
+                  tentativas <= 4
+                    ? 600
+                    : 1500
                 );
 
               },
@@ -12987,7 +13277,9 @@ function aguardarAudioStatusResultado(
 
             setTimeout(
               consultar,
-              2000
+              tentativas <= 4
+                ? 600
+                : 1500
             );
 
           };
@@ -17262,13 +17554,41 @@ async function enviarChunk(
     dados
   );
 
+  /*
+   * Para AUDIO, o transporte já é fetch(POST). A confirmação JSONP
+   * de cada chunk era uma segunda viagem ao Apps Script, sem ganho
+   * de segurança proporcional ao custo.
+   */
+  if (
+    dados &&
+    dados.mediaType ===
+      'AUDIO'
+  ) {
 
+    return {
+      sucesso:
+        true,
+      recebido:
+        true,
+      uploadId:
+        dados.uploadId,
+      chunkIndex:
+        dados.chunkIndex
+    };
+
+  }
+
+  /*
+   * Para VIDEO, mantém a confirmação por chunk porque o transporte
+   * é FORM + iframe.
+   */
   return aguardarStatusChunk(
     dados.uploadId,
     dados.chunkIndex
   );
 
 }
+
 
 
 
@@ -18506,7 +18826,9 @@ function aguardarStatusFinal(
 
                 setTimeout(
                   consultar,
-                  1000
+                  tentativas <= 4
+                    ? 500
+                    : 1000
                 );
 
               },
