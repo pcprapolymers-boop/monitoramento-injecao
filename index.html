@@ -7688,6 +7688,96 @@ function existePendenciaDeCobrancaLocal_() {
 }
 
 
+
+async function solicitarAlarmeLocalServiceWorker_() {
+
+  /*
+   * Esta é a camada mais imediata para tela bloqueada.
+   * Não depende de rede, Apps Script ou do próximo gatilho.
+   * O próprio Service Worker do site cria a notificação do Android.
+   */
+  try {
+
+    if (
+      !('serviceWorker' in navigator)
+    ) {
+
+      return false;
+
+    }
+
+    if (
+      !('Notification' in window) ||
+      Notification.permission !==
+        'granted'
+    ) {
+
+      return false;
+
+    }
+
+    const registro =
+      await navigator.serviceWorker.ready;
+
+    if (
+      !registro ||
+      !registro.active
+    ) {
+
+      return false;
+
+    }
+
+    const maquinaAlarme =
+      (
+        typeof maquina !==
+          'undefined'
+          ? maquina
+          : ''
+      ) || '';
+
+    registro.active.postMessage(
+      {
+        tipo:
+          'ALARME_BLOQUEIO_TELA',
+
+        maquina:
+          String(
+            maquinaAlarme
+          ).trim(),
+
+        timestamp:
+          Date.now(),
+
+        url:
+          window.location.href
+      }
+    );
+
+    localStorage.setItem(
+      'ra_polymers_ultimo_alarme_sw',
+      String(
+        Date.now()
+      )
+    );
+
+    return true;
+
+  }
+  catch (erro) {
+
+    console.warn(
+      'Não foi possível solicitar alarme ao Service Worker:',
+      erro
+    );
+
+    return false;
+
+  }
+
+}
+
+
 async function enviarPushAoBloquearTela_() {
 
   if (
@@ -20998,13 +21088,49 @@ document.addEventListener(
         !gravacaoAtivaBloqueiaAlarme()
       ) {
 
-        enviarPushAoBloquearTela_()
+        /*
+         * 1ª camada: notificação local pelo Service Worker.
+         * É imediata e não depende de rede.
+         */
+        solicitarAlarmeLocalServiceWorker_()
+          .then(
+            function(enviadoLocalmente) {
+
+              /*
+               * 2ª camada: Push FCM do servidor.
+               * Mantida como redundância para quando o navegador
+               * realmente entrar em segundo plano.
+               */
+              enviarPushAoBloquearTela_()
+                .catch(
+                  function(erro) {
+                    console.warn(
+                      'Falha ao solicitar Push no bloqueio:',
+                      erro
+                    );
+                  }
+                );
+
+            }
+          )
           .catch(
-            function(erro) {
+            function(erroSW) {
+
               console.warn(
-                'Falha ao solicitar Push no bloqueio:',
-                erro
+                'Falha no alarme local do Service Worker:',
+                erroSW
               );
+
+              enviarPushAoBloquearTela_()
+                .catch(
+                  function(erro) {
+                    console.warn(
+                      'Falha no Push de fallback:',
+                      erro
+                    );
+                  }
+                );
+
             }
           );
 
