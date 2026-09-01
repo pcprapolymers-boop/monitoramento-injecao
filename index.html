@@ -3087,7 +3087,7 @@ let maquina =
 
 /* V13.61 — captura de vídeo otimizada para reduzir lag em Android. */
 /* V13.62 — contador individual da próxima inspeção na lista de pendências. */
-/* V13.64 — confirmação de PRODUZINDO + fila de status silenciosa. */
+/* V13.65 — confirmação de PRODUZINDO + fila de status silenciosa. */
 let statusOperacionalMaquina =
   'PRODUZINDO';
 
@@ -4324,6 +4324,71 @@ function chaveChunk(
 }
 
 
+
+
+async function agendarUploadsEmSegundoPlano_() {
+
+  try {
+
+    if (!('serviceWorker' in navigator)) return false;
+
+    const registro = await navigator.serviceWorker.ready;
+
+    if (
+      registro &&
+      registro.sync &&
+      typeof registro.sync.register === 'function'
+    ) {
+      await registro.sync.register('ra-polymers-upload');
+      return true;
+    }
+
+  } catch (erro) {
+    try {
+      debugUploadCliente(
+        'BACKGROUND_SYNC_AGENDAR_ERRO',
+        null,
+        {
+          erro: erro && erro.message ? erro.message : String(erro)
+        }
+      );
+    } catch (ignorar) {}
+  }
+
+  return false;
+
+}
+
+
+function solicitarProcessamentoUploadsServiceWorker_() {
+
+  try {
+
+    if (
+      !('serviceWorker' in navigator) ||
+      !navigator.serviceWorker.controller
+    ) {
+      return;
+    }
+
+    navigator.serviceWorker.controller.postMessage({
+      tipo: 'PROCESSAR_UPLOADS_AGORA'
+    });
+
+  } catch (erro) {
+    try {
+      debugUploadCliente(
+        'BACKGROUND_UPLOAD_MESSAGE_ERRO',
+        null,
+        {
+          erro: erro && erro.message ? erro.message : String(erro)
+        }
+      );
+    } catch (ignorar) {}
+  }
+
+}
+
 async function salvarJobLocal(
   job
 ) {
@@ -4347,6 +4412,15 @@ async function salvarJobLocal(
       tx.oncomplete =
         function() {
           db.close();
+
+          /* V13.65 — agenda continuidade fora da página. */
+          if (
+            job &&
+            job.status !== 'recording'
+          ) {
+            agendarUploadsEmSegundoPlano_();
+          }
+
           resolve();
         };
 
@@ -20585,10 +20659,10 @@ document.addEventListener(
       'hidden'
     ) {
 
-      /*
-       * O Android/Brave pode suspender a página bloqueada.
-       * Portanto o Web Audio local deixa de ser a camada principal.
-       */
+      /* V13.65 — o upload protegido no IndexedDB passa ao Service Worker. */
+      solicitarProcessamentoUploadsServiceWorker_();
+      agendarUploadsEmSegundoPlano_();
+
       pararAlarmePendenciaGlobal();
 
       /*
@@ -20684,6 +20758,7 @@ document.addEventListener(
       try {
 
         await processarFilaUploads();
+        await agendarUploadsEmSegundoPlano_();
 
       }
       catch (erroFila) {
@@ -21118,6 +21193,20 @@ document.addEventListener(
           );
 
         iniciarFilaStatusPeriodica();
+        agendarUploadsEmSegundoPlano_();
+
+        /* V13.65 — se já existe token FCM salvo, reapresenta-o
+         * silenciosamente ao servidor. Isso também garante o gatilho
+         * de 1 minuto mesmo que o telefone tenha sido ativado em uma
+         * versão anterior. */
+        try {
+          const tokenPushSalvo =
+            localStorage.getItem('ra_polymers_push_token') || '';
+          if (tokenPushSalvo) {
+            registrarTokenPushNoServidor_(tokenPushSalvo)
+              .catch(function() {});
+          }
+        } catch (erroPushStartup) {}
 
         processarFilaStatus()
           .catch(
