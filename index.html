@@ -3792,6 +3792,12 @@ let tempoCiclo = 0;
 
 let cameraStream = null;
 
+let streamVideoGravacao = null;
+
+let audioContextVideoGravacao = null;
+
+let audioCleanupVideoGravacao = null;
+
 let mediaRecorder = null;
 
 let partesVideo = [];
@@ -3868,10 +3874,10 @@ const TIMESLICE_GRAVACAO =
  * da pasta temporária no Apps Script.
  */
 const LIMITE_ENVIO_VIDEO_PARALELO =
-  2;
+  3;
 
 const LIMITE_ENVIO_AUDIO_PARALELO =
-  3;
+  4;
 
 
 let filaProcessando =
@@ -7172,11 +7178,19 @@ function atualizarPainelPendenciasAntesDaMaquina(
     servidor.filter(
       function(item) {
 
-        return !maquinaTemVideoEmProcessamentoLocal_(
+        const nome =
           item &&
           item.maquina
             ? item.maquina
-            : ''
+            : '';
+
+        return (
+          !maquinaTemVideoEmProcessamentoLocal_(
+            nome
+          ) &&
+          !maquinaTemInspecaoConcluidaLocal_(
+            nome
+          )
         );
 
       }
@@ -7510,6 +7524,94 @@ let timerAlarmePendenciaGlobal = null;
 let silenciadoPendenciaGlobalAte = 0;
 
 
+
+function existePendenciaComAlarmeAtivoLocal_() {
+
+  const resposta =
+    ultimaRespostaPendenciasGlobal;
+
+  if (
+    !resposta ||
+    !Array.isArray(
+      resposta.pendencias
+    )
+  ) {
+
+    return false;
+
+  }
+
+  return resposta.pendencias.some(
+    function(item) {
+
+      if (
+        !item ||
+        !item.cobrancaPermitida
+      ) {
+
+        return false;
+
+      }
+
+      const nome =
+        item.maquina ||
+        '';
+
+      if (
+        maquinaTemVideoEmProcessamentoLocal_(
+          nome
+        )
+      ) {
+
+        return false;
+
+      }
+
+      if (
+        maquinaTemInspecaoConcluidaLocal_(
+          nome
+        )
+      ) {
+
+        return false;
+
+      }
+
+      return alarmePermitidoParaPendenciaLocal_(
+        item
+      );
+
+    }
+  );
+
+}
+
+
+function vibrarAlarmeInspecao_() {
+
+  try {
+
+    if (
+      typeof navigator.vibrate ===
+        'function'
+    ) {
+
+      navigator.vibrate([
+        700,
+        180,
+        700,
+        180,
+        700
+      ]);
+
+    }
+
+  }
+  catch (erro) {}
+
+}
+
+
 function iniciarAlarmePendenciaGlobal() {
 
   if (
@@ -7522,6 +7624,16 @@ function iniciarAlarmePendenciaGlobal() {
     gravacaoAtivaBloqueiaAlarme()
   ) {
     return;
+  }
+
+  if (
+    !existePendenciaComAlarmeAtivoLocal_()
+  ) {
+
+    pararAlarmePendenciaGlobal();
+
+    return;
+
   }
 
   if (
@@ -7554,6 +7666,16 @@ function iniciarAlarmePendenciaGlobal() {
       gravacaoAtivaBloqueiaAlarme()
     ) {
       return;
+    }
+
+    if (
+      !existePendenciaComAlarmeAtivoLocal_()
+    ) {
+
+      pararAlarmePendenciaGlobal();
+
+      return;
+
     }
 
     try {
@@ -7614,24 +7736,7 @@ function iniciarAlarmePendenciaGlobal() {
     }
     catch (erro) {}
 
-    try {
-
-      if (
-        navigator.vibrate
-      ) {
-
-        navigator.vibrate([
-          800,
-          250,
-          800,
-          250,
-          800
-        ]);
-
-      }
-
-    }
-    catch (erro) {}
+    vibrarAlarmeInspecao_();
 
   }
 
@@ -11554,6 +11659,195 @@ function verificarStatusSalvoEmSegundoPlano(
 }
 
 
+
+function avancarAposAtualizacaoStatus_(
+  statusNovo,
+  maquinaAtual
+) {
+
+  const status =
+    String(
+      statusNovo ||
+      ''
+    )
+    .trim()
+    .toUpperCase();
+
+  if (
+    status ===
+    'PRODUZINDO'
+  ) {
+
+    const produto =
+      document.getElementById(
+        'produto'
+      );
+
+    const cardProduto =
+      document.getElementById(
+        'productCard'
+      ) ||
+      produto;
+
+    try {
+
+      if (
+        cardProduto &&
+        typeof cardProduto.scrollIntoView ===
+          'function'
+      ) {
+
+        cardProduto.scrollIntoView({
+          behavior:
+            'smooth',
+          block:
+            'center'
+        });
+
+      }
+
+    }
+    catch (erroScroll) {}
+
+    setTimeout(
+      function() {
+
+        try {
+
+          if (
+            produto &&
+            !produto.disabled
+          ) {
+
+            produto.focus();
+
+          }
+
+        }
+        catch (erroFocus) {}
+
+      },
+      180
+    );
+
+    return;
+
+  }
+
+  const pendencias =
+    ultimaRespostaPendenciasGlobal &&
+    Array.isArray(
+      ultimaRespostaPendenciasGlobal.pendencias
+    )
+      ? ultimaRespostaPendenciasGlobal.pendencias
+      : [];
+
+  const chaveAtual =
+    normalizarMaquinaChave_(
+      maquinaAtual ||
+      ''
+    );
+
+  const proxima =
+    pendencias.find(
+      function(item) {
+
+        if (
+          !item ||
+          !item.maquina
+        ) {
+          return false;
+        }
+
+        if (
+          normalizarMaquinaChave_(
+            item.maquina
+          ) ===
+          chaveAtual
+        ) {
+          return false;
+        }
+
+        return (
+          String(
+            item.statusMaquina ||
+            'PRODUZINDO'
+          )
+          .trim()
+          .toUpperCase() !==
+          'PRODUZINDO'
+        );
+
+      }
+    );
+
+  if (
+    proxima &&
+    typeof selecionarMaquinaPendenteDoPainel ===
+      'function'
+  ) {
+
+    const botoes =
+      Array.from(
+        document.querySelectorAll(
+          '#preMachineAlarmList [data-maquina]'
+        )
+      );
+
+    const botao =
+      botoes.find(
+        function(el) {
+
+          return (
+            normalizarMaquinaChave_(
+              el.dataset.maquina ||
+              ''
+            ) ===
+            normalizarMaquinaChave_(
+              proxima.maquina
+            )
+          );
+
+        }
+      );
+
+    if (botao) {
+
+      selecionarMaquinaPendenteDoPainel(
+        botao
+      );
+
+      return;
+
+    }
+
+  }
+
+  const seletor =
+    document.getElementById(
+      'machineSelector'
+    );
+
+  if (seletor) {
+
+    try {
+
+      seletor.scrollIntoView({
+        behavior:
+          'smooth',
+        block:
+          'center'
+      });
+
+      seletor.focus();
+
+    }
+    catch (erro) {}
+
+  }
+
+}
+
 async function salvarStatusMaquina() {
 
   const seletor =
@@ -11600,8 +11894,28 @@ async function salvarStatusMaquina() {
   operadorStatusSelecionado =
     String(
       operadorSelect.value ||
+      operadorStatusSelecionado ||
       ''
     ).trim();
+
+  /*
+   * O operador já foi selecionado antes da justificativa.
+   * Mantemos uma cópia em memória para evitar perder o valor
+   * quando o select estiver temporariamente desabilitado.
+   */
+  if (
+    operadorStatusSelecionado &&
+    operadorSelect.value !==
+      operadorStatusSelecionado
+  ) {
+
+    try {
+      operadorSelect.value =
+        operadorStatusSelecionado;
+    }
+    catch (erroOperador) {}
+
+  }
 
   const operacaoId =
     'ST_FAST_' +
@@ -11648,6 +11962,8 @@ async function salvarStatusMaquina() {
 
     let audioUrl = '';
     let audioId = '';
+    let audioStatusPromise = null;
+    let audioStatusUploadId = '';
 
     if (
       statusNovo !==
@@ -11655,20 +11971,30 @@ async function salvarStatusMaquina() {
     ) {
 
       /*
-       * Agora aguardamos o áudio ficar realmente confirmado no Drive
-       * antes de registrar o status. Assim a linha já nasce com
-       * Audio URL + Audio ID reais.
+       * Não bloqueia a atualização do STATUS esperando o Drive.
+       * O backend aceita PENDENTE_AUDIO:<uploadId> e o áudio é
+       * vinculado ao registro assim que terminar.
        */
-      const envio =
-        await iniciarEnvioAudioStatusEmSegundoPlano();
+      audioStatusPromise =
+        iniciarEnvioAudioStatusEmSegundoPlano();
 
-      audioUrl =
-        envio.url ||
+      audioStatusUploadId =
+        statusAudioUploadId ||
         '';
+
+      if (
+        !audioStatusUploadId
+      ) {
+
+        throw new Error(
+          'Não foi possível preparar o envio da justificativa em áudio.'
+        );
+
+      }
 
       audioId =
-        envio.idArquivo ||
-        '';
+        'PENDENTE_AUDIO:' +
+        audioStatusUploadId;
 
     }
 
@@ -11772,7 +12098,7 @@ async function salvarStatusMaquina() {
         statusNovo ===
         'PRODUZINDO'
           ? '✅ Status PRODUZINDO atualizado.'
-          : '⏳ Salvando status e justificativa de áudio...';
+          : '✅ Status atualizado. 🎙️ Áudio sendo enviado em segundo plano...';
 
     }
 
@@ -11804,6 +12130,94 @@ async function salvarStatusMaquina() {
       audioId,
       'ALTERAR_STATUS',
       operacaoId
+    );
+
+    /*
+     * Áudio segue em paralelo. Quando chegar ao Drive, vinculamos
+     * o arquivo ao registro de status já criado.
+     */
+    if (
+      audioStatusPromise &&
+      audioStatusUploadId
+    ) {
+
+      audioStatusPromise
+        .then(
+          function(envioAudio) {
+
+            return vincularAudioStatusAoRegistro(
+              audioStatusUploadId,
+              envioAudio &&
+              envioAudio.url
+                ? envioAudio.url
+                : '',
+              envioAudio &&
+              envioAudio.idArquivo
+                ? envioAudio.idArquivo
+                : ''
+            );
+
+          }
+        )
+        .then(
+          function() {
+
+            debugUploadCliente(
+              'STATUS_AUDIO_VINCULADO_BACKGROUND_OK',
+              {
+                uploadId:
+                  audioStatusUploadId,
+                mediaType:
+                  'STATUS_AUDIO'
+              },
+              {
+                operacaoId:
+                  operacaoId
+              }
+            );
+
+          }
+        )
+        .catch(
+          function(erroAudioBackground) {
+
+            debugUploadCliente(
+              'STATUS_AUDIO_VINCULO_BACKGROUND_ERRO',
+              {
+                uploadId:
+                  audioStatusUploadId,
+                mediaType:
+                  'STATUS_AUDIO'
+              },
+              {
+                operacaoId:
+                  operacaoId,
+                erro:
+                  erroAudioBackground &&
+                  erroAudioBackground.message
+                    ? erroAudioBackground.message
+                    : String(
+                        erroAudioBackground
+                      )
+              }
+            );
+
+          }
+        );
+
+    }
+
+    /*
+     * Passa imediatamente para a próxima etapa/máquina.
+     */
+    setTimeout(
+      function() {
+        avancarAposAtualizacaoStatus_(
+          statusNovo,
+          maquina
+        );
+      },
+      80
     );
 
     /*
@@ -12938,8 +13352,12 @@ async function gravarAudioStatus() {
       operadorSelect &&
       operadorSelect.value
         ? operadorSelect.value
-        : ''
+        : operadorStatusSelecionado ||
+          ''
     ).trim();
+
+  operadorStatusSelecionado =
+    operadorGravado;
 
   const statusGravado =
     String(
@@ -15493,24 +15911,46 @@ async function iniciarCamera() {
 
         width: {
           ideal:
+            1920,
+
+          min:
             1280
         },
 
         height: {
           ideal:
+            1080,
+
+          min:
             720
-        },      },
+        },
+
+        frameRate: {
+          ideal:
+            30,
+
+          max:
+            30
+        }
+
+      },
 
       audio: {
 
         echoCancellation:
-          true,
+          false,
 
         noiseSuppression:
           true,
 
         autoGainControl:
-          true
+          true,
+
+        channelCount:
+          1,
+
+        sampleRate:
+          48000
 
       }
 
@@ -16123,6 +16563,242 @@ function escolherMimeType() {
    GRAVAÇÃO
    ===================================================== */
 
+
+function criarStreamVideoComAudioMelhorado_(
+  streamOriginal
+) {
+
+  const videoTrack =
+    streamOriginal &&
+    streamOriginal.getVideoTracks()[0];
+
+  const audioTrack =
+    streamOriginal &&
+    streamOriginal.getAudioTracks()[0];
+
+  if (
+    !videoTrack ||
+    !audioTrack
+  ) {
+
+    return {
+      stream:
+        streamOriginal,
+      cleanup:
+        function() {}
+    };
+
+  }
+
+  try {
+
+    const AudioContextClass =
+      window.AudioContext ||
+      window.webkitAudioContext;
+
+    if (
+      !AudioContextClass
+    ) {
+
+      return {
+        stream:
+          streamOriginal,
+        cleanup:
+          function() {}
+      };
+
+    }
+
+    audioContextVideoGravacao =
+      new AudioContextClass();
+
+    const source =
+      audioContextVideoGravacao
+        .createMediaStreamSource(
+          new MediaStream([
+            audioTrack
+          ])
+        );
+
+    /*
+     * Reduz ruído grave de vibração/máquinas.
+     */
+    const highpass =
+      audioContextVideoGravacao
+        .createBiquadFilter();
+
+    highpass.type =
+      'highpass';
+
+    highpass.frequency.value =
+      110;
+
+    highpass.Q.value =
+      0.7;
+
+    /*
+     * Comprime variações fortes e deixa a voz mais
+     * constante no meio do ruído industrial.
+     */
+    const compressor =
+      audioContextVideoGravacao
+        .createDynamicsCompressor();
+
+    compressor.threshold.value =
+      -24;
+
+    compressor.knee.value =
+      18;
+
+    compressor.ratio.value =
+      4;
+
+    compressor.attack.value =
+      0.003;
+
+    compressor.release.value =
+      0.25;
+
+    const gain =
+      audioContextVideoGravacao
+        .createGain();
+
+    gain.gain.value =
+      1.05;
+
+    const destination =
+      audioContextVideoGravacao
+        .createMediaStreamDestination();
+
+    source
+      .connect(highpass);
+
+    highpass
+      .connect(compressor);
+
+    compressor
+      .connect(gain);
+
+    gain
+      .connect(destination);
+
+    if (
+      typeof audioContextVideoGravacao.resume ===
+        'function'
+    ) {
+
+      audioContextVideoGravacao
+        .resume()
+        .catch(
+          function() {}
+        );
+
+    }
+
+    const audioProcessed =
+      destination.stream
+        .getAudioTracks()[0];
+
+    if (!audioProcessed) {
+      throw new Error(
+        'Trilha de áudio processada indisponível.'
+      );
+    }
+
+    const streamNovo =
+      new MediaStream([
+        videoTrack,
+        audioProcessed
+      ]);
+
+    audioCleanupVideoGravacao =
+      function() {
+
+        try {
+
+          streamNovo
+            .getTracks()
+            .forEach(
+              function(track) {
+                try {
+                  track.stop();
+                }
+                catch (erro) {}
+              }
+            );
+
+        }
+        catch (erro) {}
+
+        try {
+
+          if (
+            audioContextVideoGravacao
+          ) {
+
+            audioContextVideoGravacao
+              .close()
+              .catch(
+                function() {}
+              );
+
+          }
+
+        }
+        catch (erro) {}
+
+        audioContextVideoGravacao =
+          null;
+
+        audioCleanupVideoGravacao =
+          null;
+
+      };
+
+    return {
+      stream:
+        streamNovo,
+      cleanup:
+        audioCleanupVideoGravacao
+    };
+
+  }
+  catch (erro) {
+
+    try {
+
+      if (
+        audioContextVideoGravacao
+      ) {
+
+        audioContextVideoGravacao
+          .close()
+          .catch(
+            function() {}
+          );
+
+      }
+
+    }
+    catch (erroClose) {}
+
+    audioContextVideoGravacao =
+      null;
+
+    audioCleanupVideoGravacao =
+      null;
+
+    return {
+      stream:
+        streamOriginal,
+      cleanup:
+        function() {}
+    };
+
+  }
+
+}
+
 function iniciarGravacao() {
 
   /*
@@ -16259,10 +16935,10 @@ function iniciarGravacao() {
   const opcoes = {
 
     videoBitsPerSecond:
-      900000,
+      2200000,
 
     audioBitsPerSecond:
-      64000
+      128000
 
   };
 
@@ -16285,9 +16961,20 @@ function iniciarGravacao() {
     }
 
 
+    const videoStreamPreparado =
+      criarStreamVideoComAudioMelhorado_(
+        cameraStream
+      );
+
+    streamVideoGravacao =
+      videoStreamPreparado.stream;
+
+    audioCleanupVideoGravacao =
+      videoStreamPreparado.cleanup;
+
     mediaRecorder =
       new MediaRecorder(
-        cameraStream,
+        streamVideoGravacao,
         opcoes
       );
 
@@ -16298,6 +16985,23 @@ function iniciarGravacao() {
       'O navegador não conseguiu iniciar a gravação.',
       'error'
     );
+
+    try {
+
+      if (
+        typeof audioCleanupVideoGravacao ===
+          'function'
+      ) {
+
+        audioCleanupVideoGravacao();
+
+      }
+
+    }
+    catch (erroCleanup) {}
+
+    streamVideoGravacao =
+      null;
 
     videoEmPreparacaoOuGravacao =
       false;
@@ -16402,6 +17106,23 @@ function iniciarGravacao() {
           true;
 
       }
+
+      try {
+
+        if (
+          typeof audioCleanupVideoGravacao ===
+            'function'
+        ) {
+
+          audioCleanupVideoGravacao();
+
+        }
+
+      }
+      catch (erroAudioCleanup) {}
+
+      streamVideoGravacao =
+        null;
 
       const tipo =
         mediaRecorder.mimeType ||
@@ -16741,6 +17462,33 @@ function pararGravacao() {
    ===================================================== */
 
 function desligarCamera() {
+
+  if (
+    streamVideoGravacao &&
+    streamVideoGravacao !==
+      cameraStream
+  ) {
+
+    try {
+
+      streamVideoGravacao
+        .getTracks()
+        .forEach(
+          function(track) {
+            try {
+              track.stop();
+            }
+            catch (erro) {}
+          }
+        );
+
+    }
+    catch (erroStream) {}
+
+    streamVideoGravacao =
+      null;
+
+  }
 
   if (cameraStream) {
 
