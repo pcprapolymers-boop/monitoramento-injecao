@@ -1973,6 +1973,9 @@ let RA_POLYMERS_PUSH_CONFIG =
 let RA_POLYMERS_VAPID_PUBLIC_KEY =
   '';
 
+let registroServiceWorkerPushGlobal = null;
+let messagingPushGlobal = null;
+
 async function carregarConfiguracaoFirebasePush_() {
 
   if (
@@ -2415,6 +2418,8 @@ async function solicitarPushOperacional() {
     const messaging =
       firebase.messaging();
 
+    messagingPushGlobal = messaging;
+
     if (
       !messaging
     ) {
@@ -2423,6 +2428,25 @@ async function solicitarPushOperacional() {
         'Firebase Messaging não pôde ser inicializado.'
       );
 
+    }
+
+    if (!window.__raPolymersPushForegroundHandler) {
+      messaging.onMessage(function(payload) {
+        try {
+          const notification = (payload && payload.notification) || {};
+          const data = (payload && payload.data) || {};
+          const maquinaMsg = String(data.maquina || '').trim();
+          const tituloMsg = notification.title || data.title || '🚨 INSPEÇÃO ATRASADA';
+          const corpoBase = notification.body || data.body || 'Existe uma inspeção pendente. Toque para atender.';
+          const corpoMsg = maquinaMsg && corpoBase.indexOf('Máquina ' + maquinaMsg) !== 0 ? 'Máquina ' + maquinaMsg + ': ' + corpoBase : corpoBase;
+          const destinoMsg = data.url || ('https://pcprapolymers-boop.github.io/monitoramento-injecao/?m=' + encodeURIComponent(maquinaMsg || ''));
+          const sw = registroServiceWorkerPushGlobal;
+          if (sw && sw.showNotification) {
+            sw.showNotification(tituloMsg, {body: corpoMsg, icon:'/monitoramento-injecao/icons/icon-192.png', badge:'/monitoramento-injecao/icons/icon-192.png', tag:'ra-polymers-inspecao-'+(maquinaMsg||'geral'), renotify:true, requireInteraction:true, silent:false, vibrate:[700,300,700,300,1200,700,1200], data:{url:destinoMsg,maquina:maquinaMsg,tipo:data.tipo||'INSPECAO'}});
+          }
+        } catch (erroForegroundPush) { console.warn('Falha no Push em primeiro plano:', erroForegroundPush); }
+      });
+      window.__raPolymersPushForegroundHandler = true;
     }
 
     console.info(
@@ -2641,6 +2665,33 @@ async function registrarTokenPushNoServidor_(
 
   }
 
+}
+
+
+async function sincronizarTokenPushSilencioso_() {
+  try {
+    if (!('Notification' in window) || Notification.permission !== 'granted') return false;
+    await carregarConfiguracaoFirebasePush_();
+    if (!pushFirebaseConfigurado_()) return false;
+    const vapidKey = validarVapidPublicKey_(RA_POLYMERS_VAPID_PUBLIC_KEY);
+    const registro = registroServiceWorkerPushGlobal || await registrarServiceWorkerPush_();
+    if (!window.firebase) {
+      await carregarScriptExternoPush_('https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js');
+      await carregarScriptExternoPush_('https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging-compat.js');
+    }
+    if (!firebase.apps.length) firebase.initializeApp(RA_POLYMERS_PUSH_CONFIG);
+    const messaging = firebase.messaging();
+    messagingPushGlobal = messaging;
+    const token = await messaging.getToken({vapidKey:vapidKey, serviceWorkerRegistration:registro});
+    if (!token) return false;
+    localStorage.setItem('ra_polymers_push_token', token);
+    localStorage.setItem('ra_polymers_push_ativo', '1');
+    await registrarTokenPushNoServidor_(token);
+    return true;
+  } catch (erro) {
+    console.warn('Push: sincronização silenciosa falhou:', erro);
+    return false;
+  }
 }
 
 
@@ -21393,18 +21444,8 @@ document.addEventListener(
         iniciarFilaStatusPeriodica();
         agendarUploadsEmSegundoPlano_();
 
-        /* V13.65 — se já existe token FCM salvo, reapresenta-o
-         * silenciosamente ao servidor. Isso também garante o gatilho
-         * de 1 minuto mesmo que o telefone tenha sido ativado em uma
-         * versão anterior. */
-        try {
-          const tokenPushSalvo =
-            localStorage.getItem('ra_polymers_push_token') || '';
-          if (tokenPushSalvo) {
-            registrarTokenPushNoServidor_(tokenPushSalvo)
-              .catch(function() {});
-          }
-        } catch (erroPushStartup) {}
+        /* V13.69 — renova o token FCM em cada abertura. */
+        sincronizarTokenPushSilencioso_().catch(function() {});
 
         processarFilaStatus()
           .catch(
