@@ -959,6 +959,12 @@ button:active {
   border-color: #8E6A2A !important;
   background: #FFF8E7 !important;
 }
+
+.status-alarme-silenciado {
+  opacity: .84;
+  background: #FFFDF6 !important;
+  border-left: 5px solid #8E6A2A !important;
+}
 </style>
 
   <link rel="preconnect" href="https://script.google.com">
@@ -3178,6 +3184,172 @@ const STORAGE_VIDEO_PROCESSANDO_LOCAL =
 const STORAGE_INSPECAO_CONCLUIDA_LOCAL =
   'ra_polymers_inspecao_concluida_local_v1';
 
+const STORAGE_STATUS_SILENCIO_ALARME_LOCAL =
+  'ra_polymers_status_silencio_alarme_v1';
+
+let silenciosAlarmeStatusLocal = {};
+
+
+function carregarSilenciosAlarmeStatusLocal_() {
+
+  try {
+
+    silenciosAlarmeStatusLocal =
+      JSON.parse(
+        localStorage.getItem(
+          STORAGE_STATUS_SILENCIO_ALARME_LOCAL
+        ) ||
+        '{}'
+      ) ||
+      {};
+
+  }
+  catch (erro) {
+
+    silenciosAlarmeStatusLocal = {};
+
+  }
+
+}
+
+
+function salvarSilenciosAlarmeStatusLocal_() {
+
+  try {
+
+    localStorage.setItem(
+      STORAGE_STATUS_SILENCIO_ALARME_LOCAL,
+      JSON.stringify(
+        silenciosAlarmeStatusLocal
+      )
+    );
+
+  }
+  catch (erro) {}
+
+}
+
+
+function marcarSilencioAlarmePorStatusLocal_(
+  maquinaValor,
+  instanteMs
+) {
+
+  const chave =
+    normalizarMaquinaChave_(
+      maquinaValor
+    );
+
+  if (!chave) return;
+
+  silenciosAlarmeStatusLocal[chave] = {
+    statusEm:
+      Number(
+        instanteMs ||
+        Date.now()
+      )
+  };
+
+  salvarSilenciosAlarmeStatusLocal_();
+
+}
+
+
+function removerSilencioAlarmePorStatusLocal_(
+  maquinaValor
+) {
+
+  const chave =
+    normalizarMaquinaChave_(
+      maquinaValor
+    );
+
+  if (!chave) return;
+
+  delete silenciosAlarmeStatusLocal[chave];
+
+  salvarSilenciosAlarmeStatusLocal_();
+
+}
+
+
+function alarmePermitidoParaPendenciaLocal_(
+  item
+) {
+
+  if (!item) return false;
+
+  if (
+    item.alarmePermitido ===
+    false
+  ) {
+    return false;
+  }
+
+  const chave =
+    normalizarMaquinaChave_(
+      item.maquina || ''
+    );
+
+  const silencio =
+    chave
+      ? silenciosAlarmeStatusLocal[chave]
+      : null;
+
+  if (!silencio) {
+    return true;
+  }
+
+  if (
+    item.inicioCicloAtual
+  ) {
+
+    const inicio =
+      new Date(
+        item.inicioCicloAtual
+      );
+
+    if (
+      !isNaN(
+        inicio.getTime()
+      )
+    ) {
+
+      /*
+       * Silencia só o ciclo em que o status foi alterado.
+       * Na próxima hora, uma nova cobrança pode alarmar.
+       */
+      return (
+        Number(
+          silencio.statusEm || 0
+        ) <
+        inicio.getTime()
+      );
+
+    }
+
+  }
+
+  return true;
+
+}
+
+
+function atualizarAlarmeGlobalAposMudancaLocal_() {
+
+  try {
+
+    atualizarPainelPendenciasAntesDaMaquina(
+      ultimaRespostaPendenciasGlobal ||
+      {}
+    );
+
+  }
+  catch (erro) {}
+
+}
+
+
 const TEMPO_INSPECAO_CONCLUIDA_LOCAL_MS =
   2 * 60 * 60 * 1000;
 
@@ -3276,6 +3448,10 @@ function marcarInspecaoConcluidaLocal_(
     normalizarMaquinaChave_(
       maquinaValor
     );
+
+  removerSilencioAlarmePorStatusLocal_(
+    maquinaValor
+  );
 
   if (!chave) {
     return;
@@ -6979,7 +7155,7 @@ function atualizarPainelPendenciasAntesDaMaquina(
     return;
   }
 
-  const pendenciasServidor =
+  const servidor =
     resposta &&
     Array.isArray(
       resposta.pendencias
@@ -6987,16 +7163,13 @@ function atualizarPainelPendenciasAntesDaMaquina(
       ? resposta.pendencias
       : [];
 
-  const adiadasPorStatus =
-    resposta &&
-    Array.isArray(
-      resposta.adiadasPorStatus
-    )
-      ? resposta.adiadasPorStatus
-      : [];
-
+  /*
+   * Não removemos máquina do controle por status.
+   * Somente um vídeo efetivamente em finalização local
+   * fica temporariamente fora da lista visual.
+   */
   const pendencias =
-    pendenciasServidor.filter(
+    servidor.filter(
       function(item) {
 
         return !maquinaTemVideoEmProcessamentoLocal_(
@@ -7010,7 +7183,7 @@ function atualizarPainelPendenciasAntesDaMaquina(
     );
 
   const processando =
-    pendenciasServidor.filter(
+    servidor.filter(
       function(item) {
 
         return maquinaTemVideoEmProcessamentoLocal_(
@@ -7023,26 +7196,37 @@ function atualizarPainelPendenciasAntesDaMaquina(
       }
     );
 
-  const atrasadas =
+  const alarmesAtivos =
     pendencias.filter(
       function(item) {
 
-        return (
-          String(
-            item.status ||
-            ''
+        return Boolean(
+          item &&
+          item.cobrancaPermitida &&
+          alarmePermitidoParaPendenciaLocal_(
+            item
           )
-          .trim()
-          .toUpperCase() ===
-          'ATRASADA'
         );
 
       }
     );
 
-  if (
-    title
-  ) {
+  const alarmesSilenciados =
+    pendencias.filter(
+      function(item) {
+
+        return Boolean(
+          item &&
+          item.cobrancaPermitida &&
+          !alarmePermitidoParaPendenciaLocal_(
+            item
+          )
+        );
+
+      }
+    );
+
+  if (title) {
 
     title.textContent =
       pendencias.length
@@ -7093,7 +7277,7 @@ function atualizarPainelPendenciasAntesDaMaquina(
   );
 
   if (
-    atrasadas.length
+    alarmesAtivos.length
   ) {
 
     if (
@@ -7106,46 +7290,68 @@ function atualizarPainelPendenciasAntesDaMaquina(
     }
 
     text.textContent =
-      atrasadas.length === 1
-        ? '🔔 Existe 1 inspeção ATRASADA. O alarme é apenas um lembrete. Confira abaixo qual máquina está atrasada.'
+      alarmesAtivos.length === 1
+        ? '🔔 1 inspeção precisa de atenção. O alarme para quando a inspeção for realizada ou quando o status da máquina for atualizado para um estado diferente de PRODUZINDO.'
         : (
-            '🔔 Existem ' +
-            atrasadas.length +
-            ' inspeções ATRASADAS. O alarme é apenas um lembrete. Confira abaixo quais máquinas estão atrasadas.'
+            '🔔 ' +
+            alarmesAtivos.length +
+            ' inspeções precisam de atenção. O alarme para, em cada máquina, quando a inspeção for realizada ou quando o status for atualizado.'
+          );
+
+    if (
+      alarmesSilenciados.length
+    ) {
+
+      text.textContent +=
+        ' ' +
+        alarmesSilenciados.length +
+        (
+          alarmesSilenciados.length === 1
+            ? ' já foi silenciada pelo status.'
+            : ' já foram silenciadas pelo status.'
+        );
+
+    }
+
+  }
+  else
+  if (
+    alarmesSilenciados.length
+  ) {
+
+    pararAlarmePendenciaGlobal();
+
+    text.textContent =
+      alarmesSilenciados.length === 1
+        ? '⏸️ 1 inspeção está pendente, mas o alarme foi silenciado pelo status. A próxima hora gera nova cobrança.'
+        : (
+            '⏸️ ' +
+            alarmesSilenciados.length +
+            ' inspeções estão pendentes, mas os alarmes foram silenciados pelos respectivos status. A próxima hora gera nova cobrança.'
           );
 
   }
-  else if (
+  else
+  if (
     processando.length
   ) {
 
     pararAlarmePendenciaGlobal();
 
     text.textContent =
-      '⏳ A inspeção acabou de ser gravada neste aparelho e o vídeo está sendo finalizado. Ela não precisa ser refeita.';
-
-  }
-  else {
-
-    pararAlarmePendenciaGlobal();
-
-    text.textContent =
-      'ℹ️ Há inspeção(ões) pendente(s), mas nenhuma está atrasada neste momento. O alarme ainda não será acionado.';
+      '⏳ Vídeo em finalização. A máquina não precisa ser refeita agora.';
 
   }
 
   try {
 
-    list.innerHTML =
+    let htmlLista =
+      '';
+
+    htmlLista +=
       pendencias
         .map(
           function(item) {
-
-            const atraso =
-              Number(
-                item.atrasoMinutos ||
-                0
-              );
 
             const nome =
               escapeHtml(
@@ -7153,24 +7359,37 @@ function atualizarPainelPendenciasAntesDaMaquina(
                 'Máquina não identificada'
               );
 
-            const estado =
-              (
+            const atraso =
+              Number(
+                item.atrasoMinutos ||
+                0
+              );
+
+            const silenciada =
+              !alarmePermitidoParaPendenciaLocal_(
+                item
+              );
+
+            const status =
+              escapeHtml(
                 String(
-                  item.status ||
-                  ''
+                  item.statusMaquina ||
+                  'PRODUZINDO'
                 )
                 .trim()
-                .toUpperCase() ===
-                'ATRASADA'
-              )
-                ? (
-                    '🚨 ATRASADA ' +
-                    atraso +
-                    ' min'
-                  )
+                .toUpperCase()
+              );
+
+            const estado =
+              silenciada
+                ? '⏸️ ALARME SILENCIADO'
                 : (
                     item.ultimaInspecao
-                      ? '⏱️ PENDENTE'
+                      ? (
+                          '🚨 ATRASADA ' +
+                          atraso +
+                          ' min'
+                        )
                       : '🔔 SEM INSPEÇÃO REGISTRADA'
                   );
 
@@ -7182,28 +7401,88 @@ function atualizarPainelPendenciasAntesDaMaquina(
 
             return (
               '<button type="button" ' +
-                'class="alarm-overview-item alarm-pending-machine" ' +
+                'class="alarm-overview-item alarm-pending-machine' +
+                  (
+                    silenciada
+                      ? ' status-alarme-silenciado'
+                      : ''
+                  ) +
+                '" ' +
                 'data-maquina="' +
                 maquinaChave +
                 '" ' +
                 'onclick="selecionarMaquinaPendenteDoPainel(this)" ' +
-                'title="Toque para iniciar a inspeção desta máquina">' +
+                'title="Toque para abrir a máquina">' +
+
                 '<span class="alarm-overview-machine">' +
                   '🏭 ' +
                   nome +
                 '</span>' +
+
                 '<span class="alarm-overview-delay">' +
                   estado +
                 '</span>' +
-                '<span class="alarm-overview-open">' +
-                  '👉 INSPECIONAR' +
+
+                '<span class="clean-deferred-meta">' +
+                  'Status: ' +
+                  status +
+                  (
+                    item.cicloAtual
+                      ? ' • Ciclo ' +
+                        item.cicloAtual
+                      : ''
+                  ) +
                 '</span>' +
+
+                '<span class="alarm-overview-open">' +
+                  '👉 ' +
+                  (
+                    silenciada
+                      ? 'VER STATUS'
+                      : 'INSPECIONAR'
+                  ) +
+                '</span>' +
+
               '</button>'
             );
 
           }
         )
         .join('');
+
+    htmlLista +=
+      processando
+        .map(
+          function(item) {
+
+            const nome =
+              escapeHtml(
+                item &&
+                item.maquina
+                  ? item.maquina
+                  : 'Máquina'
+              );
+
+            return (
+              '<div class="alarm-overview-item" style="background:#FFF8E1;border:1px solid #E6C45D;">' +
+                '<span class="alarm-overview-machine">⏳ ' +
+                  nome +
+                '</span>' +
+                '<span class="alarm-overview-delay">VÍDEO EM FINALIZAÇÃO</span>' +
+              '</div>'
+            );
+
+          }
+        )
+        .join('');
+
+    list.innerHTML =
+      htmlLista ||
+      '<div class="alarm-overview-item">' +
+        '<span class="alarm-overview-machine">' +
+          '✅ Nenhuma máquina precisa de ação.' +
+        '</span>' +
+      '</div>';
 
   }
   catch (erro) {
@@ -7218,6 +7497,7 @@ function atualizarPainelPendenciasAntesDaMaquina(
   }
 
 }
+
 
 
 
@@ -11441,32 +11721,25 @@ async function salvarStatusMaquina() {
       'PRODUZINDO'
     ) {
 
-      /*
-       * Retorno à produção encerra a suspensão,
-       * mas NÃO conclui a inspeção.
-       */
+      removerSilencioAlarmePorStatusLocal_(
+        maquina
+      );
+
       carregarUltimaInspecaoMaquina();
 
     }
     else {
 
       /*
-       * Durante parada/quebra/manutenção/falta de material,
-       * a inspeção horária fica suspensa.
+       * O status não cancela a cobrança.
+       * Ele apenas silencia imediatamente o alarme deste ciclo.
        */
-      /*
-       * Suspende apenas o alarme da inspeção enquanto a máquina
-       * não produz. Não zera a última inspeção nem o próximo
-       * horário: o relógio continua correndo independentemente
-       * do status.
-       */
+      marcarSilencioAlarmePorStatusLocal_(
+        maquina,
+        Date.now()
+      );
+
       inspecaoSuspensa =
-        true;
-
-      inspecaoVideoConcluido =
-        false;
-
-      inspecaoConcluidaNesteCiclo =
         false;
 
       alarmeInspecaoAtivo =
@@ -11479,7 +11752,17 @@ async function salvarStatusMaquina() {
     }
 
     try {
-      consultarPendenciasAntesDaMaquina();
+      atualizarAlarmeGlobalAposMudancaLocal_();
+    }
+    catch (erroAlarmeLocal) {}
+
+    try {
+      consultarPendenciasAntesDaMaquina({
+        forcarAtualizacao:
+          true,
+        silencioso:
+          true
+      });
     }
     catch (erro) {}
 
@@ -13628,19 +13911,30 @@ function manterStatusAtual() {
   }
   else {
 
-    /*
-     * Apenas suspende o alarme enquanto a máquina não produz.
-     * O relógio continua baseado na última inspeção concluída.
-     */
+    marcarSilencioAlarmePorStatusLocal_(
+      maquina,
+      Date.now()
+    );
+
     inspecaoSuspensa =
-      true;
+      false;
 
     pararAlarmeInspecaoContinuo();
 
   }
 
   try {
-    consultarPendenciasAntesDaMaquina();
+    atualizarAlarmeGlobalAposMudancaLocal_();
+  }
+  catch (erroAlarmeLocal) {}
+
+  try {
+    consultarPendenciasAntesDaMaquina({
+      forcarAtualizacao:
+        true,
+      silencioso:
+        true
+    });
   }
   catch (erro) {}
 
@@ -19942,6 +20236,8 @@ document.addEventListener(
     atualizarStatusPushUI_();
 
     carregarInspecoesConcluidasLocal_();
+
+    carregarSilenciosAlarmeStatusLocal_();
 
     carregarVideosProcessandoLocal_();
 
