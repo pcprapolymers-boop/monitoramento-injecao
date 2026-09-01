@@ -521,7 +521,7 @@
   color:#C62828;
 }
 
-/* V13.66 — inspeções atrasadas: topo da lista + destaque vermelho */
+/* V13.68 — inspeções atrasadas: prioridade por grupo + destaque vermelho */
 #preMachineAlarmCard .alarm-pending-machine.alarm-pending-overdue {
   background:#C62828 !important;
   border:2px solid #8E0000 !important;
@@ -3971,7 +3971,7 @@ const TAMANHO_CHUNK =
   512 * 1024;
 
 const TIMESLICE_GRAVACAO =
-  2000;
+  4000;
 
 /*
  * V13.52 — envio paralelo controlado.
@@ -3979,10 +3979,54 @@ const TIMESLICE_GRAVACAO =
  * da pasta temporária no Apps Script.
  */
 const LIMITE_ENVIO_VIDEO_PARALELO =
-  3;
+  5;
 
 const LIMITE_ENVIO_AUDIO_PARALELO =
-  4;
+  6;
+
+function obterLimiteParaleloUpload_(mediaType) {
+
+  const ehAudio =
+    String(mediaType || '').toUpperCase() === 'AUDIO';
+
+  const limitePadrao =
+    ehAudio
+      ? LIMITE_ENVIO_AUDIO_PARALELO
+      : LIMITE_ENVIO_VIDEO_PARALELO;
+
+  try {
+
+    const conexao =
+      navigator.connection ||
+      navigator.mozConnection ||
+      navigator.webkitConnection ||
+      null;
+
+    const tipo =
+      String(
+        conexao && conexao.effectiveType
+          ? conexao.effectiveType
+          : ''
+      ).toLowerCase();
+
+    if (tipo === 'slow-2g' || tipo === '2g') {
+      return 2;
+    }
+
+    if (tipo === '3g') {
+      return Math.min(3, limitePadrao);
+    }
+
+    return limitePadrao;
+
+  }
+  catch (erroConexao) {
+
+    return limitePadrao;
+
+  }
+
+}
 
 
 let filaProcessando =
@@ -6279,6 +6323,11 @@ async function liberarWakeLockSeSeguro() {
 }
 
 
+/*
+ * V13.67 — upload acelerado.
+ * Blocos de vídeo maiores e paralelismo adaptativo conforme a conexão.
+ */
+
 async function processarJobUpload(
   job
 ) {
@@ -6317,10 +6366,7 @@ async function processarJobUpload(
       'VIDEO';
 
     const limiteParalelo =
-      mediaType ===
-        'AUDIO'
-        ? LIMITE_ENVIO_AUDIO_PARALELO
-        : LIMITE_ENVIO_VIDEO_PARALELO;
+      obterLimiteParaleloUpload_(mediaType);
 
     /*
      * O primeiro chunk é isolado. Depois que a pasta temporária existe,
@@ -6433,27 +6479,10 @@ async function processarJobUpload(
         }
       );
 
-      mostrarMensagem(
-        (
-          mediaType === 'AUDIO'
-            ? '🎙️ Enviando áudio '
-            : '☁️ Enviando vídeo '
-        ) +
-        (
-          job.produto ||
-          ''
-        ) +
-        ' — partes ' +
-        (
-          inicioLote + 1
-        ) +
-        ' a ' +
-        fimLote +
-        ' de ' +
-        job.totalChunks +
-        '...',
-        'warning'
-      );
+      /* Upload silencioso durante a transferência.
+       * Atualizações visuais por lote foram removidas para reduzir
+       * reflow/repaint no Android e deixar o envio mais fluido.
+       */
 
       const resultados =
         await Promise.allSettled(
@@ -7231,6 +7260,16 @@ function atualizarSeletorMaquina() {
 
 let intervaloContagemPendenciasGlobal = null;
 
+/* V13.68 — fila visual estável por prioridade.
+ * Prioridade 0: PRODUZINDO + inspeção atrasada.
+ * Prioridade 1: máquina parada + inspeção atrasada.
+ * Prioridade 2: demais pendências.
+ * Dentro da mesma prioridade, preserva a ordem já exibida.
+ * O contador de 1s nunca reordena o DOM.
+ */
+let ordemVisualPendenciasGlobal = new Map();
+let proximoIndiceOrdemPendenciasGlobal = 0;
+
 
 function formatarContagemPendencia_(deltaMs) {
 
@@ -7282,24 +7321,20 @@ function atualizarContadoresPendenciasGlobal_() {
         return;
       }
 
+      const item = texto.closest('.alarm-pending-machine');
+
       if (!proxima || !Number.isFinite(proxima)) {
         texto.textContent =
           '⚠️ INSPEÇÃO IMEDIATAMENTE NECESSÁRIA';
         texto.classList.add('pendencia-contador-atrasado');
 
-        const itemSemPrazo = texto.closest('.alarm-pending-machine');
-        if (itemSemPrazo) {
-          itemSemPrazo.classList.add('alarm-pending-overdue');
-          const listaSemPrazo = document.getElementById('preMachineAlarmList');
-          if (listaSemPrazo && listaSemPrazo.firstElementChild !== itemSemPrazo) {
-            listaSemPrazo.insertBefore(itemSemPrazo, listaSemPrazo.firstElementChild);
-          }
+        if (item) {
+          item.classList.add('alarm-pending-overdue');
         }
         return;
       }
 
       const delta = proxima - agora;
-      const item = texto.closest('.alarm-pending-machine');
 
       if (delta > 0) {
 
@@ -7310,6 +7345,9 @@ function atualizarContadoresPendenciasGlobal_() {
         texto.classList.remove('pendencia-contador-atrasado');
 
         if (item) {
+          /* V13.68: apenas altera a aparência.
+           * Nunca reposiciona a máquina durante o contador.
+           */
           item.classList.remove('alarm-pending-overdue');
         }
 
@@ -7323,14 +7361,8 @@ function atualizarContadoresPendenciasGlobal_() {
         texto.classList.add('pendencia-contador-atrasado');
 
         if (item) {
+          /* A posição só muda na próxima atualização da lista pelo servidor. */
           item.classList.add('alarm-pending-overdue');
-
-          const lista =
-            document.getElementById('preMachineAlarmList');
-
-          if (lista && lista.firstElementChild !== item) {
-            lista.insertBefore(item, lista.firstElementChild);
-          }
         }
 
       }
@@ -7598,10 +7630,39 @@ function atualizarPainelPendenciasAntesDaMaquina(
       '';
 
     /*
-     * V13.66 — inspeções atrasadas sempre vêm primeiro.
-     * Entre as atrasadas, a mais antiga fica no topo.
+     * V13.68 — fila visual estável.
+     * Prioridade 0: PRODUZINDO + inspeção atrasada.
+     * Prioridade 1: máquina parada + inspeção atrasada.
+     * Prioridade 2: demais pendências.
+     * Dentro da mesma prioridade, a ordem já exibida é preservada.
      */
     const agoraLista = Date.now();
+    const chavesAtuaisPendencias = new Set();
+
+    pendencias.forEach(function(item, indice) {
+      const chave =
+        normalizarMaquinaChave_(
+          item && item.maquina
+            ? item.maquina
+            : 'PENDENCIA_' + indice
+        );
+
+      chavesAtuaisPendencias.add(chave);
+
+      if (!ordemVisualPendenciasGlobal.has(chave)) {
+        ordemVisualPendenciasGlobal.set(
+          chave,
+          proximoIndiceOrdemPendenciasGlobal++
+        );
+      }
+    });
+
+    Array.from(ordemVisualPendenciasGlobal.keys()).forEach(function(chave) {
+      if (!chavesAtuaisPendencias.has(chave)) {
+        ordemVisualPendenciasGlobal.delete(chave);
+      }
+    });
+
     const pendenciasOrdenadas =
       pendencias
         .map(function(item, indice) {
@@ -7619,6 +7680,13 @@ function atualizarPainelPendenciasAntesDaMaquina(
           const atraso =
             Number(item && item.atrasoMinutos || 0);
 
+          const statusCodigo =
+            normalizarStatusMaquinaUI_(
+              item && item.statusMaquina
+                ? item.statusMaquina
+                : 'PRODUZINDO'
+            );
+
           const atrasada =
             String(item && item.status || '').trim().toUpperCase() === 'ATRASADA' ||
             atraso > 0 ||
@@ -7629,30 +7697,32 @@ function atualizarPainelPendenciasAntesDaMaquina(
               prazoMs <= agoraLista
             );
 
+          const prioridade =
+            atrasada
+              ? (statusCodigo === 'PRODUZINDO' ? 0 : 1)
+              : 2;
+
+          const chave =
+            normalizarMaquinaChave_(
+              item && item.maquina
+                ? item.maquina
+                : 'PENDENCIA_' + indice
+            );
+
           return {
             item: item,
-            indice: indice,
-            atrasada: atrasada,
-            atraso: atraso,
-            prazoMs: prazoMs
+            prioridade: prioridade,
+            ordem: ordemVisualPendenciasGlobal.has(chave)
+              ? ordemVisualPendenciasGlobal.get(chave)
+              : indice
           };
         })
         .sort(function(a, b) {
-          if (a.atrasada !== b.atrasada) {
-            return a.atrasada ? -1 : 1;
+          if (a.prioridade !== b.prioridade) {
+            return a.prioridade - b.prioridade;
           }
 
-          if (a.atrasada && b.atrasada) {
-            if (a.atraso !== b.atraso) {
-              return b.atraso - a.atraso;
-            }
-
-            if (a.prazoMs && b.prazoMs && a.prazoMs !== b.prazoMs) {
-              return a.prazoMs - b.prazoMs;
-            }
-          }
-
-          return a.indice - b.indice;
+          return a.ordem - b.ordem;
         })
         .map(function(registro) {
           return registro.item;
@@ -7740,6 +7810,11 @@ function atualizarPainelPendenciasAntesDaMaquina(
                 proximaInspecaoMs <= Date.now()
               );
 
+            const prioridadeVisual =
+              atrasadaVisual
+                ? (statusCodigo === 'PRODUZINDO' ? 0 : 1)
+                : 2;
+
             return (
               '<button type="button" ' +
                 'class="alarm-overview-item alarm-pending-machine' +
@@ -7759,6 +7834,9 @@ function atualizarPainelPendenciasAntesDaMaquina(
                 '" ' +
                 'data-status="' +
                 status +
+                '" ' +
+                'data-prioridade="' +
+                prioridadeVisual +
                 '" ' +
                 'onclick="selecionarMaquinaPendenteDoPainel(this)" ' +
                 'title="Toque para abrir a máquina">' +
