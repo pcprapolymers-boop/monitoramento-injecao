@@ -965,6 +965,34 @@ button:active {
   background: #FFFDF6 !important;
   border-left: 5px solid #8E6A2A !important;
 }
+
+/* V13.57 — prioridade MANTER antes do áudio */
+#btnManterStatus:not(:disabled) {
+  background: #1976D2 !important;
+  color: #FFFFFF !important;
+  opacity: 1 !important;
+}
+
+#btnManterStatus:disabled {
+  background: #B8BEC4 !important;
+  color: #5B636B !important;
+  opacity: .75 !important;
+  cursor: not-allowed !important;
+}
+
+#btnSaveMachineStatus:disabled {
+  background: #B8BEC4 !important;
+  color: #5B636B !important;
+  opacity: .75 !important;
+  cursor: not-allowed !important;
+}
+
+#btnSaveMachineStatus:not(:disabled) {
+  background: #1976D2 !important;
+  color: #FFFFFF !important;
+  opacity: 1 !important;
+}
+/* V13.58 — bloqueio de tela + Push */
 </style>
 
   <link rel="preconnect" href="https://script.google.com">
@@ -2372,6 +2400,11 @@ async function solicitarPushOperacional() {
     }
 
     await registrarTokenPushNoServidor_(
+      token
+    );
+
+    localStorage.setItem(
+      'ra_polymers_push_token',
       token
     );
 
@@ -7608,6 +7641,105 @@ function vibrarAlarmeInspecao_() {
 
   }
   catch (erro) {}
+
+}
+
+
+
+function existePendenciaDeCobrancaLocal_() {
+
+  const resposta =
+    ultimaRespostaPendenciasGlobal;
+
+  if (
+    !resposta ||
+    !Array.isArray(
+      resposta.pendencias
+    )
+  ) {
+    return false;
+  }
+
+  return resposta.pendencias.some(
+    function(item) {
+
+      if (
+        !item ||
+        !item.cobrancaPermitida
+      ) {
+        return false;
+      }
+
+      const nome =
+        item.maquina || '';
+
+      return (
+        !maquinaTemVideoEmProcessamentoLocal_(
+          nome
+        ) &&
+        !maquinaTemInspecaoConcluidaLocal_(
+          nome
+        )
+      );
+
+    }
+  );
+
+}
+
+
+async function enviarPushAoBloquearTela_() {
+
+  if (
+    localStorage.getItem(
+      'ra_polymers_push_ativo'
+    ) !== '1'
+  ) {
+    return;
+  }
+
+  const token =
+    localStorage.getItem(
+      'ra_polymers_push_token'
+    ) || '';
+
+  if (!token) {
+    return;
+  }
+
+  if (!existePendenciaDeCobrancaLocal_()) {
+    return;
+  }
+
+  try {
+
+    await fetch(
+      URL_APPS_SCRIPT,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type':
+            'text/plain;charset=utf-8'
+        },
+        body: JSON.stringify({
+          acao: 'pushAlarmeBloqueio',
+          token: token,
+          maquina: maquina || ''
+        }),
+        mode: 'no-cors',
+        keepalive: true
+      }
+    );
+
+  }
+  catch (erro) {
+
+    console.warn(
+      'Push ao bloquear tela não pôde ser solicitado:',
+      erro
+    );
+
+  }
 
 }
 
@@ -13109,7 +13241,7 @@ function atualizarStatusAudioUI() {
 
   /*
    * GRAVAR:
-   * azul = pode gravar
+   * azul = ainda pode gravar
    * vermelho = gravando
    * verde = áudio pronto
    */
@@ -13168,99 +13300,118 @@ function atualizarStatusAudioUI() {
   }
 
   /*
-   * ATUALIZAR:
-   * sem áudio pronto = cinza/travado
-   * com áudio pronto = azul/liberado
+   * STATUS NÃO PRODUTIVO:
    *
-   * Para PRODUZINDO, statusAudioConcluido já é TRUE.
+   * Antes de concluir um novo áudio:
+   *   MANTER STATUS = AZUL + habilitado
+   *   ATUALIZAR     = CINZA + travado
+   *
+   * Depois do áudio:
+   *   MANTER STATUS = CINZA + travado
+   *   ATUALIZAR     = AZUL + habilitado
+   *
+   * Para PRODUZINDO:
+   *   MANTER fica oculto e ATUALIZAR fica azul.
    */
+  const statusAtual =
+    String(
+      statusOperacionalMaquina ||
+      (
+        document.getElementById(
+          'machineStatusSelector'
+        ) &&
+        document.getElementById(
+          'machineStatusSelector'
+        ).value
+      ) ||
+      'PRODUZINDO'
+    )
+    .trim()
+    .toUpperCase();
+
+  const statusNaoProdutivo =
+    statusAtual !==
+    'PRODUZINDO';
+
+  if (btnManter) {
+
+    btnManter.style.display =
+      statusNaoProdutivo
+        ? 'block'
+        : 'none';
+
+    if (
+      statusNaoProdutivo
+    ) {
+
+      btnManter.disabled =
+        statusAudioConcluido;
+
+      btnManter.style.background =
+        statusAudioConcluido
+          ? '#B8BEC4'
+          : '#1976D2';
+
+      btnManter.style.color =
+        statusAudioConcluido
+          ? '#5B636B'
+          : '#FFFFFF';
+
+      btnManter.style.cursor =
+        statusAudioConcluido
+          ? 'not-allowed'
+          : 'pointer';
+
+      btnManter.style.opacity =
+        statusAudioConcluido
+          ? '0.75'
+          : '1';
+
+      btnManter.textContent =
+        '🔁 MANTER STATUS ATUAL';
+
+    }
+
+  }
+
   if (btnSalvar) {
 
+    /*
+     * Para PRODUZINDO não existe áudio obrigatório.
+     * Para qualquer outro status, o áudio precisa estar concluído.
+     */
+    const liberarAtualizar =
+      statusAtual ===
+      'PRODUZINDO' ||
+      statusAudioConcluido;
+
     btnSalvar.disabled =
-      !statusAudioConcluido;
+      !liberarAtualizar;
 
     btnSalvar.style.background =
-      statusAudioConcluido
+      liberarAtualizar
         ? '#1976D2'
         : '#B8BEC4';
 
     btnSalvar.style.color =
-      statusAudioConcluido
+      liberarAtualizar
         ? '#FFFFFF'
         : '#5B636B';
 
     btnSalvar.style.cursor =
-      statusAudioConcluido
+      liberarAtualizar
         ? 'pointer'
         : 'not-allowed';
 
     btnSalvar.style.opacity =
-      statusAudioConcluido
+      liberarAtualizar
         ? '1'
         : '0.75';
 
   }
 
   /*
-   * MANTER STATUS:
-   * exatamente a mesma trava visual do ATUALIZAR.
-   */
-  if (btnManter) {
-
-    const statusAtual =
-      String(
-        statusOperacionalMaquina ||
-        'PRODUZINDO'
-      )
-        .trim()
-        .toUpperCase();
-
-    const mostrarManter =
-      Boolean(
-        maquina &&
-        statusAtual !==
-          'PRODUZINDO'
-      );
-
-    btnManter.style.display =
-      mostrarManter
-        ? 'block'
-        : 'none';
-
-    if (
-      mostrarManter
-    ) {
-
-      btnManter.disabled =
-        !statusAudioConcluido;
-
-      btnManter.style.background =
-        statusAudioConcluido
-          ? '#1976D2'
-          : '#B8BEC4';
-
-      btnManter.style.color =
-        statusAudioConcluido
-          ? '#FFFFFF'
-          : '#5B636B';
-
-      btnManter.style.cursor =
-        statusAudioConcluido
-          ? 'pointer'
-          : 'not-allowed';
-
-      btnManter.style.opacity =
-        statusAudioConcluido
-          ? '1'
-          : '0.75';
-
-    }
-
-  }
-
-  /*
-   * REGRAVAR só aparece após um áudio pronto.
-   * Quando disponível, é uma nova ação azul.
+   * REGRAVAR só fica disponível depois do áudio concluído.
    */
   if (btnRegravar) {
 
@@ -13333,6 +13484,7 @@ function atualizarStatusAudioUI() {
 
 
 
+
 async function gravarAudioStatus() {
 
   if (statusAudioGravando) return;
@@ -13385,15 +13537,14 @@ async function gravarAudioStatus() {
   try {
 
     /*
-     * Antes de pedir o microfone, deixa TODAS as ações de confirmação
-     * cinza/travadas. O único botão que permanece acionável é GRAVAR.
+     * Antes de pedir o microfone:
+     * - ATUALIZAR STATUS fica cinza/travado;
+     * - MANTER STATUS continua azul e pode ser usado para confirmar
+     *   que a máquina permanece no status atual.
      */
     const botoesConfirmacaoAntesAudio = [
       document.getElementById(
         'btnSaveMachineStatus'
-      ),
-      document.getElementById(
-        'btnManterStatus'
       )
     ];
 
@@ -14165,11 +14316,6 @@ function atualizarTravamentoCamposStatusAudio(
       'machineStatusSelector'
     );
 
-  const manter =
-    document.getElementById(
-      'btnManterStatus'
-    );
-
   if (operador) {
     operador.disabled =
       statusAudioCamposTravados;
@@ -14177,11 +14323,6 @@ function atualizarTravamentoCamposStatusAudio(
 
   if (status) {
     status.disabled =
-      statusAudioCamposTravados;
-  }
-
-  if (manter) {
-    manter.disabled =
       statusAudioCamposTravados;
   }
 
@@ -20840,6 +20981,41 @@ document.addEventListener(
 
     if (
       document.visibilityState ===
+      'hidden'
+    ) {
+
+      /*
+       * O Android/Brave pode suspender a página bloqueada.
+       * Portanto o Web Audio local deixa de ser a camada principal.
+       */
+      pararAlarmePendenciaGlobal();
+
+      /*
+       * Durante gravação de vídeo, não gera um Push de bloqueio
+       * para a própria máquina.
+       */
+      if (
+        !gravacaoAtivaBloqueiaAlarme()
+      ) {
+
+        enviarPushAoBloquearTela_()
+          .catch(
+            function(erro) {
+              console.warn(
+                'Falha ao solicitar Push no bloqueio:',
+                erro
+              );
+            }
+          );
+
+      }
+
+      return;
+
+    }
+
+    if (
+      document.visibilityState ===
       'visible'
     ) {
 
@@ -20848,6 +21024,23 @@ document.addEventListener(
       ) {
 
         await solicitarWakeLock();
+
+      }
+
+      try {
+
+        await consultarPendenciasAntesDaMaquina({
+          forcarAtualizacao: true,
+          silencioso: true
+        });
+
+      }
+      catch (erroPendencias) {
+
+        console.warn(
+          'Falha ao atualizar pendências ao voltar à tela:',
+          erroPendencias
+        );
 
       }
 
