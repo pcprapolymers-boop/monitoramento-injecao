@@ -541,6 +541,41 @@
   background:#B71C1C !important;
 }
 
+/* V13.73 — destaque visual pelo estado real do alarme */
+#preMachineAlarmCard .alarm-pending-machine.status-alarme-ativo {
+  background:#C62828 !important;
+  border:2px solid #8E0000 !important;
+  color:#FFFFFF !important;
+  box-shadow:0 3px 10px rgba(198,40,40,.22);
+}
+
+#preMachineAlarmCard .alarm-pending-machine.status-alarme-ativo .alarm-overview-machine,
+#preMachineAlarmCard .alarm-pending-machine.status-alarme-ativo .alarm-overview-delay,
+#preMachineAlarmCard .alarm-pending-machine.status-alarme-ativo .clean-deferred-meta,
+#preMachineAlarmCard .alarm-pending-machine.status-alarme-ativo .alarm-overview-open,
+#preMachineAlarmCard .alarm-pending-machine.status-alarme-ativo [data-contador-proxima-inspecao] {
+  color:#FFFFFF !important;
+}
+
+#preMachineAlarmCard .alarm-pending-machine.status-alarme-silenciado {
+  background:#FFFFFF !important;
+  border:2px solid #C62828 !important;
+  color:#C62828 !important;
+  box-shadow:none;
+}
+
+#preMachineAlarmCard .alarm-pending-machine.status-alarme-silenciado .alarm-overview-machine,
+#preMachineAlarmCard .alarm-pending-machine.status-alarme-silenciado .alarm-overview-delay,
+#preMachineAlarmCard .alarm-pending-machine.status-alarme-silenciado .clean-deferred-meta,
+#preMachineAlarmCard .alarm-pending-machine.status-alarme-silenciado .alarm-overview-open,
+#preMachineAlarmCard .alarm-pending-machine.status-alarme-silenciado [data-contador-proxima-inspecao] {
+  color:#C62828 !important;
+}
+
+#preMachineAlarmCard .alarm-pending-machine.status-alarme-silenciado:hover {
+  background:#FFF8F8 !important;
+}
+
 @media (max-width:760px) {
   .alarm-overview-item {
     align-items:flex-start;
@@ -7886,7 +7921,7 @@ function atualizarPainelPendenciasAntesDaMaquina(
                   (
                     silenciada
                       ? ' status-alarme-silenciado'
-                      : ''
+                      : ' status-alarme-ativo'
                   ) +
                   (
                     atrasadaVisual
@@ -19523,84 +19558,29 @@ async function finalizarUpload(
       ? job.uploadId
       : null;
 
-  if (!uploadId) {
+
+  if (
+    !uploadId
+  ) {
+
     throw new Error(
       'Upload ID não informado para finalização.'
     );
+
   }
 
-  /*
-   * V13.72 — não inicia uma segunda montagem se o servidor
-   * já concluiu este upload. Isso é importante quando a página
-   * e o Service Worker trabalham simultaneamente.
-   */
-  try {
-    const existente = await consultarStatusFinalUmaVez_(uploadId, job);
-    if (existente && existente.idArquivo) {
-      return existente;
-    }
-  } catch (erroPrecheck) {
-    debugUploadCliente('FINAL_PRECHECK_FALHOU', job, {
-      erro: erroPrecheck && erroPrecheck.message ? erroPrecheck.message : String(erroPrecheck)
-    });
-  }
 
-  await dispararPostFinalizacao(uploadId, job);
-  return aguardarStatusFinal(uploadId, job);
+  await dispararPostFinalizacao(
+    uploadId,
+    job
+  );
 
-}
 
-function consultarStatusFinalUmaVez_(uploadId, job) {
-  return new Promise(function(resolve) {
-    const callbackName = 'jsonpFinalPrecheck_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8);
-    let script = null;
-    let encerrado = false;
+  return aguardarStatusFinal(
+    uploadId,
+    job
+  );
 
-    const limpar = function() {
-      try { if (script && script.parentNode) script.parentNode.removeChild(script); } catch (erro) {}
-      try { delete window[callbackName]; } catch (erro) {}
-    };
-
-    const timer = setTimeout(function() {
-      if (encerrado) return;
-      encerrado = true;
-      limpar();
-      resolve(null);
-    }, 3000);
-
-    window[callbackName] = function(resposta) {
-      if (encerrado) return;
-      encerrado = true;
-      clearTimeout(timer);
-      limpar();
-      if (resposta && resposta.sucesso && resposta.idArquivo && resposta.uploadId === uploadId) {
-        resolve(resposta);
-      } else {
-        resolve(null);
-      }
-    };
-
-    script = document.createElement('script');
-    script.onerror = function() {
-      if (encerrado) return;
-      encerrado = true;
-      clearTimeout(timer);
-      limpar();
-      resolve(null);
-    };
-
-    script.src =
-      URL_APPS_SCRIPT +
-      '?status=final' +
-      '&uploadId=' + encodeURIComponent(uploadId) +
-      '&maquina=' + encodeURIComponent(job && job.maquina ? job.maquina : '') +
-      '&operador=' + encodeURIComponent(job && job.operador ? job.operador : '') +
-      '&produto=' + encodeURIComponent(job && job.produto ? job.produto : '') +
-      '&callback=' + encodeURIComponent(callbackName) +
-      '&_=' + Date.now();
-
-    document.head.appendChild(script);
-  });
 }
 
 
