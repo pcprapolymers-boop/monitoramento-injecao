@@ -541,7 +541,7 @@
   background:#B71C1C !important;
 }
 
-/* V13.74 — destaque visual pelo estado real do alarme */
+/* V13.75 — destaque visual pelo estado real do alarme */
 #preMachineAlarmCard .alarm-pending-machine.status-alarme-ativo {
   background:#C62828 !important;
   border:2px solid #8E0000 !important;
@@ -16136,33 +16136,23 @@ async function iniciarCamera() {
           );
 
         /*
-         * A escala "1x" é o zoom nativo.
-         * Se a câmera aceitar 1, usamos 1.
-         * Caso o min seja > 1, usamos o menor valor possível,
-         * pois aquele dispositivo não expõe 1x via API.
+         * V13.75 — NÃO aplicar o mínimo da faixa como substituto de 1x.
+         * Alguns tablets Android informam minZoom > 1 por limitações do driver.
+         * Aplicar esse mínimo pode introduzir zoom digital/crop involuntário.
+         * Só pedimos zoom=1 quando 1x realmente está dentro da faixa exposta.
+         * Caso contrário, deixamos o navegador usar o zoom nativo do aparelho.
          */
-        let zoom1x =
-          1;
+        const zoom1xDisponivel =
+          Number.isFinite(minZoom) &&
+          Number.isFinite(maxZoom) &&
+          minZoom <= 1 &&
+          maxZoom >= 1;
+
+        let zoomAplicado =
+          null;
 
         if (
-          Number.isFinite(
-            minZoom
-          ) &&
-          Number.isFinite(
-            maxZoom
-          ) &&
-          (
-            1 < minZoom ||
-            1 > maxZoom
-          )
-        ) {
-
-          zoom1x =
-            minZoom;
-
-        }
-
-        if (
+          zoom1xDisponivel &&
           typeof track.applyConstraints ===
           'function'
         ) {
@@ -16171,12 +16161,13 @@ async function iniciarCamera() {
 
             advanced: [
               {
-                zoom:
-                  zoom1x
+                zoom: 1
               }
             ]
 
           });
+
+          zoomAplicado = 1;
 
         }
 
@@ -16192,7 +16183,9 @@ async function iniciarCamera() {
               requestedZoom:
                 1,
               appliedZoom:
-                zoom1x,
+                zoomAplicado,
+              zoom1xDisponivel:
+                zoom1xDisponivel,
               capabilitiesZoom:
                 {
                   min:
@@ -16345,8 +16338,16 @@ async function iniciarCamera() {
     camera.style.transform =
       'none';
 
+    /*
+     * V13.75 — não cortar o preview.
+     * Em tablets com sensor 4:3, object-fit:cover podia dar aparência
+     * de zoom mesmo quando o stream estava correto.
+     */
     camera.style.objectFit =
-      'cover';
+      'contain';
+
+    camera.style.background =
+      '#000';
 
     camera.style.objectPosition =
       'center center';
