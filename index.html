@@ -1776,6 +1776,24 @@ button:active {
         Gravando...
       </div>
 
+      <div
+        class="recording-instruction"
+        style="
+          margin-top:10px;
+          padding:10px 12px;
+          border-radius:10px;
+          background:#FFF8E1;
+          border:1px solid #F0D98A;
+          color:#6B4F00;
+          font-size:13px;
+          font-weight:800;
+          line-height:1.35;
+          text-align:center;
+        "
+      >
+        Filmar a injeção da peça, a peça produzida sendo rebarbada e o ciclo no painel da máquina.
+      </div>
+
     </div>
 
   </div>
@@ -6677,12 +6695,8 @@ async function processarJobUpload(
 
     await atualizarFilaUI();
 
-    mostrarMensagem(
-      mediaType === 'AUDIO'
-        ? '🧩 Montando o áudio no Google Drive — aguarde...'
-        : '🧩 Montando o vídeo no Google Drive — aguarde...',
-      'warning'
-    );
+    /* V13.72 — finalização silenciosa e idempotente. */
+    limparMensagem();
 
     debugUploadCliente(
       'ANTES_FINALIZAR_UPLOAD',
@@ -10882,7 +10896,7 @@ function tentarConcluirInspecao_() {
 }
 
 
-/* V13.71 — proteção local permanece deliberadamente por 2 horas. */
+/* V13.72 — proteção local permanece deliberadamente por 2 horas. */
 
 function marcarInspecaoComoConcluida(
   instanteISO
@@ -19509,29 +19523,84 @@ async function finalizarUpload(
       ? job.uploadId
       : null;
 
-
-  if (
-    !uploadId
-  ) {
-
+  if (!uploadId) {
     throw new Error(
       'Upload ID não informado para finalização.'
     );
-
   }
 
+  /*
+   * V13.72 — não inicia uma segunda montagem se o servidor
+   * já concluiu este upload. Isso é importante quando a página
+   * e o Service Worker trabalham simultaneamente.
+   */
+  try {
+    const existente = await consultarStatusFinalUmaVez_(uploadId, job);
+    if (existente && existente.idArquivo) {
+      return existente;
+    }
+  } catch (erroPrecheck) {
+    debugUploadCliente('FINAL_PRECHECK_FALHOU', job, {
+      erro: erroPrecheck && erroPrecheck.message ? erroPrecheck.message : String(erroPrecheck)
+    });
+  }
 
-  await dispararPostFinalizacao(
-    uploadId,
-    job
-  );
+  await dispararPostFinalizacao(uploadId, job);
+  return aguardarStatusFinal(uploadId, job);
 
+}
 
-  return aguardarStatusFinal(
-    uploadId,
-    job
-  );
+function consultarStatusFinalUmaVez_(uploadId, job) {
+  return new Promise(function(resolve) {
+    const callbackName = 'jsonpFinalPrecheck_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8);
+    let script = null;
+    let encerrado = false;
 
+    const limpar = function() {
+      try { if (script && script.parentNode) script.parentNode.removeChild(script); } catch (erro) {}
+      try { delete window[callbackName]; } catch (erro) {}
+    };
+
+    const timer = setTimeout(function() {
+      if (encerrado) return;
+      encerrado = true;
+      limpar();
+      resolve(null);
+    }, 3000);
+
+    window[callbackName] = function(resposta) {
+      if (encerrado) return;
+      encerrado = true;
+      clearTimeout(timer);
+      limpar();
+      if (resposta && resposta.sucesso && resposta.idArquivo && resposta.uploadId === uploadId) {
+        resolve(resposta);
+      } else {
+        resolve(null);
+      }
+    };
+
+    script = document.createElement('script');
+    script.onerror = function() {
+      if (encerrado) return;
+      encerrado = true;
+      clearTimeout(timer);
+      limpar();
+      resolve(null);
+    };
+
+    script.src =
+      URL_APPS_SCRIPT +
+      '?status=final' +
+      '&uploadId=' + encodeURIComponent(uploadId) +
+      '&maquina=' + encodeURIComponent(job && job.maquina ? job.maquina : '') +
+      '&operador=' + encodeURIComponent(job && job.operador ? job.operador : '') +
+      '&produto=' + encodeURIComponent(job && job.produto ? job.produto : '') +
+      '&callback=' + encodeURIComponent(callbackName) +
+      '&_=' + Date.now();
+
+    document.head.appendChild(script);
+  });
 }
 
 
