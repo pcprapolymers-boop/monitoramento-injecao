@@ -10882,6 +10882,8 @@ function tentarConcluirInspecao_() {
 }
 
 
+/* V13.71 — proteção local permanece deliberadamente por 2 horas. */
+
 function marcarInspecaoComoConcluida(
   instanteISO
 ) {
@@ -19293,6 +19295,32 @@ function aguardarStatusChunk(
 
               if (
                 resposta &&
+                resposta.finalizando
+              ) {
+
+                debugUploadCliente(
+                  'STATUS_FINALIZACAO_EM_ANDAMENTO',
+                  job,
+                  { tentativa: tentativas }
+                );
+
+                if (tentativas >= maxTentativas) {
+                  reject(
+                    new Error(
+                      'A montagem do vídeo ainda está em andamento no servidor.'
+                    )
+                  );
+                  return;
+                }
+
+                setTimeout(consultar, 1000);
+                return;
+
+              }
+
+
+              if (
+                resposta &&
                 resposta.erro
               ) {
 
@@ -19829,7 +19857,7 @@ function aguardarStatusFinal(
         0;
 
 
-      const maxTentativas = 20;
+      const maxTentativas = 180;
 
 
       const consultar =
