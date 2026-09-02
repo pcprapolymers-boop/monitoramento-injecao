@@ -541,7 +541,7 @@
   background:#B71C1C !important;
 }
 
-/* V13.73 — destaque visual pelo estado real do alarme */
+/* V13.74 — destaque visual pelo estado real do alarme */
 #preMachineAlarmCard .alarm-pending-machine.status-alarme-ativo {
   background:#C62828 !important;
   border:2px solid #8E0000 !important;
@@ -2495,8 +2495,11 @@ async function solicitarPushOperacional() {
           const destinoMsg = data.url || ('https://pcprapolymers-boop.github.io/monitoramento-injecao/?m=' + encodeURIComponent(maquinaMsg || ''));
           const sw = registroServiceWorkerPushGlobal;
           if (sw && sw.showNotification) {
-            sw.showNotification(tituloMsg, {body: corpoMsg, icon:'/monitoramento-injecao/icons/icon-192.png', badge:'/monitoramento-injecao/icons/icon-192.png', tag:'ra-polymers-inspecao-'+(maquinaMsg||'geral'), renotify:true, requireInteraction:true, silent:false, vibrate:[700,300,700,300,1200,700,1200], data:{url:destinoMsg,maquina:maquinaMsg,tipo:data.tipo||'INSPECAO'}});
+            sw.showNotification(tituloMsg, {body: corpoMsg, icon:'/monitoramento-injecao/icons/icon-192.png', badge:'/monitoramento-injecao/icons/icon-192.png', tag:'ra-polymers-inspecao-'+(maquinaMsg||'geral')+'-'+String(data.ciclo||Date.now()), renotify:true, requireInteraction:true, silent:false, vibrate:[0,1200,300,1200,300,1200,500], data:{url:destinoMsg,maquina:maquinaMsg,tipo:data.tipo||'INSPECAO',ciclo:String(data.ciclo||'')}});
           }
+          try {
+            if (navigator.vibrate) navigator.vibrate([0,1200,300,1200,300,1200,500]);
+          } catch (_) {}
         } catch (erroForegroundPush) { console.warn('Falha no Push em primeiro plano:', erroForegroundPush); }
       });
       window.__raPolymersPushForegroundHandler = true;
@@ -8185,10 +8188,14 @@ async function solicitarAlarmeLocalServiceWorker_() {
 
   /*
    * Esta é a camada mais imediata para tela bloqueada.
-   * Não depende de rede, Apps Script ou do próximo gatilho.
-   * O próprio Service Worker do site cria a notificação do Android.
+   * Só dispara quando existe uma pendência com alarme permitido.
+   * A notificação permanece no Android e pede vibração.
    */
   try {
+
+    if (!existePendenciaComAlarmeAtivoLocal_()) {
+      return false;
+    }
 
     if (
       !('serviceWorker' in navigator)
@@ -8240,6 +8247,12 @@ async function solicitarAlarmeLocalServiceWorker_() {
 
         timestamp:
           Date.now(),
+
+        ciclo:
+          (ultimaRespostaPendenciasGlobal &&
+           ultimaRespostaPendenciasGlobal.pendencias || []).find(function(item){
+             return item && String(item.maquina || '').trim().toUpperCase() === String(maquinaAlarme || '').trim().toUpperCase();
+           })?.inicioCicloAtual || Date.now(),
 
         url:
           window.location.href
