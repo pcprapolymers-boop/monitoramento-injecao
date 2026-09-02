@@ -12,6 +12,14 @@
 
   <title>RA Polymers - Monitoramento</title>
 
+  <meta name="theme-color" content="#174A78">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192.png">
+  <link rel="apple-touch-icon" href="./icons/icon-192.png">
+
   <style>
 
     :root {
@@ -325,6 +333,26 @@
       margin-top: 8px;
       color: #647586;
       font-size: 14px;
+    }
+
+
+    .video-guidance {
+      margin-top: 10px;
+      padding: 11px 12px;
+      border-radius: 12px;
+      background: #EAF1F7;
+      border: 1px solid #C7D9E8;
+      color: #174A78;
+      font-size: 14px;
+      line-height: 1.35;
+      font-weight: 700;
+      text-align: center;
+    }
+
+    .video-guidance.hidden { display:none !important; }
+
+    @media (max-width: 520px) {
+      .video-guidance { font-size: 13px; }
     }
 
     .bridge-status {
@@ -1095,7 +1123,7 @@ button:active {
   <div class="header">
 
     <img
-      src="assets/ra-polymers-logo.jpg"
+      src="assets/ra-polymers-logo.png"
       class="logo"
       alt="RA Polymers"
     >
@@ -3543,21 +3571,6 @@ function alarmePermitidoParaPendenciaLocal_(
   }
 
   return true;
-
-}
-
-
-function atualizarAlarmeGlobalAposMudancaLocal_() {
-
-  try {
-
-    atualizarPainelPendenciasAntesDaMaquina(
-      ultimaRespostaPendenciasGlobal ||
-      {}
-    );
-
-  }
-  catch (erro) {}
 
 }
 
@@ -16923,6 +16936,8 @@ function iniciarGravacao() {
   videoEmPreparacaoOuGravacao =
     true;
 
+  try { const orientacao = document.getElementById('videoGuidance'); if (orientacao) orientacao.classList.remove('hidden'); } catch (e) {}
+
   pararAlarmePendenciaGlobal();
 
   pararAlarmeInspecaoContinuo();
@@ -17396,6 +17411,8 @@ function iniciarGravacao() {
 
       videoEmPreparacaoOuGravacao =
         false;
+
+      try { const orientacao = document.getElementById('videoGuidance'); if (orientacao) orientacao.classList.add('hidden'); } catch (e) {}
 
       document
         .getElementById(
