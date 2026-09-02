@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#174A78">
+<title>RA Polymers — Dashboard Gerencial</title>
+<style>
+:root{--blue:#164E7A;--light:#EAF2F9;--border:#D4DEE7;--text:#17324D;--muted:#687888;--bg:#F4F7FA}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:Arial,Helvetica,sans-serif}.container{width:min(1400px,calc(100% - 24px));margin:18px auto 40px}.header{background:#fff;border-radius:16px;padding:20px;box-shadow:0 2px 10px rgba(0,0,0,.08);margin-bottom:14px;text-align:center}.header h1{margin:0;font-size:24px}.header p{margin:7px 0 0;color:var(--muted)}.admin-logo{display:block;width:180px;max-width:60%;height:auto;margin:0 auto 10px}.dashboard{background:#fff;border-radius:16px;padding:18px;box-shadow:0 2px 10px rgba(0,0,0,.06)}.dashboard-head{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap;margin-bottom:14px}.dashboard-head h2{margin:0 0 4px}.dashboard-subtitle{margin:0;color:var(--muted);font-size:13px}.btn{border:0;border-radius:10px;min-height:46px;padding:0 16px;font-size:15px;font-weight:700;cursor:pointer;background:#E8EEF3;color:var(--text)}.btn:disabled{opacity:.65;cursor:wait}.dashboard-filters{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:14px}.dashboard-filters label{font-size:13px;color:var(--muted)}input,select{width:100%;min-height:46px;border:1px solid var(--border);border-radius:10px;padding:10px;font-size:16px;margin-top:5px;background:#fff;color:var(--text)}.dashboard-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px}.dash-kpi{background:#F7FAFC;border:1px solid var(--border);border-radius:14px;padding:14px}.dash-kpi span{display:block;color:var(--muted);font-size:12px;margin-bottom:6px}.dash-kpi strong{font-size:24px;color:var(--blue)}.dashboard-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}.dashboard-panel{background:#fff;border:1px solid var(--border);border-radius:14px;padding:14px}.dashboard-panel h3{margin:0 0 12px;font-size:16px}.dash-reason{margin:9px 0}.dash-reason-top{display:flex;justify-content:space-between;gap:8px;font-size:13px}.dash-bar{height:8px;border-radius:99px;background:#E9EFF4;overflow:hidden;margin-top:5px}.dash-bar>span{display:block;height:100%;background:var(--blue);border-radius:99px}.table-wrap{overflow:auto;border:1px solid var(--border);border-radius:12px}.dashboard-table{width:100%;min-width:720px;border-collapse:collapse;font-size:13px}.dashboard-table th{background:var(--blue);color:#fff;padding:10px;text-align:left}.dashboard-table td{padding:9px;border-top:1px solid var(--border);vertical-align:top}.dashboard-table tr:nth-child(even) td{background:#F8FAFC}.dashboard-last-update{margin-top:12px;color:var(--muted);font-size:12px}.dashboard-empty{padding:20px;text-align:center;color:var(--muted)}@media(max-width:900px){.dashboard-kpis{grid-template-columns:repeat(2,1fr)}.dashboard-grid{grid-template-columns:1fr}.dashboard-filters{grid-template-columns:1fr}}@media(max-width:650px){.dashboard-kpis{grid-template-columns:1fr 1fr}.dashboard-head .btn{width:100%}}
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <img class="admin-logo" src="assets/ra-polymers-logo.png" alt="RA Polymers">
+    <h1>📊 Dashboard Gerencial</h1>
+    <p>Horas paradas, motivos e visão por máquina.</p>
+  </div>
+  <main class="dashboard">
+    <div class="dashboard-head">
+      <div><h2>Indicadores do período</h2><p class="dashboard-subtitle">Dados consolidados da aba STATUS_MAQUINAS.</p></div>
+      <button class="btn" id="btnAtualizarDashboard" type="button">🔄 ATUALIZAR DASHBOARD</button>
+    </div>
+    <div class="dashboard-filters">
+      <label>Data inicial<input id="dashDataInicial" type="date"></label>
+      <label>Data final<input id="dashDataFinal" type="date"></label>
+      <label>Máquina<select id="dashMaquina"><option value="">Todas as máquinas</option><option value="M1">M-1</option><option value="M2">M-2</option><option value="M3">M-3</option><option value="M4">M-4</option><option value="M5">M-5</option><option value="M6">M-6</option></select></label>
+    </div>
+    <div class="dashboard-kpis">
+      <div class="dash-kpi"><span>Horas paradas</span><strong id="dashHorasParadas">0,00 h</strong></div>
+      <div class="dash-kpi"><span>% do período em parada</span><strong id="dashPercentualParada">0,0%</strong></div>
+      <div class="dash-kpi"><span>Máquinas com parada</span><strong id="dashMaquinasParadas">0</strong></div>
+      <div class="dash-kpi"><span>Ocorrências</span><strong id="dashOcorrencias">0</strong></div>
+    </div>
+    <div class="dashboard-grid">
+      <section class="dashboard-panel"><h3>⏱️ Horas paradas por motivo</h3><div id="dashMotivos"></div></section>
+      <section class="dashboard-panel"><h3>🏭 Desempenho por máquina</h3><div class="table-wrap"><table class="dashboard-table"><thead><tr><th>Máquina</th><th>Horas</th><th>%</th><th>Ocorr.</th><th>Principal motivo</th><th>Status</th></tr></thead><tbody id="dashMaquinas"><tr><td colspan="6" class="dashboard-empty">Aguardando dados...</td></tr></tbody></table></div></section>
+    </div>
+    <div id="dashUltimaAtualizacao" class="dashboard-last-update">Aguardando autenticação pelo Admin.</div>
+  </main>
+</div>
+<script>
+const URL_APPS_SCRIPT='https://script.google.com/macros/s/AKfycbyyczQIADys9S5tG7G9WiR_tFiWubW4mcteLurFO_GOlrlSs9f9CWkcojnjsuG5Jgvt/exec';
+let adminToken='';
+function callJsonp(params,timeoutMs){return new Promise((resolve,reject)=>{const cb='dashCb_'+Date.now()+'_'+Math.random().toString(36).slice(2,8);let script=null,timer=null;function clean(){if(timer)clearTimeout(timer);window[cb]=null;try{if(script&&script.parentNode)script.parentNode.removeChild(script)}catch(e){}}window[cb]=data=>{clean();resolve(data)};const q=new URLSearchParams({...params,callback:cb,_:Date.now()});script=document.createElement('script');script.src=URL_APPS_SCRIPT+'?'+q.toString();script.onerror=()=>{clean();reject(new Error('Falha de comunicação com o Apps Script.'))};timer=setTimeout(()=>{clean();reject(new Error('Tempo excedido na consulta.'))},timeoutMs||15000);document.head.appendChild(script);})}
+function esc(v){return String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;')}
+function horas(v){return Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})+' h'}
+function hojeISO(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
+async function carregarDashboardGerencial(){if(!adminToken)return;const btn=document.getElementById('btnAtualizarDashboard');btn.disabled=true;btn.textContent='⏳ ATUALIZANDO...';try{const ini=document.getElementById('dashDataInicial').value;const fim=document.getElementById('dashDataFinal').value;const maq=document.getElementById('dashMaquina').value;const r=await callJsonp({status:'dashboardGerencialStatus',token:adminToken,dataInicial:ini?ini.split('-').reverse().join('/'):'',dataFinal:fim?fim.split('-').reverse().join('/'):'' ,maquina:maq},15000);if(!r||!r.sucesso)throw new Error(r?.erro||'Falha ao carregar dashboard.');const k=r.kpis||{};document.getElementById('dashHorasParadas').textContent=horas(k.horasParadas);document.getElementById('dashPercentualParada').textContent=Number(k.percentualParada||0).toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1})+'%';document.getElementById('dashMaquinasParadas').textContent=String(k.maquinasParadas||0);document.getElementById('dashOcorrencias').textContent=String(k.ocorrencias||0);const motivos=Array.isArray(r.porMotivo)?r.porMotivo:[];const max=Math.max(1,...motivos.map(x=>Number(x.horas||0)));document.getElementById('dashMotivos').innerHTML=motivos.length?motivos.map(x=>{const w=Math.min(100,Number(x.horas||0)/max*100);return '<div class="dash-reason"><div class="dash-reason-top"><strong>'+esc(x.motivo||'Sem motivo')+'</strong><span>'+horas(x.horas)+'</span></div><div class="dash-bar"><span style="width:'+w.toFixed(1)+'%"></span></div></div>'}).join(''):'<div class="dashboard-empty">Nenhuma parada no período.</div>';const ms=Array.isArray(r.porMaquina)?r.porMaquina:[];document.getElementById('dashMaquinas').innerHTML=ms.length?ms.map(x=>'<tr><td><strong>'+esc(x.maquina)+'</strong></td><td>'+horas(x.horas)+'</td><td>'+Number(x.percentual||0).toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1})+'%</td><td>'+String(x.ocorrencias||0)+'</td><td>'+esc(x.principalMotivo||'-')+'</td><td>'+esc(x.statusAtual||'-')+'</td></tr>').join(''):'<tr><td colspan="6" class="dashboard-empty">Nenhuma máquina com parada registrada.</td></tr>';document.getElementById('dashUltimaAtualizacao').textContent=r.periodo?.atualizadoEm?'✅ Atualizado em '+r.periodo.atualizadoEm:''}catch(e){document.getElementById('dashUltimaAtualizacao').textContent='⚠️ '+(e.message||String(e))}finally{btn.disabled=false;btn.textContent='🔄 ATUALIZAR DASHBOARD'}}
+const canal=new BroadcastChannel('ra-polymers-admin-dashboard');canal.onmessage=e=>{if(e?.data?.type==='admin-token'){adminToken=String(e.data.token||'');canal.postMessage({type:'dashboard-received'});carregarDashboardGerencial()}};canal.postMessage({type:'dashboard-ready'});window.addEventListener('beforeunload',()=>canal.close());
+document.getElementById('btnAtualizarDashboard').addEventListener('click',carregarDashboardGerencial);const h=hojeISO();document.getElementById('dashDataInicial').value=h;document.getElementById('dashDataFinal').value=h;
+</script>
+</body>
+</html>
