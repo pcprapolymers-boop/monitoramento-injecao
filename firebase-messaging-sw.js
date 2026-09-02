@@ -1,4 +1,4 @@
-/* RA Polymers — Service Worker V13.69 */
+/* RA Polymers — Service Worker V13.74 — ALARME BLOQUEIO + VIBRAÇÃO */
 const URL_APPS_SCRIPT = 'https://script.google.com/macros/s/AKfycbyyczQIADyS9tG7G9WiR_tFiWubW4mcteLurFO_GOlrlSs9f9CWkcojnjsuG5Jgvt/exec';
 const DB_NAME = 'RAPolymersMonitoramentoVideo';
 const DB_VERSION = 4;
@@ -12,29 +12,63 @@ self.addEventListener('push', function(event) {
     try {
       let bruto = {};
       if (event.data) {
-        try { bruto = event.data.json() || {}; }
-        catch (e) { try { bruto = {data:{body:event.data.text()}}; } catch(_) {} }
+        try {
+          bruto = event.data.json() || {};
+        } catch (e) {
+          try {
+            bruto = { data: { body: event.data.text() } };
+          } catch (_) {}
+        }
       }
+
       const dados = (bruto && bruto.data) || bruto || {};
       const notificacao = (bruto && bruto.notification) || {};
-      const titulo = String(notificacao.title || dados.title || '🚨 INSPEÇÃO ATRASADA');
-      const bodyBase = String(notificacao.body || dados.body || 'Existe uma inspeção pendente. Toque para atender.');
+      const titulo = String(
+        notificacao.title || dados.title || '🚨 INSPEÇÃO ATRASADA'
+      );
+      const bodyBase = String(
+        notificacao.body ||
+        dados.body ||
+        'Existe uma inspeção pendente. Toque na notificação para atender.'
+      );
       const maquina = String(dados.maquina || '').trim();
-      const corpo = maquina && bodyBase.indexOf('Máquina ' + maquina) !== 0 ? 'Máquina ' + maquina + ': ' + bodyBase : bodyBase;
-      const destino = String(dados.url || (maquina ? 'https://pcprapolymers-boop.github.io/monitoramento-injecao/?m=' + encodeURIComponent(maquina) : 'https://pcprapolymers-boop.github.io/monitoramento-injecao/'));
+      const corpo = maquina && bodyBase.indexOf('Máquina ' + maquina) !== 0
+        ? 'Máquina ' + maquina + ': ' + bodyBase
+        : bodyBase;
+      const destino = String(
+        dados.url ||
+        (maquina
+          ? 'https://pcprapolymers-boop.github.io/monitoramento-injecao/?m=' + encodeURIComponent(maquina)
+          : 'https://pcprapolymers-boop.github.io/monitoramento-injecao/')
+      );
+
+      /*
+       * IMPORTANTE:
+       * - requireInteraction mantém o alerta visível até interação.
+       * - renotify + tag por ciclo fazem o Android emitir novo alerta.
+       * - silent:false e vibrate explícito pedem vibração ao sistema.
+       * - timestamp evita que a notificação pareça antiga.
+       */
       await self.registration.showNotification(titulo, {
         body: corpo,
         icon: '/monitoramento-injecao/icons/icon-192.png',
         badge: '/monitoramento-injecao/icons/icon-192.png',
-        tag: 'ra-polymers-inspecao-' + (maquina || 'geral'),
+        tag: 'ra-polymers-inspecao-' + (maquina || 'geral') + '-' + String(dados.ciclo || Date.now()),
         renotify: true,
         requireInteraction: true,
         silent: false,
         timestamp: Date.now(),
-        vibrate: [700,300,700,300,1200,700,1200],
-        data: {url: destino, maquina: maquina, tipo: dados.tipo || 'INSPECAO'}
+        vibrate: [0,1200,300,1200,300,1200,500],
+        data: {
+          url: destino,
+          maquina: maquina,
+          tipo: dados.tipo || 'INSPECAO',
+          ciclo: String(dados.ciclo || '')
+        }
       });
-    } catch (erro) { console.error('PUSH_ERRO', erro); }
+    } catch (erro) {
+      console.error('PUSH_ERRO', erro);
+    }
   })());
 });
 
@@ -54,9 +88,9 @@ async function mostrarAlarmeLocal_(dados) {
     body: maquina ? 'Máquina ' + maquina + ': inspeção pendente. Toque para atender.' : 'Existe uma inspeção pendente. Toque para atender.',
     icon: '/monitoramento-injecao/icons/icon-192.png',
     badge: '/monitoramento-injecao/icons/icon-192.png',
-    tag: 'ra-polymers-bloqueio-' + (maquina || 'geral'),
+    tag: 'ra-polymers-bloqueio-' + (maquina || 'geral') + '-' + Date.now(),
     renotify: true, requireInteraction: true, silent: false,
-    timestamp: Date.now(), vibrate: [700,300,700,300,1200,700,1200],
+    timestamp: Date.now(), vibrate: [0,1200,300,1200,300,1200,500],
     data: {url: dados.url || '/monitoramento-injecao/', maquina: maquina, tipo: 'INSPECAO'}
   });
 }
