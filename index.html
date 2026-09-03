@@ -450,6 +450,16 @@
   background: #F1F7FD;
 }
 
+#machineStatusCard.status-peca-defeito {
+  border-left: 5px solid #C62828;
+  background: #FFF8F8;
+}
+
+#machineDefectSubmenu select {
+  border-color:#D9A0A0;
+  background:#FFFFFF;
+}
+
 .machine-status-badge {
   display: inline-block;
   padding: 5px 10px;
@@ -1436,6 +1446,7 @@ button:active {
       </div>
 
 
+      <label for="machineStatusSelector" style="display:block;font-size:13px;font-weight:700;color:#536777;margin-bottom:5px;">Status operacional</label>
       <select
         id="machineStatusSelector"
         style="
@@ -1446,12 +1457,20 @@ button:active {
       >
         <option value="PRODUZINDO">🟢 PRODUZINDO</option>
         <option value="PARADA_PROGRAMADA">🟡 PARADA PROGRAMADA</option>
-        <option value="QUEBRA">🔴 QUEBRA</option>
-        <option value="MANUTENCAO">🔧 MANUTENÇÃO</option>
-        <option value="FALTA_MATERIAL">📦 FALTA DE MATERIAL</option>
+        <option value="MANUTENCAO">🔧 MÁQUINA EM MANUTENÇÃO</option>
         <option value="FALTA_MAO_OBRA">👷 FALTA DE MÃO DE OBRA</option>
+        <option value="FALTA_MATERIAL">📦 FALTA MATERIAL</option>
         <option value="OUTROS">⚪ OUTROS</option>
+        <option value="PECA_DEFEITO">🔴 PEÇA COM DEFEITO</option>
       </select>
+
+      <div id="machineDefectSubmenu" style="display:none;margin:8px 0 10px;padding:10px;border:1px solid #E1B5B5;border-left:4px solid #C62828;border-radius:10px;background:#FFF8F8;">
+        <div style="font-size:13px;font-weight:800;color:#8B1E1E;margin-bottom:6px;">🔎 TIPO DE DEFEITO DA PEÇA</div>
+        <select id="machineDefectSelector" style="width:100%;min-height:44px;">
+          <option value="">Selecione o defeito</option><option value="RECHUPE">Rechupe</option><option value="FALHA_INJECAO">Falha de injeção</option><option value="PECA_UMIDADE">Peça com umidade</option><option value="MATERIAL_DEGRADADO">Material degradado / queimado</option><option value="REBARBA">Rebarba</option><option value="LINHA_SOLDAGEM">Linha de solda</option><option value="EMPENAMENTO">Empenamento / deformação</option><option value="VAZIO_BOLHA">Vazio / bolha interna</option><option value="JATEAMENTO">Jateamento (jetting)</option><option value="MARCAS_EXTRATOR">Marcas de extrator</option><option value="VARIACAO_COR">Variação de cor / manchas</option><option value="SPLAY">Splay / marcas de umidade</option><option value="DELAMINACAO">Delaminação</option><option value="OUTRO_DEFEITO_INJECAO">Outro defeito de injeção</option>
+        </select>
+        <div style="margin-top:5px;font-size:11px;color:#7A5B5B;line-height:1.35;">Selecione o defeito mais específico encontrado. Isso alimentará os indicadores gerenciais.</div>
+      </div>
 
 <div
         id="machineStatusAudioCard"
@@ -3259,6 +3278,7 @@ let statusTrocaMaquinaDestino =
   '';
 let statusPreCarregadoProximaMaquina =
   null;
+let detalhamentoPreCarregadoProximaMaquina = '';
 let contadorTransicaoMaquina =
   0;
 
@@ -3284,6 +3304,12 @@ const INTERVALO_STATUS_OBRIGATORIO_MS =
   60 * 60 * 1000;
 
 let motivoParadaMaquina =
+  '';
+
+let detalhamentoStatusMaquina =
+  '';
+
+let detalhamentoStatusSelecionadoMaquina =
   '';
 
 let inicioStatusMaquina =
@@ -7891,11 +7917,16 @@ function atualizarPainelPendenciasAntesDaMaquina(
                 statusCodigo
               );
 
+            const detalhePeca =
+              statusCodigo === 'PECA_DEFEITO'
+                ? normalizarDefeitoPecaUI_(item.detalhamentoStatus || '')
+                : '';
+
             const statusLabel =
               escapeHtml(
-                obterLabelStatusMaquina_(
-                  statusCodigo
-                )
+                statusCodigo === 'PECA_DEFEITO'
+                  ? ('PEÇA COM DEFEITO' + (detalhePeca ? ' • ' + (MAPA_DEFEITOS_PECA_UI_[detalhePeca] || detalhePeca) : ''))
+                  : obterLabelStatusMaquina_(statusCodigo)
               );
 
             const estado =
@@ -8986,19 +9017,58 @@ function normalizarStatusMaquinaUI_(valor) {
     FALTA_MAO_DE_OBRA: 'FALTA_MAO_OBRA',
     FALTA_DE_MAO_DE_OBRA: 'FALTA_MAO_OBRA',
     FALTA_MAO_OBRA_: 'FALTA_MAO_OBRA',
-    OUTROS: 'OUTROS'
+    OUTROS: 'OUTROS',
+    PECA_DEFEITO: 'PECA_DEFEITO',
+    PECA_COM_DEFEITO: 'PECA_DEFEITO',
+    PECA_COM_DEFEITO_INJECAO: 'PECA_DEFEITO'
   };
 
   return aliases[chave] || (bruto || 'PRODUZINDO');
 }
 
-function iniciarTransicaoMaquinaUI_(destino, statusPreCarregado) {
+const MAPA_DEFEITOS_PECA_UI_ = {
+  RECHUPE: 'Rechupe',
+  FALHA_INJECAO: 'Falha de injeção',
+  PECA_UMIDADE: 'Peça com umidade',
+  MATERIAL_DEGRADADO: 'Material degradado / queimado',
+  REBARBA: 'Rebarba',
+  LINHA_SOLDAGEM: 'Linha de solda',
+  EMPENAMENTO: 'Empenamento / deformação',
+  VAZIO_BOLHA: 'Vazio / bolha interna',
+  JATEAMENTO: 'Jateamento (jetting)',
+  MARCAS_EXTRATOR: 'Marcas de extrator',
+  VARIACAO_COR: 'Variação de cor / manchas',
+  SPLAY: 'Splay / marcas de umidade',
+  DELAMINACAO: 'Delaminação',
+  OUTRO_DEFEITO_INJECAO: 'Outro defeito de injeção',
+};
+
+function normalizarDefeitoPecaUI_(valor) {
+  const bruto = String(valor == null ? '' : valor).trim().toUpperCase();
+  const chave = bruto.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+  return MAPA_DEFEITOS_PECA_UI_[chave] ? chave : '';
+}
+
+function atualizarSubmenuDefeitoPecaUI_() {
+  const statusSelect = document.getElementById('machineStatusSelector');
+  const box = document.getElementById('machineDefectSubmenu');
+  const defectSelect = document.getElementById('machineDefectSelector');
+  if (!statusSelect || !box || !defectSelect) return;
+  const status = normalizarStatusMaquinaUI_(statusSelect.value || '');
+  const mostrar = status === 'PECA_DEFEITO';
+  box.style.display = mostrar ? 'block' : 'none';
+  if (!mostrar) defectSelect.value = '';
+  detalhamentoStatusSelecionadoMaquina = normalizarDefeitoPecaUI_(defectSelect.value || '');
+}
+
+function iniciarTransicaoMaquinaUI_(destino, statusPreCarregado, detalhamentoPreCarregado) {
   contadorTransicaoMaquina++;
   statusTrocaMaquinaEmAndamento = true;
   statusTrocaMaquinaDestino = normalizarMaquinaTela(destino || '');
   statusPreCarregadoProximaMaquina = statusPreCarregado
     ? normalizarStatusMaquinaUI_(statusPreCarregado)
     : null;
+  detalhamentoPreCarregadoProximaMaquina = normalizarDefeitoPecaUI_(detalhamentoPreCarregado || '');
   const banner = document.getElementById('machineTransitionBanner');
   const botao = document.getElementById('btnSaveMachineStatus');
   if (banner) {
@@ -9017,8 +9087,9 @@ function iniciarTransicaoMaquinaUI_(destino, statusPreCarregado) {
   }
 }
 
-function aplicarStatusPreCarregadoDaProximaMaquina_(status) {
+function aplicarStatusPreCarregadoDaProximaMaquina_(status, detalhamento) {
   const normalizado = normalizarStatusMaquinaUI_(status);
+  const detalheNormalizado = normalizarDefeitoPecaUI_(detalhamento || '');
   try {
     const chave = normalizarMaquinaChave_(maquina);
     if (chave) {
@@ -9028,7 +9099,8 @@ function aplicarStatusPreCarregadoDaProximaMaquina_(status) {
         at: Date.now(),
         data: Object.assign({}, dadosExistentes, {
           sucesso: true,
-          status: normalizado
+          status: normalizado,
+          detalhamentoStatus: detalheNormalizado
         })
       });
     }
@@ -9036,10 +9108,15 @@ function aplicarStatusPreCarregadoDaProximaMaquina_(status) {
   statusAnteriorMaquina = normalizado;
   statusSelecionadoMaquina = normalizado;
   statusOperacionalMaquina = normalizado;
+  detalhamentoStatusMaquina = detalheNormalizado;
+  detalhamentoStatusSelecionadoMaquina = detalheNormalizado;
   statusAudioConcluido = normalizado === 'PRODUZINDO';
   statusAudioBlob = null;
   const seletor = document.getElementById('machineStatusSelector');
   if (seletor) seletor.value = normalizado;
+  const defeitoSelect = document.getElementById('machineDefectSelector');
+  if (defeitoSelect) defeitoSelect.value = detalheNormalizado;
+  atualizarSubmenuDefeitoPecaUI_();
   atualizarStatusMaquinaUI();
   atualizarObrigatoriedadeAudioStatus();
   atualizarStatusAudioUI();
@@ -9054,6 +9131,7 @@ function finalizarTransicaoMaquinaUI_(maquinaConfirmada, sucesso) {
   statusTrocaMaquinaEmAndamento = false;
   statusTrocaMaquinaDestino = '';
   statusPreCarregadoProximaMaquina = null;
+  detalhamentoPreCarregadoProximaMaquina = '';
   statusAtualizacaoEmAndamento = false;
   const banner = document.getElementById('machineTransitionBanner');
   if (banner) {
@@ -9315,7 +9393,8 @@ async function selecionarMaquinaProvisoria() {
     ) {
       iniciarTransicaoMaquinaUI_(
         destinoAntesDaLimpeza || novaMaquina,
-        statusAntesDaLimpeza || ''
+        statusAntesDaLimpeza || '',
+        detalhamentoPreCarregadoProximaMaquina
       );
       statusAtualizacaoEmAndamento =
         atualizacaoAtivaAntesDaLimpeza;
@@ -9331,7 +9410,8 @@ async function selecionarMaquinaProvisoria() {
 
   if (statusPreCarregadoProximaMaquina) {
     aplicarStatusPreCarregadoDaProximaMaquina_(
-      statusPreCarregadoProximaMaquina
+      statusPreCarregadoProximaMaquina,
+      detalhamentoPreCarregadoProximaMaquina
     );
   }
 
@@ -11180,6 +11260,8 @@ function obterClasseStatusMaquina_(
 
     case 'FALTA_MAO_OBRA':
       return 'status-mao-obra';
+    case 'PECA_DEFEITO':
+      return 'status-peca-defeito';
     case 'PARADA_PROGRAMADA':
     case 'OUTROS':
       return 'status-parada';
@@ -11212,6 +11294,8 @@ function obterLabelStatusMaquina_(
 
     case 'FALTA_MAO_OBRA':
       return '👷 FALTA DE MÃO DE OBRA';
+    case 'PECA_DEFEITO':
+      return '🔴 PEÇA COM DEFEITO';
     case 'PARADA_PROGRAMADA':
       return '🟡 PARADA PROGRAMADA';
 
@@ -11303,6 +11387,13 @@ function atualizarStatusMaquinaUI() {
     info.textContent =
       '🌙 Fábrica parada. Alarmes suspensos até segunda-feira às 07:00.';
 
+  }
+  else if (
+    statusOperacionalMaquina ===
+    'PECA_DEFEITO'
+  ) {
+    info.textContent =
+      '🔴 Peça com defeito: ' + (MAPA_DEFEITOS_PECA_UI_[normalizarDefeitoPecaUI_(detalhamentoStatusMaquina)] || 'tipo de defeito não informado') + '.';
   }
   else if (
     statusOperacionalMaquina ===
@@ -11652,6 +11743,8 @@ function aplicarDadosStatusNaTela_(
   statusAnteriorMaquina = statusServidor;
   statusSelecionadoMaquina = statusServidor;
   statusOperacionalMaquina = statusServidor;
+  detalhamentoStatusMaquina = normalizarDefeitoPecaUI_(dados.detalhamentoStatus || '');
+  detalhamentoStatusSelecionadoMaquina = detalhamentoStatusMaquina;
   motivoParadaMaquina = dados.motivo || '';
   inicioStatusMaquina = dados.inicioStatus || null;
   statusAtualizadoEm = dados.atualizadoEm || null;
@@ -11666,6 +11759,9 @@ function aplicarDadosStatusNaTela_(
   statusAudioConcluido = statusServidor === 'PRODUZINDO';
   const seletor = document.getElementById('machineStatusSelector');
   if (seletor) seletor.value = statusServidor;
+  const defeitoSelect = document.getElementById('machineDefectSelector');
+  if (defeitoSelect) defeitoSelect.value = detalhamentoStatusMaquina;
+  atualizarSubmenuDefeitoPecaUI_();
 
   atualizarStatusMaquinaUI();
   atualizarBloqueioStatusObrigatorio_();
@@ -12373,7 +12469,8 @@ async function salvarStatusMaquinaEmSegundoPlano(
   audioUrl,
   audioId,
   acao,
-  operacaoId
+  operacaoId,
+  detalhamentoStatus
 ) {
 
   const item = {
@@ -12405,6 +12502,10 @@ async function salvarStatusMaquinaEmSegundoPlano(
     acao:
       acao ||
       'ALTERAR_STATUS',
+
+    detalhamentoStatus:
+      detalhamentoStatus ||
+      '',
 
     status:
       'queued',
@@ -12621,7 +12722,8 @@ function avancarAposAtualizacaoStatus_(
   if (proxima) {
     iniciarTransicaoMaquinaUI_(
       proxima.maquina,
-      proxima.statusMaquina || 'PRODUZINDO'
+      proxima.statusMaquina || 'PRODUZINDO',
+      proxima.detalhamentoStatus || ''
     );
 
     const botoes = Array.from(
@@ -12642,6 +12744,7 @@ function avancarAposAtualizacaoStatus_(
 
     statusPreCarregadoProximaMaquina =
       normalizarStatusMaquinaUI_(proxima.statusMaquina || 'PRODUZINDO');
+    detalhamentoPreCarregadoProximaMaquina = normalizarDefeitoPecaUI_(proxima.detalhamentoStatus || '');
   }
 
   if (!proxima) {
@@ -12689,7 +12792,10 @@ async function salvarStatusMaquina() {
 
   const statusAtual = normalizarStatusMaquinaUI_(statusAnteriorMaquina);
   const statusNovo = normalizarStatusMaquinaUI_(seletor.value || statusAtual);
-  const statusMudou = statusNovo !== statusAtual;
+  const defectSelect = document.getElementById('machineDefectSelector');
+  const detalhamentoNovo = statusNovo === 'PECA_DEFEITO' ? normalizarDefeitoPecaUI_(defectSelect ? defectSelect.value : detalhamentoStatusSelecionadoMaquina) : '';
+  const detalhamentoAtual = statusAtual === 'PECA_DEFEITO' ? normalizarDefeitoPecaUI_(detalhamentoStatusMaquina) : '';
+  const statusMudou = statusNovo !== statusAtual || (statusNovo === 'PECA_DEFEITO' && detalhamentoNovo !== detalhamentoAtual);
 
   operadorStatusSelecionado = String(
     operadorSelect.value || operadorStatusSelecionado || ''
@@ -12697,6 +12803,12 @@ async function salvarStatusMaquina() {
 
   if (!operadorStatusSelecionado) {
     if (mensagem) mensagem.textContent = '⚠️ Selecione o operador responsável.';
+    return;
+  }
+
+  if (statusNovo === 'PECA_DEFEITO' && !detalhamentoNovo) {
+    if (mensagem) mensagem.textContent = '⚠️ Selecione o tipo de defeito da peça.';
+    atualizarStatusAudioUI();
     return;
   }
 
@@ -12723,7 +12835,8 @@ async function salvarStatusMaquina() {
         '',
         '',
         'MANTER_STATUS',
-        operacaoId
+        operacaoId,
+        ''
       );
 
       liberarObrigatoriedadeStatusAposSalvar();
@@ -12781,11 +12894,13 @@ async function salvarStatusMaquina() {
     statusOperacionalMaquina = statusNovo;
     statusAnteriorMaquina = statusNovo;
     statusSelecionadoMaquina = statusNovo;
+    detalhamentoStatusMaquina = detalhamentoNovo;
+    detalhamentoStatusSelecionadoMaquina = detalhamentoNovo;
     statusAtualizadoEm = new Date().toISOString();
     statusConfirmadoLocalEm = Date.now();
     statusAtualizacaoObrigatoria = false;
     inicioStatusMaquina = new Date().toISOString();
-    motivoParadaMaquina = statusNovo === 'PRODUZINDO' ? 'RETORNO À PRODUÇÃO' : statusNovo;
+    motivoParadaMaquina = statusNovo === 'PRODUZINDO' ? 'RETORNO À PRODUÇÃO' : (statusNovo === 'PECA_DEFEITO' ? (MAPA_DEFEITOS_PECA_UI_[detalhamentoNovo] || 'PEÇA COM DEFEITO') : statusNovo);
     responsavelStatusMaquina = operadorStatusSelecionado;
     observacaoStatusMaquina = '';
 
@@ -12821,7 +12936,8 @@ async function salvarStatusMaquina() {
       audioUrl,
       audioId,
       'ALTERAR_STATUS',
-      operacaoId
+      operacaoId,
+      detalhamentoNovo
     );
 
     if (audioStatusPromise && audioStatusUploadId) {
@@ -12867,7 +12983,8 @@ function salvarStatusMaquinaNoServidor(
   audioUrl,
   audioId,
   acao,
-  operacaoId
+  operacaoId,
+  detalhamentoStatus
 ) {
 
   return new Promise(
@@ -12896,6 +13013,7 @@ function salvarStatusMaquinaNoServidor(
       params.set('audioId',audioId || '');
       params.set('acao',acao || 'ALTERAR_STATUS');
       params.set('operacaoId',operacaoId || '');
+      params.set('detalhamentoStatus',detalhamentoStatus || '');
       params.set('callback',callbackName);
       params.set('_',Date.now());
 
@@ -13014,6 +13132,9 @@ function salvarStatusMaquinaNoServidor(
           motivoParadaMaquina =
             dados.motivo ||
             '';
+
+          detalhamentoStatusMaquina = normalizarDefeitoPecaUI_(dados.detalhamentoStatus || '');
+          detalhamentoStatusSelecionadoMaquina = detalhamentoStatusMaquina;
 
           atualizarStatusMaquinaUI();
 
@@ -13541,26 +13662,33 @@ function atualizarObrigatoriedadeAudioStatus() {
   const seletor = document.getElementById('machineStatusSelector');
   const card = document.getElementById('machineStatusAudioCard');
   const info = document.getElementById('machineStatusAudioInfo');
+  const defectSelect = document.getElementById('machineDefectSelector');
   if (!seletor) return;
 
   const statusAtual = normalizarStatusMaquinaUI_(statusAnteriorMaquina);
   const statusSelecionado = normalizarStatusMaquinaUI_(seletor.value || statusAtual);
-  const mudou = statusSelecionado !== statusAtual;
+  const detalheAtual = statusAtual === 'PECA_DEFEITO' ? normalizarDefeitoPecaUI_(detalhamentoStatusMaquina) : '';
+  const detalheSelecionado = statusSelecionado === 'PECA_DEFEITO' ? normalizarDefeitoPecaUI_(defectSelect ? defectSelect.value : detalhamentoStatusSelecionadoMaquina) : '';
+  detalhamentoStatusSelecionadoMaquina = detalheSelecionado;
+  const mudou = statusSelecionado !== statusAtual || (statusSelecionado === 'PECA_DEFEITO' && detalheSelecionado !== detalheAtual);
+  const detalheIncompleto = statusSelecionado === 'PECA_DEFEITO' && !detalheSelecionado;
 
   statusSelecionadoMaquina = statusSelecionado;
+  atualizarSubmenuDefeitoPecaUI_();
 
-  const precisaAudio = mudou && statusSelecionado !== 'PRODUZINDO';
-
+  const precisaAudio = mudou && statusSelecionado !== 'PRODUZINDO' && !detalheIncompleto;
   if (card) card.style.display = precisaAudio ? 'block' : 'none';
 
   if (info) {
-    info.textContent = precisaAudio
-      ? '⚠️ O novo status exige justificativa de áudio de exatamente 15 segundos.'
-      : (mudou
-          ? '✅ Retorno para PRODUZINDO: áudio de justificativa não é necessário.'
-          : (statusAtual === 'PRODUZINDO'
-              ? '✅ PRODUZINDO já é o status atual.'
-              : '✅ Status atual pronto para ser mantido.'));
+    info.textContent = detalheIncompleto
+      ? '⚠️ Selecione o tipo de defeito da peça antes de continuar.'
+      : precisaAudio
+        ? '⚠️ O novo status exige justificativa de áudio de exatamente 15 segundos.'
+        : (mudou
+            ? '✅ Retorno para PRODUZINDO: áudio de justificativa não é necessário.'
+            : (statusAtual === 'PRODUZINDO'
+                ? '✅ PRODUZINDO já é o status atual.'
+                : '✅ Status atual pronto para ser mantido.'));
   }
 
   if (precisaAudio) {
@@ -13569,14 +13697,16 @@ function atualizarObrigatoriedadeAudioStatus() {
   } else if (mudou && statusSelecionado === 'PRODUZINDO') {
     statusAudioConcluido = true;
     statusAudioBlob = null;
-  } else if (!mudou) {
+  } else if (!mudou && !detalheIncompleto) {
     statusAudioConcluido = true;
+    statusAudioBlob = null;
+  } else if (detalheIncompleto) {
+    statusAudioConcluido = false;
     statusAudioBlob = null;
   }
 
   atualizarStatusAudioUI();
 }
-
 
 
 function atualizarStatusAudioUI() {
@@ -13599,12 +13729,15 @@ function atualizarStatusAudioUI() {
     (document.getElementById('machineStatusSelector') || {}).value ||
     statusAtual
   );
-  const mudou = statusSelecionado !== statusAtual;
+  const detalheAtual = statusAtual === 'PECA_DEFEITO' ? normalizarDefeitoPecaUI_(detalhamentoStatusMaquina) : '';
+  const detalheSelecionado = statusSelecionado === 'PECA_DEFEITO' ? normalizarDefeitoPecaUI_(detalhamentoStatusSelecionadoMaquina || (document.getElementById('machineDefectSelector') || {}).value || '') : '';
+  const mudou = statusSelecionado !== statusAtual || (statusSelecionado === 'PECA_DEFEITO' && detalheSelecionado !== detalheAtual);
   const naoProdutivo = statusSelecionado !== 'PRODUZINDO';
+  const detalheIncompleto = statusSelecionado === 'PECA_DEFEITO' && !detalheSelecionado;
   const transicao = Boolean(statusAtualizacaoEmAndamento || statusTrocaMaquinaEmAndamento);
-  const podeManter = !transicao && !mudou && naoProdutivo && !statusAudioGravando;
-  const podeGravar = !transicao && mudou && naoProdutivo && !statusAudioConcluido && !statusAudioGravando;
-  const podeAtualizar = !transicao && (
+  const podeManter = !transicao && !mudou && naoProdutivo && !detalheIncompleto && !statusAudioGravando;
+  const podeGravar = !transicao && mudou && naoProdutivo && !detalheIncompleto && !statusAudioConcluido && !statusAudioGravando;
+  const podeAtualizar = !transicao && !detalheIncompleto && (
     statusAtual === 'PRODUZINDO' ||
     (mudou && (
       statusSelecionado === 'PRODUZINDO' ||
@@ -13681,7 +13814,9 @@ function atualizarStatusAudioUI() {
       ? '🔴 Gravando justificativa...'
       : transicao
         ? ''
-        : !mudou && naoProdutivo
+        : detalheIncompleto
+          ? '⚠️ Selecione o tipo de defeito da peça.'
+          : !mudou && naoProdutivo
           ? '✅ Status atual pronto para ser mantido.'
           : mudou && naoProdutivo && !statusAudioConcluido
             ? '⚠️ Áudio de 15 segundos obrigatório.'
@@ -14460,6 +14595,9 @@ function atualizarTravamentoCamposStatusAudio(
       'machineStatusSelector'
     );
 
+  const defeito =
+    document.getElementById('machineDefectSelector');
+
   if (operador) {
     operador.disabled =
       statusAudioCamposTravados;
@@ -14468,6 +14606,10 @@ function atualizarTravamentoCamposStatusAudio(
   if (status) {
     status.disabled =
       statusAudioCamposTravados;
+  }
+
+  if (defeito) {
+    defeito.disabled = statusAudioCamposTravados;
   }
 
   try {
@@ -14537,17 +14679,25 @@ function manterStatusAtual() {
   const mensagem = document.getElementById('machineStatusSaveMessage');
   const botao = document.getElementById('btnManterStatus');
   const seletor = document.getElementById('machineStatusSelector');
+  const defeitoSelect = document.getElementById('machineDefectSelector');
 
   const statusAtual = normalizarStatusMaquinaUI_(statusAnteriorMaquina);
   const statusSelecionado = normalizarStatusMaquinaUI_(seletor ? seletor.value : statusAtual);
+  const detalheAtual = statusAtual === 'PECA_DEFEITO' ? normalizarDefeitoPecaUI_(detalhamentoStatusMaquina || (defeitoSelect ? defeitoSelect.value : '')) : '';
+  const detalheSelecionado = statusSelecionado === 'PECA_DEFEITO' ? normalizarDefeitoPecaUI_(defeitoSelect ? defeitoSelect.value : '') : '';
   const operador = String(operadorSelect && operadorSelect.value ? operadorSelect.value : '').trim();
 
   if (!maquina) return;
+  if (statusSelecionado === 'PECA_DEFEITO' && !detalheSelecionado) {
+    if (mensagem) mensagem.textContent = '⚠️ Selecione o tipo de defeito da peça.';
+    atualizarStatusAudioUI();
+    return;
+  }
   if (statusAtual === 'PRODUZINDO' && statusSelecionado !== 'PRODUZINDO') {
     if (mensagem) mensagem.textContent = 'ℹ️ O status foi alterado. Use ATUALIZAR STATUS.';
     return;
   }
-  if (statusSelecionado !== statusAtual) {
+  if (statusSelecionado !== statusAtual || (statusAtual === 'PECA_DEFEITO' && detalheSelecionado !== detalheAtual)) {
     if (mensagem) mensagem.textContent = 'ℹ️ O status foi alterado. Use ATUALIZAR STATUS.';
     atualizarStatusAudioUI();
     return;
@@ -14575,7 +14725,8 @@ function manterStatusAtual() {
       '',
       '',
       'MANTER_STATUS',
-      operacaoId
+      operacaoId,
+      detalheAtual
     );
 
     statusAnteriorMaquina = statusAtual;
@@ -20487,6 +20638,7 @@ function limparTodosOsDadosNovaInspecao() {
       '';
     statusPreCarregadoProximaMaquina =
       null;
+    detalhamentoPreCarregadoProximaMaquina = '';
   }
   else {
     statusOperacionalMaquina =
@@ -20534,6 +20686,9 @@ function limparTodosOsDadosNovaInspecao() {
 
   motivoParadaMaquina =
     '';
+
+  detalhamentoStatusMaquina = '';
+  detalhamentoStatusSelecionadoMaquina = '';
 
   inicioStatusMaquina =
     null;
@@ -20613,6 +20768,7 @@ function limparTodosOsDadosNovaInspecao() {
       'machineSelector',
       'operador',
       'machineStatusSelector',
+      'machineDefectSelector',
       'produto'
     ];
 
@@ -20701,6 +20857,10 @@ function limparTodosOsDadosNovaInspecao() {
       'PRODUZINDO';
 
   }
+
+  const defeitoSelectNova = document.getElementById('machineDefectSelector');
+  if (defeitoSelectNova) defeitoSelectNova.value = '';
+  atualizarSubmenuDefeitoPecaUI_();
 
   /*
    * Limpa seleção de conformidade.
@@ -21415,10 +21575,25 @@ document.addEventListener(
               statusSelector.value
             );
 
+          atualizarSubmenuDefeitoPecaUI_();
+          detalhamentoStatusSelecionadoMaquina = normalizarDefeitoPecaUI_((document.getElementById('machineDefectSelector') || {}).value || '');
           atualizarObrigatoriedadeAudioStatus();
           atualizarStatusAudioUI();
         }
       );
+    }
+
+    const defectSelector = document.getElementById('machineDefectSelector');
+    if (defectSelector) {
+      defectSelector.addEventListener('change', function() {
+        if (statusAudioCamposTravados) {
+          defectSelector.value = detalhamentoStatusSelecionadoMaquina || detalhamentoStatusMaquina || '';
+          return;
+        }
+        detalhamentoStatusSelecionadoMaquina = normalizarDefeitoPecaUI_(defectSelector.value || '');
+        atualizarObrigatoriedadeAudioStatus();
+        atualizarStatusAudioUI();
+      });
     }
 
     if (
