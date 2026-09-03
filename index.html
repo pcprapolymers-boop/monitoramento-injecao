@@ -17,8 +17,8 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <link rel="manifest" href="./manifest.webmanifest">
-  <link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192.png">
-  <link rel="apple-touch-icon" href="./icons/icon-192.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192.png?v=13.77">
+  <link rel="apple-touch-icon" href="./icons/icon-192.png?v=13.77">
 
   <style>
 
@@ -1123,7 +1123,7 @@ button:active {
   <div class="header">
 
     <img
-      src="assets/ra-polymers-logo.png"
+      src="assets/ra-polymers-logo.png?v=13.77"
       class="logo"
       alt="RA Polymers"
     >
@@ -2523,7 +2523,7 @@ async function solicitarPushOperacional() {
           const destinoMsg = data.url || ('https://pcprapolymers-boop.github.io/monitoramento-injecao/?m=' + encodeURIComponent(maquinaMsg || ''));
           const sw = registroServiceWorkerPushGlobal;
           if (sw && sw.showNotification) {
-            sw.showNotification(tituloMsg, {body: corpoMsg, icon:'/monitoramento-injecao/icons/icon-192.png', badge:'/monitoramento-injecao/icons/icon-192.png', tag:'ra-polymers-inspecao-'+(maquinaMsg||'geral')+'-'+String(data.ciclo||Date.now()), renotify:true, requireInteraction:true, silent:false, vibrate:[0,1200,300,1200,300,1200,500], data:{url:destinoMsg,maquina:maquinaMsg,tipo:data.tipo||'INSPECAO',ciclo:String(data.ciclo||'')}});
+            sw.showNotification(tituloMsg, {body: corpoMsg, icon:'/monitoramento-injecao/icons/notification-icon.png', badge:'/monitoramento-injecao/icons/badge-72.png', tag:'ra-polymers-inspecao-'+(maquinaMsg||'geral')+'-'+String(data.ciclo||Date.now()), renotify:true, requireInteraction:true, silent:false, vibrate:[0,1200,300,1200,300,1200,500], data:{url:destinoMsg,maquina:maquinaMsg,tipo:data.tipo||'INSPECAO',ciclo:String(data.ciclo||'')}});
           }
           try {
             if (navigator.vibrate) navigator.vibrate([0,1200,300,1200,300,1200,500]);
