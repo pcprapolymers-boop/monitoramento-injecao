@@ -15,7 +15,7 @@
   <div class="header">
     <img class="admin-logo" src="assets/ra-polymers-logo.png?v=13.77" alt="RA Polymers">
     <h1>📊 Dashboard Gerencial</h1>
-    <p>Horas paradas, motivos e visão por máquina.</p>
+    <p>Horas paradas, defeitos, classificações e visão por máquina.</p>
   </div>
   <main class="dashboard">
     <div class="dashboard-head">
@@ -29,13 +29,18 @@
     </div>
     <div class="dashboard-kpis">
       <div class="dash-kpi"><span>Horas paradas</span><strong id="dashHorasParadas">0,00 h</strong></div>
-      <div class="dash-kpi"><span>% do período em parada</span><strong id="dashPercentualParada">0,0%</strong></div>
+      <div class="dash-kpi"><span>% do tempo parado</span><strong id="dashPercentualParada">0,0%</strong></div>
+      <div class="dash-kpi"><span>Horas com defeito de peça</span><strong id="dashHorasDefeitos">0,00 h</strong></div>
+      <div class="dash-kpi"><span>Horas de paradas operacionais</span><strong id="dashHorasParadasOperacionais">0,00 h</strong></div>
       <div class="dash-kpi"><span>Máquinas com parada</span><strong id="dashMaquinasParadas">0</strong></div>
-      <div class="dash-kpi"><span>Ocorrências</span><strong id="dashOcorrencias">0</strong></div>
+      <div class="dash-kpi"><span>Ocorrências de defeito</span><strong id="dashOcorrenciasDefeitos">0</strong></div>
+      <div class="dash-kpi"><span>Ocorrências de parada operacional</span><strong id="dashOcorrenciasParadasOperacionais">0</strong></div>
     </div>
     <div class="dashboard-grid">
-      <section class="dashboard-panel"><h3>⏱️ Horas paradas por motivo</h3><div id="dashMotivos"></div></section>
-      <section class="dashboard-panel"><h3>🏭 Desempenho por máquina</h3><div class="table-wrap"><table class="dashboard-table"><thead><tr><th>Máquina</th><th>Horas</th><th>%</th><th>Ocorr.</th><th>Principal motivo</th><th>Status</th></tr></thead><tbody id="dashMaquinas"><tr><td colspan="6" class="dashboard-empty">Aguardando dados...</td></tr></tbody></table></div></section>
+      <section class="dashboard-panel"><h3>🔴 Horas por defeito de peça</h3><div id="dashDefeitos"></div></section>
+      <section class="dashboard-panel"><h3>⏱️ Horas por parada operacional</h3><div id="dashParadasOperacionais"></div></section>
+      <section class="dashboard-panel"><h3>📊 Horas paradas por classificação</h3><div id="dashMotivos"></div></section>
+      <section class="dashboard-panel"><h3>🏭 Desempenho por máquina</h3><div class="table-wrap"><table class="dashboard-table"><thead><tr><th>Máquina</th><th>Horas</th><th>Defeitos</th><th>Paradas operacionais</th><th>Ocorr.</th><th>Principal classificação</th><th>Status</th></tr></thead><tbody id="dashMaquinas"><tr><td colspan="7" class="dashboard-empty">Aguardando dados...</td></tr></tbody></table></div></section>
     </div>
     <div id="dashUltimaAtualizacao" class="dashboard-last-update">Aguardando autenticação pelo Admin.</div>
   </main>
@@ -47,7 +52,34 @@ function callJsonp(params,timeoutMs){return new Promise((resolve,reject)=>{const
 function esc(v){return String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;')}
 function horas(v){return Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})+' h'}
 function hojeISO(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
-async function carregarDashboardGerencial(){if(!adminToken)return;const btn=document.getElementById('btnAtualizarDashboard');btn.disabled=true;btn.textContent='⏳ ATUALIZANDO...';try{const ini=document.getElementById('dashDataInicial').value;const fim=document.getElementById('dashDataFinal').value;const maq=document.getElementById('dashMaquina').value;const r=await callJsonp({status:'dashboardGerencialStatus',token:adminToken,dataInicial:ini?ini.split('-').reverse().join('/'):'',dataFinal:fim?fim.split('-').reverse().join('/'):'' ,maquina:maq},15000);if(!r||!r.sucesso)throw new Error(r?.erro||'Falha ao carregar dashboard.');const k=r.kpis||{};document.getElementById('dashHorasParadas').textContent=horas(k.horasParadas);document.getElementById('dashPercentualParada').textContent=Number(k.percentualParada||0).toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1})+'%';document.getElementById('dashMaquinasParadas').textContent=String(k.maquinasParadas||0);document.getElementById('dashOcorrencias').textContent=String(k.ocorrencias||0);const motivos=Array.isArray(r.porMotivo)?r.porMotivo:[];const max=Math.max(1,...motivos.map(x=>Number(x.horas||0)));document.getElementById('dashMotivos').innerHTML=motivos.length?motivos.map(x=>{const w=Math.min(100,Number(x.horas||0)/max*100);return '<div class="dash-reason"><div class="dash-reason-top"><strong>'+esc(x.motivo||'Sem motivo')+'</strong><span>'+horas(x.horas)+'</span></div><div class="dash-bar"><span style="width:'+w.toFixed(1)+'%"></span></div></div>'}).join(''):'<div class="dashboard-empty">Nenhuma parada no período.</div>';const ms=Array.isArray(r.porMaquina)?r.porMaquina:[];document.getElementById('dashMaquinas').innerHTML=ms.length?ms.map(x=>'<tr><td><strong>'+esc(x.maquina)+'</strong></td><td>'+horas(x.horas)+'</td><td>'+Number(x.percentual||0).toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1})+'%</td><td>'+String(x.ocorrencias||0)+'</td><td>'+esc(x.principalMotivo||'-')+'</td><td>'+esc(x.statusAtual||'-')+'</td></tr>').join(''):'<tr><td colspan="6" class="dashboard-empty">Nenhuma máquina com parada registrada.</td></tr>';document.getElementById('dashUltimaAtualizacao').textContent=r.periodo?.atualizadoEm?'✅ Atualizado em '+r.periodo.atualizadoEm:''}catch(e){document.getElementById('dashUltimaAtualizacao').textContent='⚠️ '+(e.message||String(e))}finally{btn.disabled=false;btn.textContent='🔄 ATUALIZAR DASHBOARD'}}
+async function carregarDashboardGerencial(){
+  if(!adminToken)return;
+  const btn=document.getElementById('btnAtualizarDashboard');
+  btn.disabled=true; btn.textContent='⏳ ATUALIZANDO...';
+  try{
+    const ini=document.getElementById('dashDataInicial').value;
+    const fim=document.getElementById('dashDataFinal').value;
+    const maq=document.getElementById('dashMaquina').value;
+    const r=await callJsonp({status:'dashboardGerencialStatus',token:adminToken,dataInicial:ini?ini.split('-').reverse().join('/'):'',dataFinal:fim?fim.split('-').reverse().join('/'):'' ,maquina:maq},15000);
+    if(!r||!r.sucesso)throw new Error(r?.erro||'Falha ao carregar dashboard.');
+    const k=r.kpis||{};
+    document.getElementById('dashHorasParadas').textContent=horas(k.horasParadas);
+    document.getElementById('dashHorasDefeitos').textContent=horas(k.horasDefeitos);
+    document.getElementById('dashHorasParadasOperacionais').textContent=horas(k.horasParadasOperacionais);
+    document.getElementById('dashPercentualParada').textContent=Number(k.percentualParada||0).toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1})+'%';
+    document.getElementById('dashMaquinasParadas').textContent=String(k.maquinasParadas||0);
+    document.getElementById('dashOcorrenciasDefeitos').textContent=String(k.ocorrenciasDefeitos||0);
+    document.getElementById('dashOcorrenciasParadasOperacionais').textContent=String(k.ocorrenciasParadasOperacionais||0);
+    function renderGrupo(id,arr,empty){const el=document.getElementById(id);const itens=Array.isArray(arr)?arr:[];if(!el)return;const max=Math.max(1,...itens.map(x=>Number(x.horas||0)));el.innerHTML=itens.length?itens.map(x=>{const w=Math.min(100,Number(x.horas||0)/max*100);return '<div class="dash-reason"><div class="dash-reason-top"><strong>'+esc(x.motivo||'Sem classificação')+'</strong><span>'+horas(x.horas)+'</span></div><div class="dash-bar"><span style="width:'+w.toFixed(1)+'%"></span></div></div>'}).join(''):'<div class="dashboard-empty">'+empty+'</div>';}
+    renderGrupo('dashDefeitos',r.porDefeito,'Nenhum defeito registrado.');
+    renderGrupo('dashParadasOperacionais',r.porParadaOperacional,'Nenhuma parada operacional registrada.');
+    renderGrupo('dashMotivos',r.porMotivo,'Nenhuma parada registrada.');
+    const ms=Array.isArray(r.porMaquina)?r.porMaquina:[];
+    document.getElementById('dashMaquinas').innerHTML=ms.length?ms.map(x=>'<tr><td><strong>'+esc(x.maquina)+'</strong></td><td>'+horas(x.horas)+'</td><td>'+horas(x.horasDefeitos)+'</td><td>'+horas(x.horasParadasOperacionais)+'</td><td>'+String(x.ocorrencias||0)+'</td><td>'+esc(x.principalMotivo||'-')+'</td><td>'+esc(x.statusAtual||'-')+'</td></tr>').join(''):'<tr><td colspan="7" class="dashboard-empty">Nenhuma máquina com parada registrada.</td></tr>';
+    document.getElementById('dashUltimaAtualizacao').textContent=r.periodo?.atualizadoEm?'✅ Atualizado em '+r.periodo.atualizadoEm:'';
+  }catch(e){document.getElementById('dashUltimaAtualizacao').textContent='⚠️ '+(e.message||String(e))}finally{btn.disabled=false;btn.textContent='🔄 ATUALIZAR DASHBOARD'}
+}
+
 const canal=new BroadcastChannel('ra-polymers-admin-dashboard');canal.onmessage=e=>{if(e?.data?.type==='admin-token'){adminToken=String(e.data.token||'');canal.postMessage({type:'dashboard-received'});carregarDashboardGerencial()}};canal.postMessage({type:'dashboard-ready'});window.addEventListener('beforeunload',()=>canal.close());
 document.getElementById('btnAtualizarDashboard').addEventListener('click',carregarDashboardGerencial);const h=hojeISO();document.getElementById('dashDataInicial').value=h;document.getElementById('dashDataFinal').value=h;
 </script>
