@@ -2381,7 +2381,7 @@ async function registrarServiceWorkerPush_() {
 
   const registro =
     await navigator.serviceWorker.register(
-      './firebase-messaging-sw.js',
+      './firebase-messaging-sw.js?v=13.80',
       {
         scope:
           './',
@@ -4582,16 +4582,41 @@ function solicitarProcessamentoUploadsServiceWorker_() {
 
   try {
 
-    if (
-      !('serviceWorker' in navigator) ||
-      !navigator.serviceWorker.controller
-    ) {
+    if (!('serviceWorker' in navigator)) {
       return;
     }
 
-    navigator.serviceWorker.controller.postMessage({
-      tipo: 'PROCESSAR_UPLOADS_AGORA'
-    });
+    navigator.serviceWorker.ready
+      .then(function(registro) {
+
+        const trabalhador =
+          registro.active ||
+          registro.waiting ||
+          registro.installing ||
+          navigator.serviceWorker.controller;
+
+        if (!trabalhador) {
+          return;
+        }
+
+        trabalhador.postMessage({
+          tipo: 'PROCESSAR_UPLOADS_AGORA'
+        });
+
+      })
+      .catch(function(erroReady) {
+        try {
+          debugUploadCliente(
+            'BACKGROUND_UPLOAD_MESSAGE_READY_ERRO',
+            null,
+            {
+              erro: erroReady && erroReady.message
+                ? erroReady.message
+                : String(erroReady)
+            }
+          );
+        } catch (ignorar) {}
+      });
 
   } catch (erro) {
     try {
@@ -4631,12 +4656,13 @@ async function salvarJobLocal(
         function() {
           db.close();
 
-          /* V13.65 — agenda continuidade fora da página. */
+          /* V13.80 — entrega imediatamente a fila ao Service Worker. */
           if (
             job &&
             job.status !== 'recording'
           ) {
             agendarUploadsEmSegundoPlano_();
+            solicitarProcessamentoUploadsServiceWorker_();
           }
 
           resolve();
@@ -21196,7 +21222,7 @@ document.addEventListener(
       'hidden'
     ) {
 
-      /* V13.65 — o upload protegido no IndexedDB passa ao Service Worker. */
+      /* V13.80 — entrega imediata da fila ao Service Worker. */
       solicitarProcessamentoUploadsServiceWorker_();
       agendarUploadsEmSegundoPlano_();
 
