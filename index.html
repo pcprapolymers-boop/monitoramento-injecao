@@ -282,14 +282,16 @@
     #cameraPreview {
       width: 100%;
       display: block;
-      aspect-ratio: 4 / 3;
-      object-fit: cover;
+      aspect-ratio: 16 / 9;
+      object-fit: contain;
       background: #000;
     }
 
     #videoPreview {
       width: 100%;
       display: block;
+      aspect-ratio: 16 / 9;
+      object-fit: contain;
       border-radius: 14px;
       background: #000;
     }
@@ -443,6 +445,11 @@
 #machineStatusCard.status-manutencao {
   border-color: #6A1B9A;
   background: #F8F0FC;
+}
+
+#machineStatusCard.status-setup {
+  border-color: #EF6C00;
+  background: #FFF4E5;
 }
 
 #machineStatusCard.status-material {
@@ -1458,6 +1465,7 @@ button:active {
         <option value="PRODUZINDO">🟢 PRODUZINDO</option>
         <option value="PARADA_PROGRAMADA">🟡 PARADA PROGRAMADA</option>
         <option value="MANUTENCAO">🔧 MÁQUINA EM MANUTENÇÃO</option>
+        <option value="SETUP">⚙️ SETUP</option>
         <option value="FALTA_MAO_OBRA">👷 FALTA DE MÃO DE OBRA</option>
         <option value="FALTA_MATERIAL">📦 FALTA MATERIAL</option>
         <option value="OUTROS">⚪ OUTROS</option>
@@ -9010,6 +9018,7 @@ function normalizarStatusMaquinaUI_(valor) {
     PARADA_PROGRAMADA_: 'PARADA_PROGRAMADA',
     QUEBRA: 'QUEBRA',
     MANUTENCAO: 'MANUTENCAO',
+    SETUP: 'SETUP',
     FALTA_MATERIAL: 'FALTA_MATERIAL',
     FALTA_DE_MATERIAL: 'FALTA_MATERIAL',
     FALTA_MAO_OBRA: 'FALTA_MAO_OBRA',
@@ -11254,6 +11263,9 @@ function obterClasseStatusMaquina_(
     case 'MANUTENCAO':
       return 'status-manutencao';
 
+    case 'SETUP':
+      return 'status-setup';
+
     case 'FALTA_MATERIAL':
       return 'status-material';
 
@@ -11287,6 +11299,9 @@ function obterLabelStatusMaquina_(
 
     case 'MANUTENCAO':
       return '🔧 MANUTENÇÃO';
+
+    case 'SETUP':
+      return '⚙️ SETUP';
 
     case 'FALTA_MATERIAL':
       return '📦 FALTA DE MATERIAL';
@@ -16204,6 +16219,10 @@ async function iniciarCamera() {
 
           min:
             15
+        },
+
+        aspectRatio: {
+          ideal: 16 / 9
         }
 
       },
@@ -16503,10 +16522,11 @@ async function iniciarCamera() {
       'none';
 
     /*
-     * V13.75 — não cortar o preview.
-     * Em tablets com sensor 4:3, object-fit:cover podia dar aparência
-     * de zoom mesmo quando o stream estava correto.
+     * V13.79 — preview em 16:9, sem corte de imagem.
      */
+    camera.style.aspectRatio =
+      '16 / 9';
+
     camera.style.objectFit =
       'contain';
 
