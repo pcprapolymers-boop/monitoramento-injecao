@@ -283,7 +283,8 @@
       width: 100%;
       display: block;
       aspect-ratio: 16 / 9;
-      object-fit: contain;
+      object-fit: cover;
+      object-position: center center;
       background: #000;
     }
 
@@ -4143,7 +4144,7 @@ const VERSAO_DB_VIDEO =
   4;
 
 const VERSAO_APLICACAO =
-  'V13.84';
+  'V13.85';
 
 const STORE_JOBS =
   'jobs';
@@ -6760,7 +6761,7 @@ async function processarJobUpload(
         }
       );
 
-      /* V13.84 — validação resumida por lote. */
+      /* V13.85 — validação resumida por lote. */
       let resumoServidor = null;
       try {
         resumoServidor = await consultarResumoChunksUpload_(job.uploadId, job.totalChunks);
@@ -6844,7 +6845,7 @@ async function processarJobUpload(
 
     }
 
-    /* V13.84 — última conferência real antes de pedir a montagem. */
+    /* V13.85 — última conferência real antes de pedir a montagem. */
     try {
       const resumoFinal = await consultarResumoChunksUpload_(job.uploadId, job.totalChunks);
       if (resumoFinal && Array.isArray(resumoFinal.faltantes) && resumoFinal.faltantes.length) {
@@ -17171,29 +17172,27 @@ function criarStreamVideo16x9_(streamOriginal) {
   const largura = Number(settings.width || 0);
   const altura = Number(settings.height || 0);
   const proporcao = altura > 0 ? largura / altura : 0;
-  const eh16x9 =
-    largura > 0 &&
-    altura > 0 &&
-    Math.abs(proporcao - (16 / 9)) < 0.02;
-
-  if (eh16x9) {
-    return {
-      track: videoTrack,
-      cleanup: function() {}
-    };
-  }
 
   /*
-   * V13.82 — GARANTE 16:9 MESMO QUANDO O DRIVER ENTREGA 4:3.
-   * O vídeo da câmera é desenhado em canvas 1280x720 com enquadramento
-   * "cover", então o arquivo gravado nasce fisicamente em 16:9.
+   * V13.85 — O arquivo deve nascer SEMPRE em 16:9.
+   * Não passamos mais o track original diretamente para o MediaRecorder,
+   * mesmo quando o driver afirma que é 16:9. Alguns Androids entregam
+   * metadados/rotação que fazem o resultado parecer estreito.
+   *
+   * A câmera é desenhada em um canvas 1280x720 e somente esse track é
+   * entregue ao gravador. Para fontes 4:3/portrait fazemos crop central
+   * proporcional, sem distorcer a imagem.
    */
   if (
     !window.HTMLCanvasElement ||
     typeof HTMLCanvasElement.prototype.captureStream !== 'function'
   ) {
     try {
-      debugUploadCliente('CAMERA_16_9_CANVAS_NAO_DISPONIVEL', {mediaType:'CAMERA'}, {width:largura,height:altura});
+      debugUploadCliente('CAMERA_16_9_CANVAS_NAO_DISPONIVEL', {mediaType:'CAMERA'}, {
+        width: largura,
+        height: altura,
+        aspecto: proporcao
+      });
     } catch (_) {}
     return {
       track: videoTrack,
@@ -17228,41 +17227,75 @@ function criarStreamVideo16x9_(streamOriginal) {
   const canvasStream = canvas.captureStream(24);
   const canvasTrack = canvasStream.getVideoTracks()[0];
   let desenhando = true;
-  let timer = null;
+  let frameHandle = null;
+  let ultimoFrame = 0;
+  const intervaloMs = 1000 / 24;
 
-  const desenhar = function() {
+  const desenhar = function(tempoAtual) {
     if (!desenhando) return;
 
     try {
+      const agora = Number(tempoAtual || performance.now());
+      if (agora - ultimoFrame < intervaloMs - 1) {
+        frameHandle = requestAnimationFrame(desenhar);
+        return;
+      }
+      ultimoFrame = agora;
+
       const vw = Number(video.videoWidth || largura || 0);
       const vh = Number(video.videoHeight || altura || 0);
+
       if (vw > 0 && vh > 0 && video.readyState >= 2) {
         const alvoW = canvas.width;
         const alvoH = canvas.height;
         const srcRatio = vw / vh;
         const alvoRatio = alvoW / alvoH;
 
-        let sx = 0, sy = 0, sw = vw, sh = vh;
+        let sx = 0;
+        let sy = 0;
+        let sw = vw;
+        let sh = vh;
 
         if (srcRatio > alvoRatio) {
+          /* Fonte mais larga: corta laterais. */
           sw = Math.round(vh * alvoRatio);
           sx = Math.round((vw - sw) / 2);
         } else if (srcRatio < alvoRatio) {
+          /* Fonte mais alta/estreita: corta topo e base. */
           sh = Math.round(vw / alvoRatio);
           sy = Math.round((vh - sh) / 2);
         }
 
-        ctx.drawImage(video, sx, sy, sw, sh, 0, 0, alvoW, alvoH);
+        ctx.drawImage(
+          video,
+          sx,
+          sy,
+          sw,
+          sh,
+          0,
+          0,
+          alvoW,
+          alvoH
+        );
       }
     } catch (_) {}
+
+    frameHandle = requestAnimationFrame(desenhar);
+  };
+
+  const iniciarDesenho = function() {
+    try {
+      frameHandle = requestAnimationFrame(desenhar);
+    } catch (_) {
+      frameHandle = setTimeout(function() { desenhar(performance.now()); }, 42);
+    }
   };
 
   try {
     video.play().catch(function() {});
   } catch (_) {}
 
-  timer = setInterval(desenhar, 42);
-  desenhar();
+  iniciarDesenho();
 
   try {
     debugUploadCliente('CAMERA_16_9_CANVAS_ATIVO', {mediaType:'CAMERA'}, {
@@ -17270,7 +17303,8 @@ function criarStreamVideo16x9_(streamOriginal) {
       origemHeight: altura,
       gravaWidth: 1280,
       gravaHeight: 720,
-      origemAspectRatio: proporcao
+      origemAspectRatio: proporcao,
+      forcarCanvas: true
     });
   } catch (_) {}
 
@@ -17278,18 +17312,23 @@ function criarStreamVideo16x9_(streamOriginal) {
     track: canvasTrack,
     cleanup: function() {
       desenhando = false;
-      if (timer) {
-        clearInterval(timer);
-        timer = null;
-      }
+      try {
+        if (frameHandle !== null && typeof cancelAnimationFrame === 'function') {
+          cancelAnimationFrame(frameHandle);
+        }
+      } catch (_) {}
+      frameHandle = null;
       try { video.pause(); } catch (_) {}
       try { video.srcObject = null; } catch (_) {}
       try { canvasTrack && canvasTrack.stop(); } catch (_) {}
-      try { canvasStream.getTracks().forEach(function(t){ if (t !== canvasTrack) t.stop(); }); } catch (_) {}
+      try {
+        canvasStream.getTracks().forEach(function(t) {
+          if (t !== canvasTrack) t.stop();
+        });
+      } catch (_) {}
     }
   };
 }
-
 
 function criarStreamVideoComAudioMelhorado_(streamOriginal) {
 
@@ -19232,7 +19271,7 @@ async function enviarChunk(
   dados
 ) {
 
-  /* V13.84: confirmação por JSONP de cada chunk foi removida.
+  /* V13.85: confirmação por JSONP de cada chunk foi removida.
    * O servidor grava por índice de forma idempotente; a fila faz uma
    * conferência resumida por lote antes da finalização. */
   await dispararPostChunk(dados);
