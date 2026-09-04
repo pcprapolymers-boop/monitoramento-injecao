@@ -4153,7 +4153,7 @@ const VERSAO_DB_VIDEO =
   4;
 
 const VERSAO_APLICACAO =
-  'V13.85';
+  'V13.92';
 
 const STORE_JOBS =
   'jobs';
@@ -6589,7 +6589,22 @@ async function processarJobUpload(
       job
     );
 
-    await solicitarWakeLock();
+    /* Wake Lock é opcional. Alguns Androids rejeitam a solicitação
+     * quando ela ocorre fora de um gesto direto do usuário. Isso nunca
+     * pode interromper o upload. */
+    try {
+      await solicitarWakeLock();
+    } catch (wakeLockErro) {
+      debugUploadCliente(
+        'WAKELOCK_UPLOAD_IGNORADO',
+        job,
+        {
+          erro: wakeLockErro && wakeLockErro.message
+            ? wakeLockErro.message
+            : String(wakeLockErro)
+        }
+      );
+    }
 
     const mediaType =
       job.mediaType ||
@@ -7093,25 +7108,11 @@ async function processarJobUpload(
 
     }
 
-    if (
-      job.mediaType ===
-      'VIDEO'
-    ) {
-
-      limparVideoEmProcessamentoLocal_(
-        job.maquina,
-        job.uploadId
-      );
-
-      setTimeout(
-        atualizarPendenciasAposVideoLocal_,
-        0
-      );
-
-    }
+    /* Falha transitória não desfaz a proteção local da inspeção.
+     * Mantemos o job como parte da fila e tentamos novamente. */
 
     job.status =
-      'paused';
+      'queued';
 
     job.retryCount =
       Number(
@@ -7135,7 +7136,7 @@ async function processarJobUpload(
 
     job.nextAttemptAt =
       Date.now() +
-      espera;
+      Math.min(10000, espera);
 
     job.updatedAt =
       Date.now();
@@ -7145,6 +7146,13 @@ async function processarJobUpload(
     );
 
     await atualizarFilaUI();
+
+    setTimeout(
+      function() {
+        processarFilaUploads().catch(function() {});
+      },
+      Math.min(10000, espera) + 50
+    );
 
     await liberarWakeLockSeSeguro();
 
@@ -7174,7 +7182,7 @@ async function processarJobUpload(
     else {
 
       mostrarMensagem(
-        '⚠️ O envio foi pausado. O arquivo permanece salvo no aparelho e será retomado automaticamente.',
+        '🔄 Tentando o envio novamente. O arquivo permanece salvo no aparelho.',
         'warning'
       );
 
@@ -7192,16 +7200,8 @@ async function processarChunkUploadOtimizado_(
   indice
 ) {
 
-  if (
-    navigator.onLine ===
-    false
-  ) {
-
-    throw new Error(
-      'SEM_INTERNET'
-    );
-
-  }
+  /* Não bloqueamos o envio com navigator.onLine. No Android esse estado
+   * pode ficar defasado; a tentativa real de rede é a fonte da verdade. */
 
   const registroChunk =
     await obterChunkLocal(
@@ -7314,6 +7314,34 @@ async function processarChunkUploadOtimizado_(
 
 
 
+async function reativarJobsPausadosAutomaticamente_() {
+
+  try {
+    const jobs = await listarJobsLocais();
+    let alterou = false;
+
+    for (const job of jobs) {
+      if (job && job.status === 'paused') {
+        job.status = 'queued';
+        job.nextAttemptAt = 0;
+        job.updatedAt = Date.now();
+        await salvarJobLocal(job);
+        alterou = true;
+      }
+    }
+
+    if (alterou) {
+      try {
+        await atualizarFilaUI();
+      } catch (_) {}
+    }
+  } catch (erro) {
+    console.warn('Falha ao reativar jobs pausados:', erro);
+  }
+
+}
+
+
 async function inicializarFilaUploads() {
 
   await solicitarArmazenamentoPersistente();
@@ -7322,6 +7350,8 @@ async function inicializarFilaUploads() {
     await excluirJobsAntigosIncompletos();
   }
   catch (erro) {}
+
+  await reativarJobsPausadosAutomaticamente_();
 
   await atualizarFilaUI();
 
@@ -17285,7 +17315,7 @@ function criarStreamVideo16x9_(streamOriginal) {
   ctx.imageSmoothingQuality = 'high';
 
   /*
-   * V13.90 — COMPOSITOR UNIVERSAL 16:9 CORRIGIDO
+   * V13.91 — COMPOSITOR UNIVERSAL 16:9 ORIENTAÇÃO ROBUSTA
    *
    * A V13.90 girava a fonte e depois calculava o crop usando largura/altura
    * ainda na orientação original. Em fontes como 720x1280 isso podia produzir
@@ -17340,24 +17370,45 @@ function criarStreamVideo16x9_(streamOriginal) {
 
   function obterRotacaoFonte_(vw, vh) {
     /*
-     * V13.90 — correção global da orientação do sensor.
-     *
-     * O navegador informa a orientação física da tela, enquanto alguns
-     * sensores traseiros Android entregam a imagem com os eixos do sensor
-     * em retrato. Nesses casos precisamos girar a fonte exatamente uma vez.
-     *
-     * A V13.89 aplicava o sentido invertido em alguns aparelhos, gerando
-     * vídeo 90° no sentido horário. Aqui usamos o sentido oposto para a
-     * orientação 270°, e o correspondente para 90°. Fontes já horizontais
-     * continuam sem rotação.
+     * V13.91 — orientação baseada no tipo real da tela.
+     * O ângulo numérico sozinho é ambíguo em alguns Android/tablets.
+     * Primeiro confiamos em screen.orientation.type, que distingue portrait
+     * de landscape-primary/secondary. Só giramos uma fonte vertical quando
+     * a tela está em landscape.
      */
     if (!(vw > 0 && vh > 0)) return 0;
 
-    const vertical = (vw / vh) < 0.92;
-    if (!vertical) return 0;
+    const verticalFonte = (vw / vh) < 0.92;
+    if (!verticalFonte) return 0;
 
-    const tela = obterAnguloTela_();
-    return tela === 270 ? -90 : 90;
+    try {
+      const orientation =
+        window.screen &&
+        window.screen.orientation &&
+        typeof window.screen.orientation.type === 'string'
+          ? window.screen.orientation.type.toLowerCase()
+          : '';
+
+      if (orientation.indexOf('portrait') === 0) {
+        return 0;
+      }
+
+      if (orientation === 'landscape-secondary') {
+        return 90;
+      }
+
+      if (orientation === 'landscape-primary') {
+        return -90;
+      }
+    } catch (_) {}
+
+    try {
+      if (window.innerWidth > window.innerHeight) {
+        return -90;
+      }
+    } catch (_) {}
+
+    return 0;
   }
 
   function desenharFrame(tempoAtual) {
@@ -17472,7 +17523,7 @@ function criarStreamVideo16x9_(streamOriginal) {
 
   try {
     debugUploadCliente(
-      'CAMERA_COMPOSITOR_16_9_UNIVERSAL_V1390',
+      'CAMERA_COMPOSITOR_16_9_UNIVERSAL_V1391',
       { mediaType: 'CAMERA' },
       {
         origemWidth:
