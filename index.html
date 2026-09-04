@@ -17,8 +17,8 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <link rel="manifest" href="./manifest.webmanifest">
-  <link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192.png?v=13.77">
-  <link rel="apple-touch-icon" href="./icons/icon-192.png?v=13.77">
+  <link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192.png?v=13.81">
+  <link rel="apple-touch-icon" href="./icons/icon-192.png?v=13.81">
 
   <style>
 
@@ -1262,7 +1262,9 @@ button:active {
       Ative este telefone para receber o lembrete da inspeção mesmo com a tela bloqueada ou o navegador em segundo plano.
     </div>
 
-    <button
+    <div id="pushAlertingHint" style="margin:8px 0 10px;padding:9px 10px;border-radius:10px;background:#F7FAFC;border:1px solid #D7E2EA;color:#536777;font-size:12px;line-height:1.35;">🔔 Para som e vibração com a tela bloqueada, deixe as notificações deste site como <strong>Alertar</strong> no Android, não como Silenciosas.</div>
+
+      <button
       id="btnAtivarPush"
       type="button"
       class="btn-primary"
@@ -2381,18 +2383,24 @@ async function registrarServiceWorkerPush_() {
 
   const registro =
     await navigator.serviceWorker.register(
-      './firebase-messaging-sw.js?v=13.80',
-      {
-        scope:
-          './',
-        updateViaCache:
-          'none'
-      }
-    );
+        './firebase-messaging-sw.js?v=13.81',
+        {
+          scope:
+            './',
+          updateViaCache:
+            'none'
+        }
+      );
 
-  await navigator.serviceWorker.ready;
+    /* V13.81 — força uma checagem do arquivo do Service Worker. */
+    try {
+      await registro.update();
+    }
+    catch (erroUpdateSW) {}
 
-  return registro;
+    await navigator.serviceWorker.ready;
+
+    return registro;
 
 }
 
@@ -4124,8 +4132,9 @@ const STORE_STATUS_OUTBOX =
 const TAMANHO_CHUNK =
   512 * 1024;
 
+/* V13.81 — chunks de gravação maiores reduzem o número de requisições e melhoram retomada em background. */
 const TIMESLICE_GRAVACAO =
-  4000;
+  8000;
 
 /*
  * V13.52 — envio paralelo controlado.
@@ -16289,11 +16298,34 @@ async function iniciarCamera() {
     }
     catch (debugErro) {}
 
-    cameraStream =
-      await dispositivos
-        .getUserMedia(
-          constraints
-        );
+    let cameraStream;
+
+    /* V13.81 — primeiro tenta EXIGIR 16:9 real. Alguns Androids
+     * ignoram ideal:16/9 e entregam 4:3; nesse caso usamos o fallback
+     * e a gravação será convertida para 16:9 por canvas antes do recorder. */
+    const constraints16x9 = {
+      video: {
+        facingMode: { ideal: 'environment' },
+        width: { ideal: 1280, max: 1280, min: 640 },
+        height: { ideal: 720, max: 720, min: 360 },
+        frameRate: { ideal: 24, max: 30, min: 15 },
+        aspectRatio: { exact: 16 / 9 },
+        resizeMode: 'crop-and-scale'
+      },
+      audio: constraints.audio
+    };
+
+    try {
+      cameraStream = await dispositivos.getUserMedia(constraints16x9);
+      try {
+        debugUploadCliente('CAMERA_16_9_EXATO_OK', {mediaType:'CAMERA'}, {});
+      } catch (_) {}
+    } catch (erro16x9) {
+      try {
+        debugUploadCliente('CAMERA_16_9_EXATO_FALHOU_FALLBACK', {mediaType:'CAMERA'}, {erro: erro16x9 && erro16x9.message ? erro16x9.message : String(erro16x9)});
+      } catch (_) {}
+      cameraStream = await dispositivos.getUserMedia(constraints);
+    }
 
     const tracks =
       cameraStream
@@ -16887,30 +16919,168 @@ function escolherMimeType() {
    ===================================================== */
 
 
-function criarStreamVideoComAudioMelhorado_(
-  streamOriginal
-) {
+function criarStreamVideo16x9_(streamOriginal) {
 
   const videoTrack =
     streamOriginal &&
     streamOriginal.getVideoTracks()[0];
 
+  if (!videoTrack) {
+    return {
+      track: null,
+      cleanup: function() {}
+    };
+  }
+
+  const settings =
+    typeof videoTrack.getSettings === 'function'
+      ? videoTrack.getSettings()
+      : {};
+
+  const largura = Number(settings.width || 0);
+  const altura = Number(settings.height || 0);
+  const proporcao = altura > 0 ? largura / altura : 0;
+  const eh16x9 =
+    largura > 0 &&
+    altura > 0 &&
+    Math.abs(proporcao - (16 / 9)) < 0.02;
+
+  if (eh16x9) {
+    return {
+      track: videoTrack,
+      cleanup: function() {}
+    };
+  }
+
+  /*
+   * V13.81 — GARANTE 16:9 MESMO QUANDO O DRIVER ENTREGA 4:3.
+   * O vídeo da câmera é desenhado em canvas 1280x720 com enquadramento
+   * "cover", então o arquivo gravado nasce fisicamente em 16:9.
+   */
+  if (
+    !window.HTMLCanvasElement ||
+    typeof HTMLCanvasElement.prototype.captureStream !== 'function'
+  ) {
+    try {
+      debugUploadCliente('CAMERA_16_9_CANVAS_NAO_DISPONIVEL', {mediaType:'CAMERA'}, {width:largura,height:altura});
+    } catch (_) {}
+    return {
+      track: videoTrack,
+      cleanup: function() {}
+    };
+  }
+
+  const video = document.createElement('video');
+  video.muted = true;
+  video.autoplay = true;
+  video.playsInline = true;
+  video.setAttribute('playsinline', '');
+  video.srcObject = new MediaStream([videoTrack]);
+
+  const canvas = document.createElement('canvas');
+  canvas.width = 1280;
+  canvas.height = 720;
+
+  const ctx = canvas.getContext('2d', { alpha: false });
+  if (!ctx) {
+    return {
+      track: videoTrack,
+      cleanup: function() {}
+    };
+  }
+
+  try {
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+  } catch (_) {}
+
+  const canvasStream = canvas.captureStream(24);
+  const canvasTrack = canvasStream.getVideoTracks()[0];
+  let desenhando = true;
+  let timer = null;
+
+  const desenhar = function() {
+    if (!desenhando) return;
+
+    try {
+      const vw = Number(video.videoWidth || largura || 0);
+      const vh = Number(video.videoHeight || altura || 0);
+      if (vw > 0 && vh > 0 && video.readyState >= 2) {
+        const alvoW = canvas.width;
+        const alvoH = canvas.height;
+        const srcRatio = vw / vh;
+        const alvoRatio = alvoW / alvoH;
+
+        let sx = 0, sy = 0, sw = vw, sh = vh;
+
+        if (srcRatio > alvoRatio) {
+          sw = Math.round(vh * alvoRatio);
+          sx = Math.round((vw - sw) / 2);
+        } else if (srcRatio < alvoRatio) {
+          sh = Math.round(vw / alvoRatio);
+          sy = Math.round((vh - sh) / 2);
+        }
+
+        ctx.drawImage(video, sx, sy, sw, sh, 0, 0, alvoW, alvoH);
+      }
+    } catch (_) {}
+  };
+
+  try {
+    video.play().catch(function() {});
+  } catch (_) {}
+
+  timer = setInterval(desenhar, 42);
+  desenhar();
+
+  try {
+    debugUploadCliente('CAMERA_16_9_CANVAS_ATIVO', {mediaType:'CAMERA'}, {
+      origemWidth: largura,
+      origemHeight: altura,
+      gravaWidth: 1280,
+      gravaHeight: 720,
+      origemAspectRatio: proporcao
+    });
+  } catch (_) {}
+
+  return {
+    track: canvasTrack,
+    cleanup: function() {
+      desenhando = false;
+      if (timer) {
+        clearInterval(timer);
+        timer = null;
+      }
+      try { video.pause(); } catch (_) {}
+      try { video.srcObject = null; } catch (_) {}
+      try { canvasTrack && canvasTrack.stop(); } catch (_) {}
+      try { canvasStream.getTracks().forEach(function(t){ if (t !== canvasTrack) t.stop(); }); } catch (_) {}
+    }
+  };
+}
+
+
+function criarStreamVideoComAudioMelhorado_(streamOriginal) {
+
   const audioTrack =
     streamOriginal &&
     streamOriginal.getAudioTracks()[0];
 
-  if (
-    !videoTrack ||
-    !audioTrack
-  ) {
-
+  if (!audioTrack) {
     return {
-      stream:
-        streamOriginal,
-      cleanup:
-        function() {}
+      stream: streamOriginal,
+      cleanup: function() {}
     };
+  }
 
+  const videoPreparado = criarStreamVideo16x9_(streamOriginal);
+  const videoTrack = videoPreparado.track;
+
+  if (!videoTrack) {
+    return {
+      stream: streamOriginal,
+      cleanup: videoPreparado.cleanup
+    };
   }
 
   try {
@@ -16919,207 +17089,105 @@ function criarStreamVideoComAudioMelhorado_(
       window.AudioContext ||
       window.webkitAudioContext;
 
-    if (
-      !AudioContextClass
-    ) {
-
+    if (!AudioContextClass) {
       return {
-        stream:
-          streamOriginal,
-        cleanup:
-          function() {}
+        stream: new MediaStream([videoTrack, audioTrack]),
+        cleanup: videoPreparado.cleanup
       };
-
     }
 
-    audioContextVideoGravacao =
-      new AudioContextClass();
+    audioContextVideoGravacao = new AudioContextClass();
 
     const source =
-      audioContextVideoGravacao
-        .createMediaStreamSource(
-          new MediaStream([
-            audioTrack
-          ])
-        );
+      audioContextVideoGravacao.createMediaStreamSource(
+        new MediaStream([audioTrack])
+      );
 
-    /*
-     * Reduz ruído grave de vibração/máquinas.
-     */
     const highpass =
-      audioContextVideoGravacao
-        .createBiquadFilter();
+      audioContextVideoGravacao.createBiquadFilter();
+    highpass.type = 'highpass';
+    highpass.frequency.value = 110;
+    highpass.Q.value = 0.7;
 
-    highpass.type =
-      'highpass';
-
-    highpass.frequency.value =
-      110;
-
-    highpass.Q.value =
-      0.7;
-
-    /*
-     * Comprime variações fortes e deixa a voz mais
-     * constante no meio do ruído industrial.
-     */
     const compressor =
-      audioContextVideoGravacao
-        .createDynamicsCompressor();
-
-    compressor.threshold.value =
-      -24;
-
-    compressor.knee.value =
-      18;
-
-    compressor.ratio.value =
-      4;
-
-    compressor.attack.value =
-      0.003;
-
-    compressor.release.value =
-      0.25;
+      audioContextVideoGravacao.createDynamicsCompressor();
+    compressor.threshold.value = -24;
+    compressor.knee.value = 18;
+    compressor.ratio.value = 4;
+    compressor.attack.value = 0.003;
+    compressor.release.value = 0.25;
 
     const gain =
-      audioContextVideoGravacao
-        .createGain();
-
-    gain.gain.value =
-      1.05;
+      audioContextVideoGravacao.createGain();
+    gain.gain.value = 1.05;
 
     const destination =
-      audioContextVideoGravacao
-        .createMediaStreamDestination();
+      audioContextVideoGravacao.createMediaStreamDestination();
 
-    source
-      .connect(highpass);
+    source.connect(highpass);
+    highpass.connect(compressor);
+    compressor.connect(gain);
+    gain.connect(destination);
 
-    highpass
-      .connect(compressor);
-
-    compressor
-      .connect(gain);
-
-    gain
-      .connect(destination);
-
-    if (
-      typeof audioContextVideoGravacao.resume ===
-        'function'
-    ) {
-
-      audioContextVideoGravacao
-        .resume()
-        .catch(
-          function() {}
-        );
-
+    if (typeof audioContextVideoGravacao.resume === 'function') {
+      audioContextVideoGravacao.resume().catch(function() {});
     }
 
     const audioProcessed =
-      destination.stream
-        .getAudioTracks()[0];
+      destination.stream.getAudioTracks()[0];
 
     if (!audioProcessed) {
-      throw new Error(
-        'Trilha de áudio processada indisponível.'
-      );
+      throw new Error('Trilha de áudio processada indisponível.');
     }
 
-    const streamNovo =
-      new MediaStream([
-        videoTrack,
-        audioProcessed
-      ]);
+    const streamNovo = new MediaStream([
+      videoTrack,
+      audioProcessed
+    ]);
 
-    audioCleanupVideoGravacao =
-      function() {
+    audioCleanupVideoGravacao = function() {
 
-        try {
+      try {
+        streamNovo.getTracks().forEach(function(track) {
+          try { track.stop(); } catch (_) {}
+        });
+      } catch (_) {}
 
-          streamNovo
-            .getTracks()
-            .forEach(
-              function(track) {
-                try {
-                  track.stop();
-                }
-                catch (erro) {}
-              }
-            );
+      try {
+        videoPreparado.cleanup();
+      } catch (_) {}
 
+      try {
+        if (audioContextVideoGravacao) {
+          audioContextVideoGravacao.close().catch(function() {});
         }
-        catch (erro) {}
+      } catch (_) {}
 
-        try {
-
-          if (
-            audioContextVideoGravacao
-          ) {
-
-            audioContextVideoGravacao
-              .close()
-              .catch(
-                function() {}
-              );
-
-          }
-
-        }
-        catch (erro) {}
-
-        audioContextVideoGravacao =
-          null;
-
-        audioCleanupVideoGravacao =
-          null;
-
-      };
-
-    return {
-      stream:
-        streamNovo,
-      cleanup:
-        audioCleanupVideoGravacao
+      audioContextVideoGravacao = null;
+      audioCleanupVideoGravacao = null;
     };
 
-  }
-  catch (erro) {
+    return {
+      stream: streamNovo,
+      cleanup: audioCleanupVideoGravacao
+    };
+
+  } catch (erro) {
 
     try {
-
-      if (
-        audioContextVideoGravacao
-      ) {
-
-        audioContextVideoGravacao
-          .close()
-          .catch(
-            function() {}
-          );
-
+      if (audioContextVideoGravacao) {
+        audioContextVideoGravacao.close().catch(function() {});
       }
+    } catch (_) {}
 
-    }
-    catch (erroClose) {}
-
-    audioContextVideoGravacao =
-      null;
-
-    audioCleanupVideoGravacao =
-      null;
+    audioContextVideoGravacao = null;
+    audioCleanupVideoGravacao = videoPreparado.cleanup;
 
     return {
-      stream:
-        streamOriginal,
-      cleanup:
-        function() {}
+      stream: new MediaStream([videoTrack, audioTrack]),
+      cleanup: videoPreparado.cleanup
     };
-
   }
-
 }
 
 function iniciarGravacao() {
@@ -21429,6 +21497,14 @@ document.addEventListener(
   }
 );
 
+
+
+/* V13.81 — última tentativa de entregar a fila ao Service Worker
+ * quando a página estiver sendo descartada/navegada. */
+document.addEventListener('pagehide', function() {
+  try { solicitarProcessamentoUploadsServiceWorker_(); } catch (_) {}
+  try { agendarUploadsEmSegundoPlano_(); } catch (_) {}
+}, { capture: true });
 
 
 document.getElementById(
