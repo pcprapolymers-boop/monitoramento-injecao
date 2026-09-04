@@ -1145,7 +1145,7 @@ button:active {
   <div class="header">
 
     <img
-      src="assets/ra-polymers-logo.png?v=13.77"
+      src="assets/ra-polymers-logo.png?v=13.84"
       class="logo"
       alt="RA Polymers"
     >
@@ -1488,7 +1488,19 @@ button:active {
         <div style="margin-top:5px;font-size:11px;color:#7A5B5B;line-height:1.35;">Selecione o defeito mais específico encontrado. Isso alimentará os indicadores gerenciais.</div>
       </div>
 
-<div
+      <div
+        id="machineMoldProductCard"
+        style="display:none;margin:8px 0 10px;padding:10px;border:1px solid #D7B58A;border-left:4px solid #EF6C00;border-radius:10px;background:#FFF8EE;"
+      >
+        <div style="font-size:13px;font-weight:800;color:#8A4B08;margin-bottom:6px;">🧰 PEÇA DO MOLDE EM MANUTENÇÃO</div>
+        <label for="machineMoldProductSelector" style="display:block;font-size:12px;font-weight:700;color:#6F4A1A;margin-bottom:5px;">Peça vinculada ao molde</label>
+        <select id="machineMoldProductSelector" style="width:100%;min-height:44px;">
+          <option value="">Selecione a peça</option>
+        </select>
+        <div style="margin-top:5px;font-size:11px;color:#7A6546;line-height:1.35;">A lista é carregada diretamente da aba CAD_PRODUTOS.</div>
+      </div>
+
+      <div
         id="machineStatusAudioCard"
         style="
           display:none;
@@ -1679,7 +1691,7 @@ button:active {
 
     <!-- PRODUTO -->
 
-    <div class="card" id="productCard">
+    <div class="card hidden" id="productCard" style="display:none;">
 
       <div class="clean-step-title">
         <span class="clean-step-number">3</span>
@@ -3286,6 +3298,9 @@ let maquina =
 /* V13.66 — confirmação de PRODUZINDO + fila de status silenciosa. */
 let statusOperacionalMaquina =
   'PRODUZINDO';
+let statusServidorCarregado = false;
+let produtoMoldeManutencao = '';
+let produtoMoldeSelecionado = '';
 
 /* V13.60 — separa status salvo, status selecionado e transição. */
 let statusAnteriorMaquina =
@@ -4126,6 +4141,9 @@ const NOME_DB_VIDEO =
 
 const VERSAO_DB_VIDEO =
   4;
+
+const VERSAO_APLICACAO =
+  'V13.84';
 
 const STORE_JOBS =
   'jobs';
@@ -6167,6 +6185,16 @@ function enviarStatusMaquinaJsonp_(
       );
 
       params.set(
+        'detalhamentoStatus',
+        item.detalhamentoStatus || ''
+      );
+
+      params.set(
+        'produtoMoldeManutencao',
+        item.produtoMoldeManutencao || ''
+      );
+
+      params.set(
         'operacaoId',
         item.operacaoId ||
         (
@@ -6363,12 +6391,8 @@ async function processarFilaUploads() {
     return;
   }
 
-  if (navigator.onLine === false) {
-
-    atualizarFilaUI();
-    return;
-
-  }
+  /* Android pode informar navigator.onLine de forma defasada.
+   * A tentativa real de rede é quem decide a conectividade. */
 
   filaProcessando =
     true;
@@ -6605,6 +6629,8 @@ async function processarJobUpload(
 
     }
 
+    if (document.hidden) { throw new Error('BACKGROUND_HANDOFF'); }
+
     while (
       Number(
         job.nextChunk ||
@@ -6616,16 +6642,9 @@ async function processarJobUpload(
       )
     ) {
 
-      if (
-        navigator.onLine ===
-        false
-      ) {
+      if (document.hidden) { throw new Error('BACKGROUND_HANDOFF'); }
 
-        throw new Error(
-          'SEM_INTERNET'
-        );
-
-      }
+      /* Não interromper a fila apenas por navigator.onLine. */
 
       const inicioLote =
         Number(
@@ -6741,6 +6760,22 @@ async function processarJobUpload(
         }
       );
 
+      /* V13.84 — validação resumida por lote. */
+      let resumoServidor = null;
+      try {
+        resumoServidor = await consultarResumoChunksUpload_(job.uploadId, job.totalChunks);
+      } catch (erroResumo) {
+        debugUploadCliente('RESUMO_CHUNKS_FALHOU', job, {
+          erro: erroResumo && erroResumo.message ? erroResumo.message : String(erroResumo)
+        });
+      }
+
+      const recebidosServidor = new Set(
+        resumoServidor && Array.isArray(resumoServidor.recebidos)
+          ? resumoServidor.recebidos.map(Number)
+          : []
+      );
+
       /*
        * Só avançamos o ponteiro sobre uma sequência contínua.
        * Ex.: se 3 e 4 terminaram, mas 2 falhou, nextChunk continua 2.
@@ -6751,9 +6786,8 @@ async function processarJobUpload(
         inicioLote;
 
       while (
-        concluidos.has(
-          ponteiro
-        )
+        concluidos.has(ponteiro) ||
+        recebidosServidor.has(ponteiro)
       ) {
 
         ponteiro++;
@@ -6808,6 +6842,29 @@ async function processarJobUpload(
 
       }
 
+    }
+
+    /* V13.84 — última conferência real antes de pedir a montagem. */
+    try {
+      const resumoFinal = await consultarResumoChunksUpload_(job.uploadId, job.totalChunks);
+      if (resumoFinal && Array.isArray(resumoFinal.faltantes) && resumoFinal.faltantes.length) {
+        const primeiroAusente = Number(
+          resumoFinal.faltantes.map(Number).sort(function(a,b){return a-b;})[0]
+        );
+        if (Number.isInteger(primeiroAusente) && primeiroAusente >= 0) {
+          job.nextChunk = primeiroAusente;
+          job.status = 'uploading';
+          job.nextAttemptAt = Date.now() + 1000;
+          job.updatedAt = Date.now();
+          await salvarJobLocal(job);
+          await atualizarFilaUI();
+          return false;
+        }
+      }
+    } catch (erroResumoFinal) {
+      debugUploadCliente('RESUMO_FINAL_CHUNKS_FALHOU', job, {
+        erro: erroResumoFinal && erroResumoFinal.message ? erroResumoFinal.message : String(erroResumoFinal)
+      });
     }
 
     job.status =
@@ -6959,6 +7016,15 @@ async function processarJobUpload(
 
   }
   catch (erro) {
+
+    if (erro && erro.message === 'BACKGROUND_HANDOFF') {
+      job.status = 'queued';
+      job.nextAttemptAt = Date.now() + 1500;
+      job.updatedAt = Date.now();
+      await salvarJobLocal(job);
+      await agendarUploadsEmSegundoPlano_();
+      return false;
+    }
 
     debugUploadCliente(
       'JOB_ERRO',
@@ -9103,6 +9169,59 @@ function normalizarDefeitoPecaUI_(valor) {
   return MAPA_DEFEITOS_PECA_UI_[chave] ? chave : '';
 }
 
+function preencherSeletorPecaMoldeUI_() {
+  const select = document.getElementById('machineMoldProductSelector');
+  if (!select) return;
+  const valorAtual = produtoMoldeSelecionado || produtoMoldeManutencao || '';
+  while (select.options.length > 1) select.remove(1);
+  (produtos || []).forEach(function(item) {
+    const nome = typeof item === 'string' ? item : item.nome;
+    if (!nome) return;
+    const option = document.createElement('option');
+    option.value = nome;
+    option.textContent = nome;
+    select.appendChild(option);
+  });
+  if (valorAtual) select.value = valorAtual;
+}
+
+function atualizarSeletorPecaMoldeUI_() {
+  const statusSelect = document.getElementById('machineStatusSelector');
+  const box = document.getElementById('machineMoldProductCard');
+  const select = document.getElementById('machineMoldProductSelector');
+  if (!statusSelect || !box || !select) return;
+  preencherSeletorPecaMoldeUI_();
+  const status = normalizarStatusMaquinaUI_(statusSelect.value || statusOperacionalMaquina || '');
+  const mostrar = status === 'MOLDE_MANUTENCAO';
+  box.style.display = mostrar ? 'block' : 'none';
+  if (mostrar) {
+    select.value = produtoMoldeSelecionado || produtoMoldeManutencao || '';
+  } else {
+    select.value = '';
+    produtoMoldeSelecionado = '';
+  }
+}
+
+function atualizarVisibilidadeFluxoProducao_() {
+  const productCard = document.getElementById('productCard');
+  const conformidadeCard = document.getElementById('conformidadeCard');
+  const startCard = document.getElementById('startCard');
+  const produzindoConfirmado = Boolean(
+    statusServidorCarregado &&
+    normalizarStatusMaquinaUI_(statusOperacionalMaquina || '') === 'PRODUZINDO'
+  );
+  if (productCard) {
+    productCard.classList.toggle('hidden', !produzindoConfirmado);
+    productCard.style.display = produzindoConfirmado ? 'block' : 'none';
+  }
+  if (!produzindoConfirmado) {
+    if (conformidadeCard) conformidadeCard.classList.add('hidden');
+    if (startCard) startCard.classList.add('hidden');
+  }
+  atualizarSubmenuDefeitoPecaUI_();
+  atualizarSeletorPecaMoldeUI_();
+}
+
 function atualizarSubmenuDefeitoPecaUI_() {
   const statusSelect = document.getElementById('machineStatusSelector');
   const box = document.getElementById('machineDefectSubmenu');
@@ -9162,6 +9281,8 @@ function aplicarStatusPreCarregadoDaProximaMaquina_(status, detalhamento) {
   statusAnteriorMaquina = normalizado;
   statusSelecionadoMaquina = normalizado;
   statusOperacionalMaquina = normalizado;
+  produtoMoldeManutencao = String(produtoMoldeManutencao || '');
+  produtoMoldeSelecionado = produtoMoldeManutencao;
   detalhamentoStatusMaquina = detalheNormalizado;
   detalhamentoStatusSelecionadoMaquina = detalheNormalizado;
   statusAudioConcluido = normalizado === 'PRODUZINDO';
@@ -9170,7 +9291,10 @@ function aplicarStatusPreCarregadoDaProximaMaquina_(status, detalhamento) {
   if (seletor) seletor.value = normalizado;
   const defeitoSelect = document.getElementById('machineDefectSelector');
   if (defeitoSelect) defeitoSelect.value = detalheNormalizado;
+  const moldeSelect = document.getElementById('machineMoldProductSelector');
+  if (moldeSelect) moldeSelect.value = produtoMoldeManutencao || '';
   atualizarSubmenuDefeitoPecaUI_();
+  atualizarSeletorPecaMoldeUI_();
   atualizarStatusMaquinaUI();
   atualizarObrigatoriedadeAudioStatus();
   atualizarStatusAudioUI();
@@ -9461,6 +9585,11 @@ async function selecionarMaquinaProvisoria() {
 
   maquinaValida =
     true;
+
+  statusServidorCarregado = false;
+  produtoMoldeManutencao = '';
+  produtoMoldeSelecionado = '';
+  atualizarVisibilidadeFluxoProducao_();
 
   if (statusPreCarregadoProximaMaquina) {
     aplicarStatusPreCarregadoDaProximaMaquina_(
@@ -11816,6 +11945,9 @@ function aplicarDadosStatusNaTela_(
   statusAtualizadoEm = dados.atualizadoEm || null;
   responsavelStatusMaquina = dados.responsavel || '';
   observacaoStatusMaquina = dados.observacao || '';
+  produtoMoldeManutencao = String(dados.produtoMoldeManutencao || '');
+  produtoMoldeSelecionado = produtoMoldeManutencao;
+  statusServidorCarregado = true;
 
   const responsavel = document.getElementById('machineStatusResponsible');
   const observacao = document.getElementById('machineStatusNote');
@@ -11827,9 +11959,13 @@ function aplicarDadosStatusNaTela_(
   if (seletor) seletor.value = statusServidor;
   const defeitoSelect = document.getElementById('machineDefectSelector');
   if (defeitoSelect) defeitoSelect.value = detalhamentoStatusMaquina;
+  const moldeSelect = document.getElementById('machineMoldProductSelector');
+  if (moldeSelect) moldeSelect.value = produtoMoldeManutencao || '';
   atualizarSubmenuDefeitoPecaUI_();
+  atualizarSeletorPecaMoldeUI_();
 
   atualizarStatusMaquinaUI();
+  atualizarVisibilidadeFluxoProducao_();
   atualizarBloqueioStatusObrigatorio_();
 
   if (statusTrocaMaquinaEmAndamento) {
@@ -12536,7 +12672,8 @@ async function salvarStatusMaquinaEmSegundoPlano(
   audioId,
   acao,
   operacaoId,
-  detalhamentoStatus
+  detalhamentoStatus,
+  produtoMoldeManutencaoParam
 ) {
 
   const item = {
@@ -12571,6 +12708,10 @@ async function salvarStatusMaquinaEmSegundoPlano(
 
     detalhamentoStatus:
       detalhamentoStatus ||
+      '',
+
+    produtoMoldeManutencao:
+      produtoMoldeManutencaoParam ||
       '',
 
     status:
@@ -12861,7 +13002,9 @@ async function salvarStatusMaquina() {
   const defectSelect = document.getElementById('machineDefectSelector');
   const detalhamentoNovo = statusNovo === 'PECA_DEFEITO' ? normalizarDefeitoPecaUI_(defectSelect ? defectSelect.value : detalhamentoStatusSelecionadoMaquina) : '';
   const detalhamentoAtual = statusAtual === 'PECA_DEFEITO' ? normalizarDefeitoPecaUI_(detalhamentoStatusMaquina) : '';
-  const statusMudou = statusNovo !== statusAtual || (statusNovo === 'PECA_DEFEITO' && detalhamentoNovo !== detalhamentoAtual);
+  const produtoMoldeNovo = statusNovo === 'MOLDE_MANUTENCAO' ? String((document.getElementById('machineMoldProductSelector') || {}).value || produtoMoldeSelecionado || produtoMoldeManutencao || '').trim() : '';
+  const produtoMoldeAtual = statusAtual === 'MOLDE_MANUTENCAO' ? String(produtoMoldeManutencao || '').trim() : '';
+  const statusMudou = statusNovo !== statusAtual || (statusNovo === 'PECA_DEFEITO' && detalhamentoNovo !== detalhamentoAtual) || (statusNovo === 'MOLDE_MANUTENCAO' && produtoMoldeNovo !== produtoMoldeAtual);
 
   operadorStatusSelecionado = String(
     operadorSelect.value || operadorStatusSelecionado || ''
@@ -12874,6 +13017,12 @@ async function salvarStatusMaquina() {
 
   if (statusNovo === 'PECA_DEFEITO' && !detalhamentoNovo) {
     if (mensagem) mensagem.textContent = '⚠️ Selecione o tipo de defeito da peça.';
+    atualizarStatusAudioUI();
+    return;
+  }
+
+  if (statusNovo === 'MOLDE_MANUTENCAO' && !produtoMoldeNovo) {
+    if (mensagem) mensagem.textContent = '⚠️ Selecione a peça vinculada ao molde em manutenção.';
     atualizarStatusAudioUI();
     return;
   }
@@ -12891,6 +13040,8 @@ async function salvarStatusMaquina() {
       statusAtualizadoEm = new Date().toISOString();
       statusConfirmadoLocalEm = Date.now();
       statusAtualizacaoObrigatoria = false;
+      statusServidorCarregado = false;
+      atualizarVisibilidadeFluxoProducao_();
 
       atualizarStatusAudioUI();
 
@@ -12962,6 +13113,9 @@ async function salvarStatusMaquina() {
     statusSelecionadoMaquina = statusNovo;
     detalhamentoStatusMaquina = detalhamentoNovo;
     detalhamentoStatusSelecionadoMaquina = detalhamentoNovo;
+    produtoMoldeManutencao = produtoMoldeNovo;
+    produtoMoldeSelecionado = produtoMoldeNovo;
+    statusServidorCarregado = false;
     statusAtualizadoEm = new Date().toISOString();
     statusConfirmadoLocalEm = Date.now();
     statusAtualizacaoObrigatoria = false;
@@ -12972,6 +13126,8 @@ async function salvarStatusMaquina() {
 
     liberarObrigatoriedadeStatusAposSalvar();
     atualizarStatusMaquinaUI();
+    atualizarSeletorPecaMoldeUI_();
+    atualizarVisibilidadeFluxoProducao_();
     atualizarTravamentoCamposStatusAudio(false);
     atualizarBloqueioStatusObrigatorio_();
 
@@ -13003,7 +13159,8 @@ async function salvarStatusMaquina() {
       audioId,
       'ALTERAR_STATUS',
       operacaoId,
-      detalhamentoNovo
+      detalhamentoNovo,
+      produtoMoldeNovo
     );
 
     if (audioStatusPromise && audioStatusUploadId) {
@@ -13050,7 +13207,8 @@ function salvarStatusMaquinaNoServidor(
   audioId,
   acao,
   operacaoId,
-  detalhamentoStatus
+  detalhamentoStatus,
+  produtoMoldeManutencaoParam
 ) {
 
   return new Promise(
@@ -13080,6 +13238,7 @@ function salvarStatusMaquinaNoServidor(
       params.set('acao',acao || 'ALTERAR_STATUS');
       params.set('operacaoId',operacaoId || '');
       params.set('detalhamentoStatus',detalhamentoStatus || '');
+      params.set('produtoMoldeManutencao',produtoMoldeManutencaoParam || '');
       params.set('callback',callbackName);
       params.set('_',Date.now());
 
@@ -13199,10 +13358,16 @@ function salvarStatusMaquinaNoServidor(
             dados.motivo ||
             '';
 
+          produtoMoldeManutencao = String(dados.produtoMoldeManutencao || produtoMoldeManutencao || '');
+          produtoMoldeSelecionado = produtoMoldeManutencao;
+          statusServidorCarregado = true;
+
           detalhamentoStatusMaquina = normalizarDefeitoPecaUI_(dados.detalhamentoStatus || '');
           detalhamentoStatusSelecionadoMaquina = detalhamentoStatusMaquina;
 
           atualizarStatusMaquinaUI();
+          atualizarSeletorPecaMoldeUI_();
+          atualizarVisibilidadeFluxoProducao_();
 
           /*
            * Para qualquer status salvo com sucesso
@@ -13797,13 +13962,17 @@ function atualizarStatusAudioUI() {
   );
   const detalheAtual = statusAtual === 'PECA_DEFEITO' ? normalizarDefeitoPecaUI_(detalhamentoStatusMaquina) : '';
   const detalheSelecionado = statusSelecionado === 'PECA_DEFEITO' ? normalizarDefeitoPecaUI_(detalhamentoStatusSelecionadoMaquina || (document.getElementById('machineDefectSelector') || {}).value || '') : '';
-  const mudou = statusSelecionado !== statusAtual || (statusSelecionado === 'PECA_DEFEITO' && detalheSelecionado !== detalheAtual);
+  const moldSelect = document.getElementById('machineMoldProductSelector');
+  const moldeSelecionadoUI = statusSelecionado === 'MOLDE_MANUTENCAO' ? String((moldSelect || {}).value || produtoMoldeSelecionado || produtoMoldeManutencao || '').trim() : '';
+  const mudou = statusSelecionado !== statusAtual || (statusSelecionado === 'PECA_DEFEITO' && detalheSelecionado !== detalheAtual) || (statusSelecionado === 'MOLDE_MANUTENCAO' && moldeSelecionadoUI !== String(produtoMoldeManutencao || '').trim());
   const naoProdutivo = statusSelecionado !== 'PRODUZINDO';
   const detalheIncompleto = statusSelecionado === 'PECA_DEFEITO' && !detalheSelecionado;
+  const moldeIncompleto = statusSelecionado === 'MOLDE_MANUTENCAO' && !moldeSelecionadoUI;
+  const referenciaIncompleta = detalheIncompleto || moldeIncompleto;
   const transicao = Boolean(statusAtualizacaoEmAndamento || statusTrocaMaquinaEmAndamento);
-  const podeManter = !transicao && !mudou && naoProdutivo && !detalheIncompleto && !statusAudioGravando;
-  const podeGravar = !transicao && mudou && naoProdutivo && !detalheIncompleto && !statusAudioConcluido && !statusAudioGravando;
-  const podeAtualizar = !transicao && !detalheIncompleto && (
+  const podeManter = !transicao && !mudou && naoProdutivo && !referenciaIncompleta && !statusAudioGravando;
+  const podeGravar = !transicao && mudou && naoProdutivo && !referenciaIncompleta && !statusAudioConcluido && !statusAudioGravando;
+  const podeAtualizar = !transicao && !referenciaIncompleta && (
     statusAtual === 'PRODUZINDO' ||
     (mudou && (
       statusSelecionado === 'PRODUZINDO' ||
@@ -14664,6 +14833,8 @@ function atualizarTravamentoCamposStatusAudio(
   const defeito =
     document.getElementById('machineDefectSelector');
 
+  const molde = document.getElementById('machineMoldProductSelector');
+
   if (operador) {
     operador.disabled =
       statusAudioCamposTravados;
@@ -14676,6 +14847,10 @@ function atualizarTravamentoCamposStatusAudio(
 
   if (defeito) {
     defeito.disabled = statusAudioCamposTravados;
+  }
+
+  if (molde) {
+    molde.disabled = statusAudioCamposTravados;
   }
 
   try {
@@ -14751,6 +14926,7 @@ function manterStatusAtual() {
   const statusSelecionado = normalizarStatusMaquinaUI_(seletor ? seletor.value : statusAtual);
   const detalheAtual = statusAtual === 'PECA_DEFEITO' ? normalizarDefeitoPecaUI_(detalhamentoStatusMaquina || (defeitoSelect ? defeitoSelect.value : '')) : '';
   const detalheSelecionado = statusSelecionado === 'PECA_DEFEITO' ? normalizarDefeitoPecaUI_(defeitoSelect ? defeitoSelect.value : '') : '';
+  const moldeSelecionado = statusSelecionado === 'MOLDE_MANUTENCAO' ? String((document.getElementById('machineMoldProductSelector') || {}).value || produtoMoldeSelecionado || produtoMoldeManutencao || '').trim() : '';
   const operador = String(operadorSelect && operadorSelect.value ? operadorSelect.value : '').trim();
 
   if (!maquina) return;
@@ -14759,11 +14935,21 @@ function manterStatusAtual() {
     atualizarStatusAudioUI();
     return;
   }
+
+  if (statusSelecionado === 'MOLDE_MANUTENCAO' && !moldeSelecionado) {
+    if (mensagem) mensagem.textContent = '⚠️ Selecione a peça vinculada ao molde em manutenção.';
+    atualizarStatusAudioUI();
+    return;
+  }
   if (statusAtual === 'PRODUZINDO' && statusSelecionado !== 'PRODUZINDO') {
     if (mensagem) mensagem.textContent = 'ℹ️ O status foi alterado. Use ATUALIZAR STATUS.';
     return;
   }
-  if (statusSelecionado !== statusAtual || (statusAtual === 'PECA_DEFEITO' && detalheSelecionado !== detalheAtual)) {
+  if (
+    statusSelecionado !== statusAtual ||
+    (statusSelecionado === 'PECA_DEFEITO' && detalheSelecionado !== detalheAtual) ||
+    (statusSelecionado === 'MOLDE_MANUTENCAO' && moldeSelecionado !== String(produtoMoldeManutencao || '').trim())
+  ) {
     if (mensagem) mensagem.textContent = 'ℹ️ O status foi alterado. Use ATUALIZAR STATUS.';
     atualizarStatusAudioUI();
     return;
@@ -14790,10 +14976,11 @@ function manterStatusAtual() {
       '',
       '',
       '',
-      'MANTER_STATUS',
-      operacaoId,
-      detalheAtual
-    );
+        'MANTER_STATUS',
+        operacaoId,
+        detalheAtual,
+        moldeSelecionado
+      );
 
     statusAnteriorMaquina = statusAtual;
     statusSelecionadoMaquina = statusAtual;
@@ -15266,6 +15453,8 @@ function aplicarCadastrosNoFormulario_(
 
   preencherSelecoes();
   preencherOperadoresStatus();
+  preencherSeletorPecaMoldeUI_();
+  atualizarSeletorPecaMoldeUI_();
   atualizarObrigatoriedadeAudioStatus();
   verificarFormulario();
 
@@ -15893,10 +16082,14 @@ function verificarFormulario() {
 
   const pronto =
     Boolean(
+      statusServidorCarregado &&
+      normalizarStatusMaquinaUI_(statusOperacionalMaquina || '') === 'PRODUZINDO' &&
       dadosBasicosOk &&
       tempoCiclo > 0 &&
       conformidadeSelecionada
     );
+
+  atualizarVisibilidadeFluxoProducao_();
 
 
   const conformidadeCard =
@@ -15917,8 +16110,14 @@ function verificarFormulario() {
     );
 
 
+  const fluxoProducaoLiberado = Boolean(
+    statusServidorCarregado &&
+    normalizarStatusMaquinaUI_(statusOperacionalMaquina || '') === 'PRODUZINDO'
+  );
+
   if (
-    dadosBasicosOk
+    dadosBasicosOk &&
+    fluxoProducaoLiberado
   ) {
 
     conformidadeCard
@@ -19033,46 +19232,18 @@ async function enviarChunk(
   dados
 ) {
 
-  await dispararPostChunk(
-    dados
-  );
+  /* V13.84: confirmação por JSONP de cada chunk foi removida.
+   * O servidor grava por índice de forma idempotente; a fila faz uma
+   * conferência resumida por lote antes da finalização. */
+  await dispararPostChunk(dados);
 
-  /*
-   * Para AUDIO, o transporte já é fetch(POST). A confirmação JSONP
-   * de cada chunk era uma segunda viagem ao Apps Script, sem ganho
-   * de segurança proporcional ao custo.
-   */
-  if (
-    dados &&
-    dados.mediaType ===
-      'AUDIO'
-  ) {
-
-    return {
-      sucesso:
-        true,
-      recebido:
-        true,
-      uploadId:
-        dados.uploadId,
-      chunkIndex:
-        dados.chunkIndex
-    };
-
-  }
-
-  /*
-   * Para VIDEO, mantém a confirmação por chunk porque o transporte
-   * é FORM + iframe.
-   */
-  return aguardarStatusChunk(
-    dados.uploadId,
-    dados.chunkIndex
-  );
-
+  return {
+    sucesso: true,
+    recebido: true,
+    uploadId: dados && dados.uploadId ? dados.uploadId : '',
+    chunkIndex: dados && dados.chunkIndex != null ? dados.chunkIndex : 0
+  };
 }
-
-
 
 
 
@@ -19240,248 +19411,54 @@ async function dispararPostChunk(
 
 
   /*
-   * VIDEO:
-   * volta ao transporte FORM + IFRAME,
-   * que era o fluxo comprovadamente usado
-   * antes da troca para fetch.
+   * VIDEO: fetch POST no-cors. Não lemos a resposta, pois a integração
+   * com Apps Script não expõe CORS ao navegador. A integridade é validada
+   * por resumo de chunks no servidor.
    */
+  const parametros = new URLSearchParams();
+  parametros.set('tipo', 'VIDEO_CHUNK');
+  parametros.set('uploadId', dados.uploadId || '');
+  parametros.set('chunkIndex', String(dados.chunkIndex));
+  parametros.set('totalChunks', String(dados.totalChunks || 0));
+  parametros.set('chunkBase64', dados.chunkBase64 || '');
+  parametros.set('mimeType', dados.mimeType || 'video/webm');
+  parametros.set('maquina', dados.maquina || '');
+  parametros.set('operador', dados.operador || '');
+  parametros.set('produto', dados.produto || '');
+  parametros.set('conforme', dados.conforme || '');
+  parametros.set('ciclo', dados.ciclo || '');
+  parametros.set('duracaoReal', dados.duracaoReal || '');
+  parametros.set('inicioVideo', dados.inicioVideo || '');
+  parametros.set('fimVideo', dados.fimVideo || '');
 
-  const frame =
-    document.createElement(
-      'iframe'
-    );
-
-
-  const frameName =
-    'postChunk_' +
-    Date.now() +
-    '_' +
-    dados.chunkIndex +
-    '_' +
-    Math.random()
-      .toString(36)
-      .substring(
-        2,
-        8
+  let ultimoErro = null;
+  for (let tentativa = 1; tentativa <= 3; tentativa++) {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(function(){ controller.abort(); }, 45000);
+      await fetch(
+        URL_APPS_SCRIPT + '?bgvideo=' + Date.now() + '_' + Math.random().toString(36).slice(2,7),
+        {
+          method: 'POST',
+          mode: 'no-cors',
+          cache: 'no-store',
+          credentials: 'omit',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+          body: parametros.toString(),
+          signal: controller.signal
+        }
       );
-
-
-  frame.name =
-    frameName;
-
-
-  frame.style.display =
-    'none';
-
-
-  document.body.appendChild(
-    frame
-  );
-
-
-  const formulario =
-    document.createElement(
-      'form'
-    );
-
-
-  formulario.method =
-    'POST';
-
-
-  formulario.action =
-    URL_APPS_SCRIPT;
-
-
-  formulario.target =
-    frameName;
-
-
-  formulario.style.display =
-    'none';
-
-
-  adicionarCampo(
-    formulario,
-    'tipo',
-    'VIDEO_CHUNK'
-  );
-
-
-  adicionarCampo(
-    formulario,
-    'uploadId',
-    dados.uploadId
-  );
-
-
-  adicionarCampo(
-    formulario,
-    'chunkIndex',
-    String(
-      dados.chunkIndex
-    )
-  );
-
-
-  adicionarCampo(
-    formulario,
-    'totalChunks',
-    String(
-      dados.totalChunks
-    )
-  );
-
-
-  adicionarCampo(
-    formulario,
-    'chunkBase64',
-    dados.chunkBase64
-  );
-
-
-  adicionarCampo(
-    formulario,
-    'mimeType',
-    dados.mimeType ||
-    'video/webm'
-  );
-
-
-  adicionarCampo(
-    formulario,
-    'maquina',
-    dados.maquina ||
-    ''
-  );
-
-
-  adicionarCampo(
-    formulario,
-    'operador',
-    dados.operador ||
-    ''
-  );
-
-
-  adicionarCampo(
-    formulario,
-    'produto',
-    dados.produto ||
-    ''
-  );
-
-
-  adicionarCampo(
-    formulario,
-    'conforme',
-    dados.conforme ||
-    ''
-  );
-
-
-  adicionarCampo(
-    formulario,
-    'ciclo',
-    dados.ciclo ||
-    ''
-  );
-
-
-  adicionarCampo(
-    formulario,
-    'duracaoReal',
-    dados.duracaoReal ||
-    ''
-  );
-
-
-  adicionarCampo(
-    formulario,
-    'inicioVideo',
-    dados.inicioVideo ||
-    ''
-  );
-
-
-  adicionarCampo(
-    formulario,
-    'fimVideo',
-    dados.fimVideo ||
-    ''
-  );
-
-
-  debugUploadCliente(
-    'VIDEO_FORM_POST_CHUNK',
-    dados,
-    {
-      chunkIndex:
-        dados.chunkIndex,
-
-      totalChunks:
-        dados.totalChunks,
-
-      bytesBase64:
-        dados.chunkBase64
-          ? dados.chunkBase64.length
-          : 0
+      clearTimeout(timeout);
+      return;
     }
-  );
-
-
-  document.body.appendChild(
-    formulario
-  );
-
-
-  formulario.submit();
-
-
-  debugUploadCliente(
-    'VIDEO_FORM_POST_CHUNK_SUBMETIDO',
-    dados,
-    {
-      chunkIndex:
-        dados.chunkIndex
+    catch (erroFetch) {
+      ultimoErro = erroFetch;
+      if (tentativa < 3) {
+        await new Promise(function(resolve){ setTimeout(resolve, 1200 * tentativa); });
+      }
     }
-  );
-
-
-  setTimeout(
-    function() {
-
-      try {
-
-        document.body
-          .removeChild(
-            formulario
-          );
-
-      }
-      catch (erro) {}
-
-    },
-    2000
-  );
-
-
-  setTimeout(
-    function() {
-
-      try {
-
-        document.body
-          .removeChild(
-            frame
-          );
-
-      }
-      catch (erro) {}
-
-    },
-    30000
-  );
+  }
+  throw ultimoErro || new Error('POST_VIDEO_CHUNK_FALHOU');
 
 }
 
@@ -19867,6 +19844,41 @@ function aguardarStatusChunk(
     }
   );
 
+}
+
+
+/*
+ * Resume os chunks existentes no servidor. Evita falso "pausado" por
+ * timeout de callback individual em Android.
+ */
+function consultarResumoChunksUpload_(uploadId, totalChunks) {
+  return new Promise(function(resolve, reject) {
+    const callbackName = 'jsonpChunks_' + Date.now() + '_' + Math.random().toString(36).slice(2,8);
+    let script = null;
+    const limpar = function(){
+      try { if (script && script.parentNode) script.parentNode.removeChild(script); } catch(e) {}
+      try { delete window[callbackName]; } catch(e) {}
+    };
+    const timeout = setTimeout(function(){ limpar(); reject(new Error('RESUMO_CHUNKS_TIMEOUT')); }, 8000);
+    window[callbackName] = function(resposta){
+      clearTimeout(timeout);
+      limpar();
+      if (!resposta || !resposta.sucesso) {
+        reject(new Error(resposta && resposta.erro ? resposta.erro : 'RESUMO_CHUNKS_FALHOU'));
+        return;
+      }
+      resolve(resposta);
+    };
+    script = document.createElement('script');
+    script.src = URL_APPS_SCRIPT +
+      '?status=chunks' +
+      '&uploadId=' + encodeURIComponent(uploadId || '') +
+      '&totalChunks=' + encodeURIComponent(String(totalChunks || 0)) +
+      '&callback=' + encodeURIComponent(callbackName) +
+      '&_=' + Date.now();
+    script.onerror = function(){ clearTimeout(timeout); limpar(); reject(new Error('RESUMO_CHUNKS_NETWORK_ERRO')); };
+    document.head.appendChild(script);
+  });
 }
 
 
@@ -20835,6 +20847,8 @@ function limparTodosOsDadosNovaInspecao() {
 
   detalhamentoStatusMaquina = '';
   detalhamentoStatusSelecionadoMaquina = '';
+  produtoMoldeManutencao = '';
+  produtoMoldeSelecionado = '';
 
   inicioStatusMaquina =
     null;
@@ -21732,11 +21746,24 @@ document.addEventListener(
             );
 
           atualizarSubmenuDefeitoPecaUI_();
+          atualizarSeletorPecaMoldeUI_();
           detalhamentoStatusSelecionadoMaquina = normalizarDefeitoPecaUI_((document.getElementById('machineDefectSelector') || {}).value || '');
           atualizarObrigatoriedadeAudioStatus();
           atualizarStatusAudioUI();
         }
       );
+    }
+
+    const moldProductSelector = document.getElementById('machineMoldProductSelector');
+    if (moldProductSelector) {
+      moldProductSelector.addEventListener('change', function() {
+        if (statusAudioCamposTravados) {
+          moldProductSelector.value = produtoMoldeSelecionado || produtoMoldeManutencao || '';
+          return;
+        }
+        produtoMoldeSelecionado = String(moldProductSelector.value || '').trim();
+        atualizarStatusAudioUI();
+      });
     }
 
     const defectSelector = document.getElementById('machineDefectSelector');
