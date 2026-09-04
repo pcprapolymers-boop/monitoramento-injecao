@@ -16458,19 +16458,19 @@ function iniciarPreviewCamera16x9_(camera) {
         if (vw > 0 && vh > 0 && camera.readyState >= 2) {
           const alvoW = canvas.width;
           const alvoH = canvas.height;
-          const retrato = vh > vw * 1.08;
-          const srcW = retrato ? vh : vw;
-          const srcH = retrato ? vw : vh;
-          const escala = Math.max(alvoW / srcW, alvoH / srcH);
+          const escala = Math.max(alvoW / vw, alvoH / vh);
+          const larguraDesenho = vw * escala;
+          const alturaDesenho = vh * escala;
 
           ctx.fillStyle = '#000';
           ctx.fillRect(0, 0, alvoW, alvoH);
-          ctx.save();
-          ctx.translate(alvoW / 2, alvoH / 2);
-          if (retrato) ctx.rotate(Math.PI / 2);
-          ctx.scale(escala, escala);
-          ctx.drawImage(camera, -vw / 2, -vh / 2, vw, vh);
-          ctx.restore();
+          ctx.drawImage(
+            camera,
+            (alvoW - larguraDesenho) / 2,
+            (alvoH - alturaDesenho) / 2,
+            larguraDesenho,
+            alturaDesenho
+          );
         }
       } catch (_) {}
       cameraPreviewFrame = requestAnimationFrame(desenhar);
@@ -17285,9 +17285,9 @@ function criarStreamVideo16x9_(streamOriginal) {
   ctx.imageSmoothingQuality = 'high';
 
   /*
-   * V13.89 — COMPOSITOR UNIVERSAL 16:9 CORRIGIDO
+   * V13.90 — COMPOSITOR UNIVERSAL 16:9 CORRIGIDO
    *
-   * A V13.88 girava a fonte e depois calculava o crop usando largura/altura
+   * A V13.90 girava a fonte e depois calculava o crop usando largura/altura
    * ainda na orientação original. Em fontes como 720x1280 isso podia produzir
    * crop inválido e, dependendo do navegador, vídeo invertido/rotacionado.
    *
@@ -17339,33 +17339,25 @@ function criarStreamVideo16x9_(streamOriginal) {
   }
 
   function obterRotacaoFonte_(vw, vh) {
+    /*
+     * V13.90 — correção global da orientação do sensor.
+     *
+     * O navegador informa a orientação física da tela, enquanto alguns
+     * sensores traseiros Android entregam a imagem com os eixos do sensor
+     * em retrato. Nesses casos precisamos girar a fonte exatamente uma vez.
+     *
+     * A V13.89 aplicava o sentido invertido em alguns aparelhos, gerando
+     * vídeo 90° no sentido horário. Aqui usamos o sentido oposto para a
+     * orientação 270°, e o correspondente para 90°. Fontes já horizontais
+     * continuam sem rotação.
+     */
     if (!(vw > 0 && vh > 0)) return 0;
 
-    const ratio = vw / vh;
-    const vertical = ratio < 0.92;
-    const horizontal = ratio > 1.08;
+    const vertical = (vw / vh) < 0.92;
+    if (!vertical) return 0;
+
     const tela = obterAnguloTela_();
-
-    if (vertical) {
-      /*
-       * Em landscape, o sensor normalmente precisa de 90 graus para ficar
-       * horizontal. O sentido acompanha a orientação física da tela.
-       */
-      return tela === 270 ? 90 : -90;
-    }
-
-    if (horizontal) {
-      /* Alguns drivers entregam paisagem já correta. Só usa 180 quando o
-       * próprio driver expõe uma rotação útil, evitando inversão artificial. */
-      const rotation =
-        typeof settings.rotation === 'number'
-          ? Number(settings.rotation)
-          : 0;
-      const r = normalizarAngulo_(rotation);
-      return r === 180 ? 180 : 0;
-    }
-
-    return 0;
+    return tela === 270 ? -90 : 90;
   }
 
   function desenharFrame(tempoAtual) {
@@ -17480,7 +17472,7 @@ function criarStreamVideo16x9_(streamOriginal) {
 
   try {
     debugUploadCliente(
-      'CAMERA_COMPOSITOR_16_9_UNIVERSAL_V1389',
+      'CAMERA_COMPOSITOR_16_9_UNIVERSAL_V1390',
       { mediaType: 'CAMERA' },
       {
         origemWidth:
@@ -17564,7 +17556,7 @@ function criarStreamVideoComAudioMelhorado_(streamOriginal) {
     streamOriginal &&
     streamOriginal.getAudioTracks()[0];
 
-  /* V13.88: a composição 16:9 é independente da existência de áudio. */
+  /* V13.90: a composição 16:9 é independente da existência de áudio. */
   const videoPreparado = criarStreamVideo16x9_(streamOriginal);
   const videoTrack = videoPreparado.track;
 
