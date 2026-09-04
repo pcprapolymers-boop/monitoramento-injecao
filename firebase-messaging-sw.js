@@ -1,4 +1,13 @@
-/* RA Polymers — Service Worker V13.81 — PUSH NATIVO + UPLOAD EM SEGUNDO PLANO */
+self.addEventListener('notificationclick', function(event){
+  event.notification.close();
+  const destino = event.notification && event.notification.data && event.notification.data.url ? event.notification.data.url : '/monitoramento-injecao/';
+  event.waitUntil(clients.matchAll({type:'window',includeUncontrolled:true}).then(function(list){
+    for(const c of list){ if('navigate' in c) return c.navigate(destino).then(x=>x.focus()); if('focus' in c) return c.focus(); }
+    if(clients.openWindow) return clients.openWindow(destino);
+  }));
+});
+
+/* RA Polymers — Service Worker V13.82 — PUSH NATIVO + UPLOAD EM SEGUNDO PLANO */
 const URL_APPS_SCRIPT = 'https://script.google.com/macros/s/AKfycbyyczQIADys9S5tG7G9WiR_tFiWubW4mcteLurFO_GOlrlSs9f9CWkcojnjsuG5Jgvt/exec';
 const DB_NAME = 'RAPolymersMonitoramentoVideo';
 const DB_VERSION = 4;
@@ -10,10 +19,11 @@ const MAX_BACKGROUND_RUN_MS = 4 * 60 * 1000;
 const FINALIZE_TIMEOUT_MS = 8 * 60 * 1000;
 const ICON_192 = '/monitoramento-injecao/icons/notification-icon.png';
 const BADGE_72 = '/monitoramento-injecao/icons/badge-72.png';
+const SITE_URL = 'https://pcprapolymers-boop.github.io/monitoramento-injecao/';
 let fcmHandledKeys = new Map();
 let backgroundUploadRunning = false;
 
-/* V13.81 — caminho oficial FCM em segundo plano. O push nativo abaixo
+/* V13.82 — caminho oficial FCM em segundo plano. O push nativo abaixo
  * continua como fallback. Se o firebase-config.js estiver disponível,
  * o SDK também registra onBackgroundMessage. */
 try {
@@ -53,12 +63,13 @@ async function mostrarAlarmePush_(payload) {
   const corpo = String(notif.body || data.body || (maquina ? 'Máquina ' + maquina + ': inspeção pendente.' : 'Existe uma inspeção pendente.'));
   const destino = String(data.url || ('https://pcprapolymers-boop.github.io/monitoramento-injecao/?m=' + encodeURIComponent(maquina)));
   const ciclo = String(data.ciclo || agora);
+  const tag = String(data.notificationTag || ('ra-polymers-inspecao-' + (maquina || 'geral') + '-' + ciclo));
 
   await self.registration.showNotification(titulo, {
     body: corpo,
     icon: ICON_192,
     badge: BADGE_72,
-    tag: 'ra-polymers-inspecao-' + (maquina || 'geral') + '-' + ciclo,
+    tag: tag,
     renotify: true,
     requireInteraction: true,
     silent: false,
@@ -127,15 +138,6 @@ async function mostrarAlarmeLocal_(dados) {
     data: {url: destino, maquina, tipo:'INSPECAO', ciclo:String(dados.ciclo || '')}
   });
 }
-
-self.addEventListener('notificationclick', function(event){
-  event.notification.close();
-  const destino = event.notification && event.notification.data && event.notification.data.url ? event.notification.data.url : '/monitoramento-injecao/';
-  event.waitUntil(clients.matchAll({type:'window',includeUncontrolled:true}).then(function(list){
-    for(const c of list){ if('navigate' in c) return c.navigate(destino).then(x=>x.focus()); if('focus' in c) return c.focus(); }
-    if(clients.openWindow) return clients.openWindow(destino);
-  }));
-});
 
 function abrirBanco_(){ return new Promise((resolve,reject)=>{ const req=indexedDB.open(DB_NAME,DB_VERSION); req.onsuccess=e=>resolve(e.target.result); req.onerror=()=>reject(req.error||new Error('IDB_OPEN_ERRO')); }); }
 function chaveChunk_(u,i){ return u+'|'+String(i); }
