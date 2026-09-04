@@ -17,8 +17,8 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <link rel="manifest" href="./manifest.webmanifest">
-  <link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192.png?v=13.81">
-  <link rel="apple-touch-icon" href="./icons/icon-192.png?v=13.81">
+  <link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192.png?v=13.82">
+  <link rel="apple-touch-icon" href="./icons/icon-192.png?v=13.82">
 
   <style>
 
@@ -445,6 +445,11 @@
 #machineStatusCard.status-manutencao {
   border-color: #6A1B9A;
   background: #F8F0FC;
+}
+
+#machineStatusCard.status-molde-manutencao {
+  border-color: #795548;
+  background: #FBF6F2;
 }
 
 #machineStatusCard.status-setup {
@@ -1467,6 +1472,7 @@ button:active {
         <option value="PRODUZINDO">🟢 PRODUZINDO</option>
         <option value="PARADA_PROGRAMADA">🟡 PARADA PROGRAMADA</option>
         <option value="MANUTENCAO">🔧 MÁQUINA EM MANUTENÇÃO</option>
+        <option value="MOLDE_MANUTENCAO">🧰 MOLDE EM MANUTENÇÃO</option>
         <option value="SETUP">⚙️ SETUP</option>
         <option value="FALTA_MAO_OBRA">👷 FALTA DE MÃO DE OBRA</option>
         <option value="FALTA_MATERIAL">📦 FALTA MATERIAL</option>
@@ -2383,7 +2389,7 @@ async function registrarServiceWorkerPush_() {
 
   const registro =
     await navigator.serviceWorker.register(
-        './firebase-messaging-sw.js?v=13.81',
+        './firebase-messaging-sw.js?v=13.82',
         {
           scope:
             './',
@@ -2392,7 +2398,7 @@ async function registrarServiceWorkerPush_() {
         }
       );
 
-    /* V13.81 — força uma checagem do arquivo do Service Worker. */
+    /* V13.82 — força uma checagem do arquivo do Service Worker. */
     try {
       await registro.update();
     }
@@ -4058,6 +4064,7 @@ let conformidade = '';
 let tempoCiclo = 0;
 
 let cameraStream = null;
+let cameraInitPromise = null;
 
 let streamVideoGravacao = null;
 
@@ -4132,7 +4139,7 @@ const STORE_STATUS_OUTBOX =
 const TAMANHO_CHUNK =
   512 * 1024;
 
-/* V13.81 — chunks de gravação maiores reduzem o número de requisições e melhoram retomada em background. */
+/* V13.82 — chunks de gravação maiores reduzem o número de requisições e melhoram retomada em background. */
 const TIMESLICE_GRAVACAO =
   8000;
 
@@ -9053,6 +9060,9 @@ function normalizarStatusMaquinaUI_(valor) {
     PARADA_PROGRAMADA_: 'PARADA_PROGRAMADA',
     QUEBRA: 'QUEBRA',
     MANUTENCAO: 'MANUTENCAO',
+    MOLDE_MANUTENCAO: 'MOLDE_MANUTENCAO',
+    MOLDE_EM_MANUTENCAO: 'MOLDE_MANUTENCAO',
+    MOLDE_MANUT: 'MOLDE_MANUTENCAO',
     SETUP: 'SETUP',
     FALTA_MATERIAL: 'FALTA_MATERIAL',
     FALTA_DE_MATERIAL: 'FALTA_MATERIAL',
@@ -11298,6 +11308,9 @@ function obterClasseStatusMaquina_(
     case 'MANUTENCAO':
       return 'status-manutencao';
 
+    case 'MOLDE_MANUTENCAO':
+      return 'status-molde-manutencao';
+
     case 'SETUP':
       return 'status-setup';
 
@@ -11334,6 +11347,9 @@ function obterLabelStatusMaquina_(
 
     case 'MANUTENCAO':
       return '🔧 MANUTENÇÃO';
+
+    case 'MOLDE_MANUTENCAO':
+      return '🧰 MOLDE EM MANUTENÇÃO';
 
     case 'SETUP':
       return '⚙️ SETUP';
@@ -16189,7 +16205,7 @@ async function liberarWakeLock() {
    CÂMERA
    ===================================================== */
 
-async function iniciarCamera() {
+async function iniciarCameraInterna_() {
 
   try {
 
@@ -16298,9 +16314,7 @@ async function iniciarCamera() {
     }
     catch (debugErro) {}
 
-    let cameraStream;
-
-    /* V13.81 — primeiro tenta EXIGIR 16:9 real. Alguns Androids
+    /* V13.82 — primeiro tenta EXIGIR 16:9 real. Alguns Androids
      * ignoram ideal:16/9 e entregam 4:3; nesse caso usamos o fallback
      * e a gravação será convertida para 16:9 por canvas antes do recorder. */
     const constraints16x9 = {
@@ -16612,15 +16626,15 @@ async function iniciarCamera() {
           function() {
 
             if (
-              (
-                camera.readyState >= 2 &&
-                camera.videoWidth > 0
-              ) ||
-              (
-                Date.now() -
-                inicioEspera
-              ) > 3000
+              camera.readyState >= 2 &&
+              camera.videoWidth > 0 &&
+              camera.videoHeight > 0
             ) {
+              resolve();
+              return;
+            }
+
+            if (Date.now() - inicioEspera > 7000) {
               resolve();
               return;
             }
@@ -16632,6 +16646,7 @@ async function iniciarCamera() {
 
           };
 
+        try { camera.play().catch(function() {}); } catch (_) {}
         verificar();
 
       }
@@ -16722,6 +16737,23 @@ async function iniciarCamera() {
 
 }
 
+
+
+/* V13.82 — serializa a inicialização da câmera e usa a referência global.
+ * Em versões anteriores, a função declarava outra cameraStream local.
+ * A contagem podia detectar a câmera como nula mesmo com o preview visível. */
+function iniciarCamera() {
+  if (cameraStream) {
+    const track = cameraStream.getVideoTracks ? cameraStream.getVideoTracks()[0] : null;
+    const preview = document.getElementById('cameraPreview');
+    if (track && track.readyState === 'live' && preview && preview.videoWidth > 0 && preview.videoHeight > 0) {
+      return Promise.resolve(true);
+    }
+  }
+  if (cameraInitPromise) return cameraInitPromise;
+  cameraInitPromise = iniciarCameraInterna_().finally(function(){ cameraInitPromise = null; });
+  return cameraInitPromise;
+}
 
 
 /* =====================================================
@@ -16953,7 +16985,7 @@ function criarStreamVideo16x9_(streamOriginal) {
   }
 
   /*
-   * V13.81 — GARANTE 16:9 MESMO QUANDO O DRIVER ENTREGA 4:3.
+   * V13.82 — GARANTE 16:9 MESMO QUANDO O DRIVER ENTREGA 4:3.
    * O vídeo da câmera é desenhado em canvas 1280x720 com enquadramento
    * "cover", então o arquivo gravado nasce fisicamente em 16:9.
    */
@@ -21294,7 +21326,7 @@ document.addEventListener(
       solicitarProcessamentoUploadsServiceWorker_();
       agendarUploadsEmSegundoPlano_();
 
-      pararAlarmePendenciaGlobal();
+      /* V13.82 — não parar o alarme sonoro artificialmente ao entrar em hidden. */
 
       /*
        * Durante gravação de vídeo, não gera um Push de bloqueio
@@ -21308,7 +21340,9 @@ document.addEventListener(
          * 1ª camada: notificação local pelo Service Worker.
          * É imediata e não depende de rede.
          */
-        solicitarAlarmeLocalServiceWorker_()
+        (existePendenciaComAlarmeAtivoLocal_()
+          ? solicitarAlarmeLocalServiceWorker_()
+          : Promise.resolve(false))
           .then(
             function(enviadoLocalmente) {
 
@@ -21499,7 +21533,7 @@ document.addEventListener(
 
 
 
-/* V13.81 — última tentativa de entregar a fila ao Service Worker
+/* V13.82 — última tentativa de entregar a fila ao Service Worker
  * quando a página estiver sendo descartada/navegada. */
 document.addEventListener('pagehide', function() {
   try { solicitarProcessamentoUploadsServiceWorker_(); } catch (_) {}
