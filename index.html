@@ -4153,7 +4153,7 @@ const VERSAO_DB_VIDEO =
   4;
 
 const VERSAO_APLICACAO =
-  'V13.92';
+  'V13.94';
 
 const STORE_JOBS =
   'jobs';
@@ -8727,6 +8727,35 @@ function silenciarAlarmePendenciaGlobalPorCincoMinutos() {
 
 
 let ultimaRespostaPendenciasGlobal = null;
+
+function mostrarPendenciasNaAbertura_() {
+  const card = document.getElementById('preMachineAlarmCard');
+  const text = document.getElementById('preMachineAlarmText');
+  const list = document.getElementById('preMachineAlarmList');
+
+  if (!card || !text || !list) return;
+
+  let dados = null;
+  try {
+    dados = JSON.parse(
+      localStorage.getItem(CACHE_PENDENCIAS_STORAGE_KEY) || 'null'
+    );
+  } catch (e) {}
+
+  if (dados && dados.data) {
+    cachePendenciasGlobais = dados;
+    ultimaRespostaPendenciasGlobal = dados.data;
+    atualizarPainelPendenciasAntesDaMaquina(dados.data);
+    card.style.display = 'block';
+    return;
+  }
+
+  /* O operador vê a seção imediatamente, enquanto a consulta do servidor responde. */
+  card.style.display = 'block';
+  card.classList.add('alarm-global-reminder');
+  text.textContent = '⏳ Carregando inspeções pendentes...';
+  list.innerHTML = '<div class="alarm-overview-item" style="opacity:.75">Consultando as máquinas da fábrica...</div>';
+}
 
 function consultarPendenciasAntesDaMaquina(
   opcoes
@@ -21983,6 +22012,7 @@ document.addEventListener(
   'DOMContentLoaded',
   async function() {
 
+    mostrarPendenciasNaAbertura_();
     atualizarStatusPushUI_();
 
     carregarInspecoesConcluidasLocal_();
