@@ -20227,29 +20227,110 @@ async function finalizarUpload(
       ? job.uploadId
       : null;
 
-
-  if (
-    !uploadId
-  ) {
-
+  if (!uploadId) {
     throw new Error(
       'Upload ID não informado para finalização.'
     );
-
   }
 
+  /*
+   * V13.93 — finalização idempotente.
+   * Primeiro consultamos o servidor. Se o vídeo já terminou,
+   * não enviamos VIDEO_FINALIZE novamente. Isso evita que um
+   * timeout de confirmação gere uma nova montagem desnecessária.
+   */
+  try {
+    const statusAnterior =
+      await consultarStatusFinalUpload_(uploadId, job);
+
+    if (
+      statusAnterior &&
+      statusAnterior.sucesso &&
+      statusAnterior.finalizado &&
+      statusAnterior.idArquivo
+    ) {
+      debugUploadCliente(
+        'FINALIZACAO_JA_CONCLUIDA_ANTES_POST',
+        job,
+        { idArquivo: statusAnterior.idArquivo }
+      );
+      return statusAnterior;
+    }
+  } catch (erroConsultaInicial) {
+    debugUploadCliente(
+      'CONSULTA_FINAL_INICIAL_FALHOU',
+      job,
+      {
+        erro: erroConsultaInicial && erroConsultaInicial.message
+          ? erroConsultaInicial.message
+          : String(erroConsultaInicial)
+      }
+    );
+  }
 
   await dispararPostFinalizacao(
     uploadId,
     job
   );
 
-
   return aguardarStatusFinal(
     uploadId,
     job
   );
+}
 
+
+function consultarStatusFinalUpload_(uploadId, job) {
+  return new Promise(function(resolve, reject) {
+    const callbackName =
+      'jsonpFinalCheck_' +
+      Date.now() + '_' +
+      Math.random().toString(36).slice(2, 8);
+
+    let script = null;
+    const limpar = function() {
+      try {
+        if (script && script.parentNode) {
+          script.parentNode.removeChild(script);
+        }
+      } catch (e) {}
+      try { delete window[callbackName]; } catch (e) {}
+    };
+
+    const timeout = setTimeout(function() {
+      limpar();
+      reject(new Error('CONSULTA_FINAL_TIMEOUT'));
+    }, 7000);
+
+    window[callbackName] = function(resposta) {
+      clearTimeout(timeout);
+      limpar();
+      if (!resposta || !resposta.sucesso) {
+        reject(new Error(
+          resposta && resposta.erro
+            ? resposta.erro
+            : 'CONSULTA_FINAL_FALHOU'
+        ));
+        return;
+      }
+      resolve(resposta);
+    };
+
+    script = document.createElement('script');
+    script.src =
+      URL_APPS_SCRIPT +
+      '?status=final' +
+      '&uploadId=' + encodeURIComponent(uploadId) +
+      '&_=' + Date.now();
+
+    script.onerror = function() {
+      clearTimeout(timeout);
+      limpar();
+      reject(new Error('CONSULTA_FINAL_NETWORK_ERRO'));
+    };
+
+    document.head.appendChild(script);
+  });
 }
 
 
