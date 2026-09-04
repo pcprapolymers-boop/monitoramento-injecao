@@ -17244,132 +17244,290 @@ function criarStreamVideo16x9_(streamOriginal) {
     return { track: null, cleanup: function() {} };
   }
 
+  if (!window.HTMLCanvasElement ||
+      typeof HTMLCanvasElement.prototype.captureStream !== 'function') {
+    return {
+      track: videoTrack,
+      cleanup: function() {}
+    };
+  }
+
   const settings =
     typeof videoTrack.getSettings === 'function'
       ? videoTrack.getSettings()
       : {};
-
-  const largura = Number(settings.width || 0);
-  const altura = Number(settings.height || 0);
-
-  if (!window.HTMLCanvasElement ||
-      typeof HTMLCanvasElement.prototype.captureStream !== 'function') {
-    return { track: videoTrack, cleanup: function() {} };
-  }
 
   const video = document.createElement('video');
   video.muted = true;
   video.autoplay = true;
   video.playsInline = true;
   video.setAttribute('playsinline', '');
+  video.setAttribute('webkit-playsinline', '');
   video.srcObject = new MediaStream([videoTrack]);
 
   const canvas = document.createElement('canvas');
   canvas.width = 1280;
   canvas.height = 720;
-  const ctx = canvas.getContext('2d', {alpha:false});
-  if (!ctx) return {track: videoTrack, cleanup: function(){}};
+
+  const ctx = canvas.getContext('2d', {
+    alpha: false,
+    desynchronized: true
+  });
+
+  if (!ctx) {
+    return {
+      track: videoTrack,
+      cleanup: function() {}
+    };
+  }
+
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = 'high';
 
-  /* Canvas auxiliar para corrigir a orientação dos tablets que expõem o sensor
-   * em retrato mesmo quando o aparelho está sendo usado em paisagem. */
-  const rotCanvas = document.createElement('canvas');
-  const rotCtx = rotCanvas.getContext('2d', {alpha:false});
+  /*
+   * V13.88 — COMPOSITOR UNIVERSAL 16:9
+   *
+   * Não confiamos na resolução/proporção informada pelo aparelho.
+   * Qualquer fonte (4:3, 16:9, 9:16, 3:4 etc.) passa pela mesma etapa:
+   *   fonte -> orientação -> crop proporcional -> 1280x720 -> recorder
+   *
+   * Para fontes verticais, a rotação é feita antes do enquadramento.
+   * Isso evita o efeito de "faixa estreita" que aparecia nos Androids.
+   */
 
-  const canvasStream = canvas.captureStream(24);
-  const canvasTrack = canvasStream.getVideoTracks()[0];
   let ativo = true;
   let frameHandle = null;
   let ultimoFrame = 0;
-  const intervaloMs = 1000 / 24;
+  const fpsGravacao = 24;
+  const intervaloMs = 1000 / fpsGravacao;
 
-  function desenhar(tempoAtual) {
+  function deveRotacionarFonte(vw, vh) {
+    if (!(vw > 0 && vh > 0)) return false;
+
+    const ratio = vw / vh;
+    const fonteVertical = ratio < 0.92;
+    if (!fonteVertical) return false;
+
+    /*
+     * Em Android a stream pode ser reportada vertical mesmo com o aparelho
+     * em paisagem. Para a saída operacional da fábrica, a regra é simples:
+     * uma fonte vertical sempre vira paisagem antes do enquadramento.
+     */
+    return true;
+  }
+
+  function desenharFrame(tempoAtual) {
     if (!ativo) return;
-    const agora = Number(tempoAtual || performance.now());
-    if (agora - ultimoFrame < intervaloMs - 1) {
-      frameHandle = requestAnimationFrame(desenhar);
+
+    const agora = Number(
+      tempoAtual || performance.now()
+    );
+
+    if (
+      agora - ultimoFrame <
+      intervaloMs - 1
+    ) {
+      frameHandle = requestAnimationFrame(
+        desenharFrame
+      );
       return;
     }
+
     ultimoFrame = agora;
 
     try {
-      const vw = Number(video.videoWidth || largura || 0);
-      const vh = Number(video.videoHeight || altura || 0);
-      if (!(vw > 0 && vh > 0 && video.readyState >= 2)) {
-        frameHandle = requestAnimationFrame(desenhar);
+      const vw = Number(
+        video.videoWidth ||
+        settings.width ||
+        0
+      );
+
+      const vh = Number(
+        video.videoHeight ||
+        settings.height ||
+        0
+      );
+
+      if (!(vw > 0 && vh > 0) || video.readyState < 2) {
+        frameHandle = requestAnimationFrame(
+          desenharFrame
+        );
         return;
       }
 
       const alvoW = canvas.width;
       const alvoH = canvas.height;
       const alvoRatio = alvoW / alvoH;
-      const retrato = vh > vw * 1.08;
+      const rotacionar = deveRotacionarFonte(vw, vh);
 
-      if (retrato) {
-        /* Rotação primeiro; depois escala para preencher 1280x720. */
-        const srcW = vh;
-        const srcH = vw;
-        const escala = Math.max(
-          alvoW / srcW,
-          alvoH / srcH
-        );
+      /* Fundo sempre preto, inclusive durante o aquecimento da câmera. */
+      ctx.fillStyle = '#000';
+      ctx.fillRect(0, 0, alvoW, alvoH);
 
-        ctx.save();
-        ctx.translate(alvoW / 2, alvoH / 2);
-        ctx.rotate(Math.PI / 2);
-        ctx.scale(escala, escala);
+      ctx.save();
+      ctx.translate(
+        alvoW / 2,
+        alvoH / 2
+      );
+
+      let sourceW = vw;
+      let sourceH = vh;
+
+      if (rotacionar) {
+        sourceW = vh;
+        sourceH = vw;
+      }
+
+      const sourceRatio =
+        sourceW / sourceH;
+
+      /*
+       * COVER: preenche 100% do 16:9 sem deformar a imagem.
+       * O corte sempre ocorre no eixo excedente e é centralizado.
+       */
+      let sx = 0;
+      let sy = 0;
+      let sw = vw;
+      let sh = vh;
+
+      if (!rotacionar) {
+        if (sourceRatio > alvoRatio) {
+          sw = vh * alvoRatio;
+          sx = (vw - sw) / 2;
+        } else if (sourceRatio < alvoRatio) {
+          sh = vw / alvoRatio;
+          sy = (vh - sh) / 2;
+        }
+
         ctx.drawImage(
           video,
-          -vw / 2,
-          -vh / 2,
-          vw,
-          vh
+          sx,
+          sy,
+          sw,
+          sh,
+          -alvoW / 2,
+          -alvoH / 2,
+          alvoW,
+          alvoH
         );
-        ctx.restore();
       } else {
-        const srcRatio = vw / vh;
-        let sx=0, sy=0, sw=vw, sh=vh;
-        if (srcRatio > alvoRatio) {
-          sw = Math.round(vh * alvoRatio);
-          sx = Math.round((vw - sw) / 2);
-        } else if (srcRatio < alvoRatio) {
-          sh = Math.round(vw / alvoRatio);
-          sy = Math.round((vh - sh) / 2);
-        }
-        ctx.drawImage(video,sx,sy,sw,sh,0,0,alvoW,alvoH);
-      }
-    } catch (_) {}
+        /*
+         * Para 9:16 -> 16:9, primeiro rotacionamos e só então aplicamos
+         * o crop. Isso preserva a largura útil após a rotação.
+         */
+        const rotatedRatio = sourceRatio;
+        let cropW = vh;
+        let cropH = vw;
 
-    frameHandle = requestAnimationFrame(desenhar);
+        if (rotatedRatio > alvoRatio) {
+          cropW = vw * alvoRatio;
+          cropH = vw;
+        } else if (rotatedRatio < alvoRatio) {
+          cropW = vh;
+          cropH = vh / alvoRatio;
+        }
+
+        /* Desenho centrado na origem para a rotação. */
+        ctx.rotate(Math.PI / 2);
+
+        ctx.drawImage(
+          video,
+          (vw - cropW) / 2,
+          (vh - cropH) / 2,
+          cropW,
+          cropH,
+          -alvoW / 2,
+          -alvoH / 2,
+          alvoW,
+          alvoH
+        );
+      }
+
+      ctx.restore();
+    }
+    catch (_) {
+      /* Um frame perdido não interrompe a gravação. */
+    }
+
+    frameHandle = requestAnimationFrame(
+      desenharFrame
+    );
   }
 
-  try { video.play().catch(function(){}); } catch (_) {}
-  frameHandle = requestAnimationFrame(desenhar);
+  try {
+    video.play().catch(function() {});
+  }
+  catch (_) {}
+
+  frameHandle = requestAnimationFrame(
+    desenharFrame
+  );
 
   try {
-    debugUploadCliente('CAMERA_16_9_CANVAS_ATIVO', {mediaType:'CAMERA'}, {
-      origemWidth: largura,
-      origemHeight: altura,
-      origemAspectRatio: altura > 0 ? largura/altura : 0,
-      fonteRetrato: altura > largura * 1.08,
-      rotacaoRetratoAplicada: altura > largura * 1.08,
-      gravaWidth: 1280,
-      gravaHeight: 720,
-      forcarCanvas: true
-    });
-  } catch (_) {}
+    debugUploadCliente(
+      'CAMERA_COMPOSITOR_16_9_UNIVERSAL',
+      { mediaType: 'CAMERA' },
+      {
+        origemWidth:
+          Number(settings.width || 0),
+        origemHeight:
+          Number(settings.height || 0),
+        origemAspectRatio:
+          Number(settings.height || 0) > 0
+            ? Number(settings.width || 0) /
+              Number(settings.height || 0)
+            : 0,
+        saidaWidth: 1280,
+        saidaHeight: 720,
+        saidaAspectRatio: 16 / 9,
+        rotacaoVertical:
+          Number(settings.height || 0) >
+          Number(settings.width || 0) * 1.08,
+        compositorUniversal: true
+      }
+    );
+  }
+  catch (_) {}
+
+  const canvasStream =
+    canvas.captureStream(fpsGravacao);
+
+  const canvasTrack =
+    canvasStream.getVideoTracks()[0];
+
+  if (!canvasTrack) {
+    try { video.pause(); } catch (_) {}
+    try { video.srcObject = null; } catch (_) {}
+    try { canvasStream.getTracks().forEach(function(t) { t.stop(); }); } catch (_) {}
+    return {
+      track: videoTrack,
+      cleanup: function() {}
+    };
+  }
 
   return {
     track: canvasTrack,
     cleanup: function() {
       ativo = false;
-      try { if (frameHandle !== null) cancelAnimationFrame(frameHandle); } catch (_) {}
+      try {
+        if (frameHandle !== null) {
+          cancelAnimationFrame(frameHandle);
+        }
+      }
+      catch (_) {}
       frameHandle = null;
+
       try { video.pause(); } catch (_) {}
       try { video.srcObject = null; } catch (_) {}
       try { canvasTrack.stop(); } catch (_) {}
-      try { canvasStream.getTracks().forEach(function(t){ if (t !== canvasTrack) t.stop(); }); } catch (_) {}
+      try {
+        canvasStream
+          .getTracks()
+          .forEach(function(track) {
+            try { track.stop(); } catch (_) {}
+          });
+      }
+      catch (_) {}
     }
   };
 }
@@ -17380,19 +17538,20 @@ function criarStreamVideoComAudioMelhorado_(streamOriginal) {
     streamOriginal &&
     streamOriginal.getAudioTracks()[0];
 
-  if (!audioTrack) {
-    return {
-      stream: streamOriginal,
-      cleanup: function() {}
-    };
-  }
-
+  /* V13.88: a composição 16:9 é independente da existência de áudio. */
   const videoPreparado = criarStreamVideo16x9_(streamOriginal);
   const videoTrack = videoPreparado.track;
 
   if (!videoTrack) {
     return {
       stream: streamOriginal,
+      cleanup: videoPreparado.cleanup
+    };
+  }
+
+  if (!audioTrack) {
+    return {
+      stream: new MediaStream([videoTrack]),
       cleanup: videoPreparado.cleanup
     };
   }
