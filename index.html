@@ -288,6 +288,13 @@
       background: #000;
     }
 
+    #cameraPreviewCanvas {
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      display: block;
+      background: #000;
+    }
+
     #videoPreview {
       width: 100%;
       display: block;
@@ -4081,6 +4088,8 @@ let tempoCiclo = 0;
 
 let cameraStream = null;
 let cameraInitPromise = null;
+let cameraPreviewCanvas = null;
+let cameraPreviewFrame = null;
 
 let streamVideoGravacao = null;
 
@@ -16405,6 +16414,79 @@ async function liberarWakeLock() {
    CÂMERA
    ===================================================== */
 
+
+function iniciarPreviewCamera16x9_(camera) {
+  try {
+    if (!camera) return;
+    const container = camera.parentElement;
+    if (!container) return;
+
+    if (cameraPreviewFrame !== null && typeof cancelAnimationFrame === 'function') {
+      cancelAnimationFrame(cameraPreviewFrame);
+    }
+    cameraPreviewFrame = null;
+
+    if (cameraPreviewCanvas && cameraPreviewCanvas.parentElement) {
+      cameraPreviewCanvas.remove();
+    }
+
+    const canvas = document.createElement('canvas');
+    canvas.id = 'cameraPreviewCanvas';
+    canvas.width = 1280;
+    canvas.height = 720;
+    canvas.style.width = '100%';
+    canvas.style.height = 'auto';
+    canvas.style.display = 'block';
+    canvas.style.background = '#000';
+    canvas.setAttribute('aria-label', 'Pré-visualização da câmera em 16 por 9');
+
+    container.insertBefore(canvas, camera);
+    camera.style.display = 'none';
+    cameraPreviewCanvas = canvas;
+
+    const ctx = canvas.getContext('2d', { alpha: false });
+    if (!ctx) return;
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+
+    let ativo = true;
+    const desenhar = function() {
+      if (!ativo || !cameraPreviewCanvas) return;
+      try {
+        const vw = Number(camera.videoWidth || 0);
+        const vh = Number(camera.videoHeight || 0);
+        if (vw > 0 && vh > 0 && camera.readyState >= 2) {
+          const alvoW = canvas.width;
+          const alvoH = canvas.height;
+          const retrato = vh > vw * 1.08;
+          const srcW = retrato ? vh : vw;
+          const srcH = retrato ? vw : vh;
+          const escala = Math.max(alvoW / srcW, alvoH / srcH);
+
+          ctx.fillStyle = '#000';
+          ctx.fillRect(0, 0, alvoW, alvoH);
+          ctx.save();
+          ctx.translate(alvoW / 2, alvoH / 2);
+          if (retrato) ctx.rotate(Math.PI / 2);
+          ctx.scale(escala, escala);
+          ctx.drawImage(camera, -vw / 2, -vh / 2, vw, vh);
+          ctx.restore();
+        }
+      } catch (_) {}
+      cameraPreviewFrame = requestAnimationFrame(desenhar);
+    };
+
+    cameraPreviewCanvas.__stopPreview = function() {
+      ativo = false;
+    };
+
+    cameraPreviewFrame = requestAnimationFrame(desenhar);
+  } catch (erro) {
+    try { debugUploadCliente('CAMERA_PREVIEW_CANVAS_ERRO', {mediaType:'CAMERA'}, {erro:String(erro)}); } catch (_) {}
+    if (camera) camera.style.display = 'block';
+  }
+}
+
 async function iniciarCameraInterna_() {
 
   try {
@@ -16800,7 +16882,7 @@ async function iniciarCameraInterna_() {
       '16 / 9';
 
     camera.style.objectFit =
-      'contain';
+      'cover';
 
     camera.style.background =
       '#000';
@@ -16863,6 +16945,7 @@ async function iniciarCameraInterna_() {
 
     await camera.play();
 
+    iniciarPreviewCamera16x9_(camera);
 
     /*
      * Mantém o preparationBlock visível durante a contagem.
@@ -17223,30 +17306,27 @@ function criarStreamVideo16x9_(streamOriginal) {
       const alvoRatio = alvoW / alvoH;
       const retrato = vh > vw * 1.08;
 
-      if (retrato && rotCtx) {
-        /* Gira primeiro para transformar 720x1280 em 1280x720. */
-        rotCanvas.width = vh;
-        rotCanvas.height = vw;
-        rotCtx.save();
-        rotCtx.fillStyle = '#000';
-        rotCtx.fillRect(0,0,rotCanvas.width,rotCanvas.height);
-        rotCtx.translate(vh,0);
-        rotCtx.rotate(Math.PI / 2);
-        rotCtx.drawImage(video,0,0,vw,vh,0,0,vw,vh);
-        rotCtx.restore();
+      if (retrato) {
+        /* Rotação primeiro; depois escala para preencher 1280x720. */
+        const srcW = vh;
+        const srcH = vw;
+        const escala = Math.max(
+          alvoW / srcW,
+          alvoH / srcH
+        );
 
-        const rw = rotCanvas.width;
-        const rh = rotCanvas.height;
-        const rr = rw / rh;
-        let sx=0, sy=0, sw=rw, sh=rh;
-        if (rr > alvoRatio) {
-          sw = Math.round(rh * alvoRatio);
-          sx = Math.round((rw - sw) / 2);
-        } else if (rr < alvoRatio) {
-          sh = Math.round(rw / alvoRatio);
-          sy = Math.round((rh - sh) / 2);
-        }
-        ctx.drawImage(rotCanvas,sx,sy,sw,sh,0,0,alvoW,alvoH);
+        ctx.save();
+        ctx.translate(alvoW / 2, alvoH / 2);
+        ctx.rotate(Math.PI / 2);
+        ctx.scale(escala, escala);
+        ctx.drawImage(
+          video,
+          -vw / 2,
+          -vh / 2,
+          vw,
+          vh
+        );
+        ctx.restore();
       } else {
         const srcRatio = vw / vh;
         let sx=0, sy=0, sw=vw, sh=vh;
@@ -18119,6 +18199,24 @@ function desligarCamera() {
       null;
 
   }
+
+  try {
+    if (cameraPreviewCanvas && typeof cameraPreviewCanvas.__stopPreview === 'function') {
+      cameraPreviewCanvas.__stopPreview();
+    }
+    if (cameraPreviewFrame !== null && typeof cancelAnimationFrame === 'function') {
+      cancelAnimationFrame(cameraPreviewFrame);
+    }
+  } catch (_) {}
+  cameraPreviewFrame = null;
+  if (cameraPreviewCanvas) {
+    try { cameraPreviewCanvas.remove(); } catch (_) {}
+  }
+  cameraPreviewCanvas = null;
+  try {
+    const cameraEl = document.getElementById('cameraPreview');
+    if (cameraEl) cameraEl.style.display = 'block';
+  } catch (_) {}
 
   if (cameraStream) {
 
