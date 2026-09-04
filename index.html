@@ -4153,7 +4153,7 @@ const VERSAO_DB_VIDEO =
   4;
 
 const VERSAO_APLICACAO =
-  'V13.94';
+  'V13.95';
 
 const STORE_JOBS =
   'jobs';
@@ -6388,6 +6388,38 @@ function iniciarFilaStatusPeriodica() {
 
 }
 
+let reconciliacaoFinalizacoesTimer_ = null;
+let reconciliacaoFinalizacoesEmAndamento_ = false;
+
+async function reconciliarFinalizacoesVideo_() {
+  if (reconciliacaoFinalizacoesEmAndamento_) return;
+  reconciliacaoFinalizacoesEmAndamento_=true;
+  try {
+    const jobs=await listarJobsLocais();
+    const finalizando=jobs.filter(function(j){return j && j.mediaType==='VIDEO' && j.status==='finalizing';});
+    for (const job of finalizando) {
+      try {
+        const r=await consultarStatusFinalUpload_(job.uploadId,job);
+        if(r && r.sucesso && r.finalizado && r.idArquivo){
+          await apagarJobLocal(job.uploadId);
+          limparVideoEmProcessamentoLocal_(job.maquina,job.uploadId);
+          try{cacheUltimaInspecaoPorMaquina.delete(normalizarMaquinaChave_(job.maquina));}catch(_){}
+          try{await consultarPendenciasAntesDaMaquina({forcarAtualizacao:true,silencioso:true});}catch(_){}
+        }
+      } catch (erro) {
+        debugUploadCliente('RECONCILIACAO_FINALIZACAO_AGUARDANDO',job,{erro:erro&&erro.message?erro.message:String(erro)});
+      }
+    }
+    if(finalizando.length) await atualizarFilaUI();
+  } finally { reconciliacaoFinalizacoesEmAndamento_=false; }
+}
+
+function iniciarReconcilicaoFinalizacoesPeriodica_(){
+  if(reconciliacaoFinalizacoesTimer_) clearInterval(reconciliacaoFinalizacoesTimer_);
+  reconciliacaoFinalizacoesTimer_=setInterval(function(){reconciliarFinalizacoesVideo_().catch(function(){});},15000);
+  reconciliarFinalizacoesVideo_().catch(function(){});
+}
+
 async function processarFilaUploads() {
 
   if (filaProcessando) {
@@ -6422,6 +6454,13 @@ async function processarFilaUploads() {
 
             if (
               item.status === 'recording'
+            ) {
+              return false;
+            }
+
+            if (
+              item.mediaType === 'VIDEO' &&
+              item.status === 'finalizing'
             ) {
               return false;
             }
@@ -6936,14 +6975,24 @@ async function processarJobUpload(
     );
 
     if (
+      resultado &&
+      resultado.finalizando &&
+      !resultado.idArquivo
+    ) {
+      job.status = 'finalizing';
+      job.nextAttemptAt = Date.now() + 15000;
+      job.updatedAt = Date.now();
+      await salvarJobLocal(job);
+      await atualizarFilaUI();
+      try { await reconciliarFinalizacoesVideo_(); } catch (_) {}
+      return true;
+    }
+
+    if (
       !resultado ||
       !resultado.idArquivo
     ) {
-
-      throw new Error(
-        'CONFIRMACAO_FINAL_NAO_RECEBIDA'
-      );
-
+      throw new Error('CONFIRMACAO_FINAL_NAO_RECEBIDA');
     }
 
     const idRegistro =
@@ -16477,74 +16526,28 @@ async function liberarWakeLock() {
 function iniciarPreviewCamera16x9_(camera) {
   try {
     if (!camera) return;
-    const container = camera.parentElement;
-    if (!container) return;
-
-    if (cameraPreviewFrame !== null && typeof cancelAnimationFrame === 'function') {
-      cancelAnimationFrame(cameraPreviewFrame);
-    }
+    try {
+      if (cameraPreviewFrame !== null && typeof cancelAnimationFrame === 'function') cancelAnimationFrame(cameraPreviewFrame);
+    } catch (_) {}
     cameraPreviewFrame = null;
+    if (cameraPreviewCanvas && cameraPreviewCanvas.__stopPreview) { try { cameraPreviewCanvas.__stopPreview(); } catch (_) {} }
+    if (cameraPreviewCanvas && cameraPreviewCanvas.parentElement) { try { cameraPreviewCanvas.remove(); } catch (_) {} }
+    cameraPreviewCanvas = null;
 
-    if (cameraPreviewCanvas && cameraPreviewCanvas.parentElement) {
-      cameraPreviewCanvas.remove();
-    }
-
-    const canvas = document.createElement('canvas');
-    canvas.id = 'cameraPreviewCanvas';
-    canvas.width = 1280;
-    canvas.height = 720;
-    canvas.style.width = '100%';
-    canvas.style.height = 'auto';
-    canvas.style.display = 'block';
-    canvas.style.background = '#000';
-    canvas.setAttribute('aria-label', 'Pré-visualização da câmera em 16 por 9');
-
-    container.insertBefore(canvas, camera);
-    camera.style.display = 'none';
-    cameraPreviewCanvas = canvas;
-
-    const ctx = canvas.getContext('2d', { alpha: false });
-    if (!ctx) return;
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = 'high';
-
-    let ativo = true;
-    const desenhar = function() {
-      if (!ativo || !cameraPreviewCanvas) return;
-      try {
-        const vw = Number(camera.videoWidth || 0);
-        const vh = Number(camera.videoHeight || 0);
-        if (vw > 0 && vh > 0 && camera.readyState >= 2) {
-          const alvoW = canvas.width;
-          const alvoH = canvas.height;
-          const escala = Math.max(alvoW / vw, alvoH / vh);
-          const larguraDesenho = vw * escala;
-          const alturaDesenho = vh * escala;
-
-          ctx.fillStyle = '#000';
-          ctx.fillRect(0, 0, alvoW, alvoH);
-          ctx.drawImage(
-            camera,
-            (alvoW - larguraDesenho) / 2,
-            (alvoH - alturaDesenho) / 2,
-            larguraDesenho,
-            alturaDesenho
-          );
-        }
-      } catch (_) {}
-      cameraPreviewFrame = requestAnimationFrame(desenhar);
-    };
-
-    cameraPreviewCanvas.__stopPreview = function() {
-      ativo = false;
-    };
-
-    cameraPreviewFrame = requestAnimationFrame(desenhar);
+    camera.style.display = 'block';
+    camera.style.width = '100%';
+    camera.style.height = 'auto';
+    camera.style.aspectRatio = '16 / 9';
+    camera.style.objectFit = 'cover';
+    camera.style.objectPosition = 'center center';
+    camera.style.background = '#000';
+    camera.style.transform = 'none';
   } catch (erro) {
-    try { debugUploadCliente('CAMERA_PREVIEW_CANVAS_ERRO', {mediaType:'CAMERA'}, {erro:String(erro)}); } catch (_) {}
+    try { debugUploadCliente('CAMERA_PREVIEW_NATIVO_ERRO', {mediaType:'CAMERA'}, {erro:String(erro)}); } catch (_) {}
     if (camera) camera.style.display = 'block';
   }
 }
+
 
 async function iniciarCameraInterna_() {
 
@@ -17294,471 +17297,106 @@ function escolherMimeType() {
 
 
 function criarStreamVideo16x9_(streamOriginal) {
+  const videoTrack = streamOriginal && streamOriginal.getVideoTracks()[0];
+  if (!videoTrack) return { track: null, cleanup: function() {} };
 
-  const videoTrack =
-    streamOriginal &&
-    streamOriginal.getVideoTracks()[0];
+  const settings = typeof videoTrack.getSettings === 'function' ? videoTrack.getSettings() : {};
+  const origemW = Number(settings.width || 0);
+  const origemH = Number(settings.height || 0);
+  const origemRatio = origemH > 0 ? origemW / origemH : 0;
+  const e16x9 = origemW > 0 && origemH > 0 && Math.abs(origemRatio - (16/9)) <= 0.035;
 
-  if (!videoTrack) {
-    return { track: null, cleanup: function() {} };
+  if (e16x9) {
+    try { debugUploadCliente('VIDEO_CAMINHO_NATIVO_16_9', {mediaType:'VIDEO'}, {origemWidth:origemW, origemHeight:origemH, origemAspectRatio:origemRatio, saida:'NATIVA_16_9', composicao:false}); } catch (_) {}
+    return { track: videoTrack, cleanup: function() {} };
   }
 
-  if (!window.HTMLCanvasElement ||
-      typeof HTMLCanvasElement.prototype.captureStream !== 'function') {
-    return {
-      track: videoTrack,
-      cleanup: function() {}
-    };
+  if (!window.HTMLCanvasElement || typeof HTMLCanvasElement.prototype.captureStream !== 'function') {
+    return { track: videoTrack, cleanup: function() {} };
   }
-
-  const settings =
-    typeof videoTrack.getSettings === 'function'
-      ? videoTrack.getSettings()
-      : {};
 
   const video = document.createElement('video');
   video.muted = true;
   video.autoplay = true;
   video.playsInline = true;
-  video.setAttribute('playsinline', '');
-  video.setAttribute('webkit-playsinline', '');
+  video.setAttribute('playsinline','');
+  video.setAttribute('webkit-playsinline','');
   video.srcObject = new MediaStream([videoTrack]);
 
   const canvas = document.createElement('canvas');
   canvas.width = 1280;
   canvas.height = 720;
-
-  const ctx = canvas.getContext('2d', {
-    alpha: false,
-    desynchronized: true
-  });
-
-  if (!ctx) {
-    return {
-      track: videoTrack,
-      cleanup: function() {}
-    };
-  }
-
+  const ctx = canvas.getContext('2d', {alpha:false, desynchronized:true});
+  if (!ctx) return {track:videoTrack, cleanup:function(){}};
   ctx.imageSmoothingEnabled = true;
-  ctx.imageSmoothingQuality = 'high';
+  ctx.imageSmoothingQuality = 'medium';
 
-  /*
-   * V13.91 — COMPOSITOR UNIVERSAL 16:9 ORIENTAÇÃO ROBUSTA
-   *
-   * A V13.90 girava a fonte e depois calculava o crop usando largura/altura
-   * ainda na orientação original. Em fontes como 720x1280 isso podia produzir
-   * crop inválido e, dependendo do navegador, vídeo invertido/rotacionado.
-   *
-   * Agora a sequência é sempre:
-   *   1) determina orientação real da fonte;
-   *   2) define rotação 0 / +90 / -90 / 180;
-   *   3) calcula as dimensões APÓS a rotação;
-   *   4) aplica COVER para 1280x720;
-   *   5) desenha centralizado.
-   *
-   * A rotação de fontes verticais usa a orientação da tela quando disponível,
-   * evitando escolher o sentido errado em tablets/celulares que alternam
-   * entre landscape esquerdo e direito.
-   */
+  let ativo=true, frameHandle=null, usandoRVFC=false;
 
-  let ativo = true;
-  let frameHandle = null;
-  let ultimoFrame = 0;
-  const fpsGravacao = 24;
-  const intervaloMs = 1000 / fpsGravacao;
-
-  function obterAnguloTela_() {
+  function obterRotacaoFallback_(vw,vh){
+    if (!(vw>0 && vh>0) || vw>=vh) return 0;
     try {
-      if (window.screen &&
-          window.screen.orientation &&
-          typeof window.screen.orientation.angle === 'number') {
-        const a = ((Number(window.screen.orientation.angle) % 360) + 360) % 360;
-        if (a === 90 || a === 270) return a;
-      }
+      const type = window.screen && window.screen.orientation ? String(window.screen.orientation.type||'').toLowerCase() : '';
+      if (type === 'landscape-primary') return -90;
+      if (type === 'landscape-secondary') return 90;
     } catch (_) {}
-
-    try {
-      const a = Number(window.orientation);
-      if (a === 90 || a === -90 || a === 270) {
-        return a === -90 ? 270 : a;
-      }
-    } catch (_) {}
-
+    try { if (window.innerWidth > window.innerHeight) return -90; } catch (_) {}
     return 0;
   }
 
-  function normalizarAngulo_(graus) {
-    let a = Number(graus || 0) % 360;
-    if (a < 0) a += 360;
-    if (a === 270) return -90;
-    if (a === 180) return 180;
-    if (a === 90) return 90;
-    return 0;
-  }
-
-  function obterRotacaoFonte_(vw, vh) {
-    /*
-     * V13.91 — orientação baseada no tipo real da tela.
-     * O ângulo numérico sozinho é ambíguo em alguns Android/tablets.
-     * Primeiro confiamos em screen.orientation.type, que distingue portrait
-     * de landscape-primary/secondary. Só giramos uma fonte vertical quando
-     * a tela está em landscape.
-     */
-    if (!(vw > 0 && vh > 0)) return 0;
-
-    const verticalFonte = (vw / vh) < 0.92;
-    if (!verticalFonte) return 0;
-
-    try {
-      const orientation =
-        window.screen &&
-        window.screen.orientation &&
-        typeof window.screen.orientation.type === 'string'
-          ? window.screen.orientation.type.toLowerCase()
-          : '';
-
-      if (orientation.indexOf('portrait') === 0) {
-        return 0;
-      }
-
-      if (orientation === 'landscape-secondary') {
-        return 90;
-      }
-
-      if (orientation === 'landscape-primary') {
-        return -90;
-      }
-    } catch (_) {}
-
-    try {
-      if (window.innerWidth > window.innerHeight) {
-        return -90;
-      }
-    } catch (_) {}
-
-    return 0;
-  }
-
-  function desenharFrame(tempoAtual) {
+  function desenharFrame(){
     if (!ativo) return;
-
-    const agora = Number(
-      tempoAtual || performance.now()
-    );
-
-    if (
-      agora - ultimoFrame <
-      intervaloMs - 1
-    ) {
-      frameHandle = requestAnimationFrame(
-        desenharFrame
-      );
-      return;
-    }
-
-    ultimoFrame = agora;
-
     try {
-      const vw = Number(
-        video.videoWidth ||
-        settings.width ||
-        0
-      );
-
-      const vh = Number(
-        video.videoHeight ||
-        settings.height ||
-        0
-      );
-
-      if (!(vw > 0 && vh > 0) || video.readyState < 2) {
-        frameHandle = requestAnimationFrame(
-          desenharFrame
-        );
-        return;
-      }
-
-      const alvoW = canvas.width;
-      const alvoH = canvas.height;
-      const alvoRatio = alvoW / alvoH;
-      const rotacao = obterRotacaoFonte_(vw, vh);
-      const trocaEixos =
-        rotacao === 90 ||
-        rotacao === -90;
-
-      const orientadoW =
-        trocaEixos ? vh : vw;
-      const orientadoH =
-        trocaEixos ? vw : vh;
-
-      const orientadoRatio =
-        orientadoW / orientadoH;
-
-      let larguraDesenho = orientadoW;
-      let alturaDesenho = orientadoH;
-
-      /* COVER após a rotação: nunca usa crop em coordenadas erradas. */
-      if (orientadoRatio > alvoRatio) {
-        alturaDesenho = alvoH;
-        larguraDesenho = alvoH * orientadoRatio;
-      } else {
-        larguraDesenho = alvoW;
-        alturaDesenho = alvoW / orientadoRatio;
-      }
-
-      ctx.fillStyle = '#000';
-      ctx.fillRect(0, 0, alvoW, alvoH);
-
-      ctx.save();
-      ctx.translate(
-        alvoW / 2,
-        alvoH / 2
-      );
-
-      if (rotacao !== 0) {
-        ctx.rotate(
-          rotacao * Math.PI / 180
-        );
-      }
-
-      ctx.drawImage(
-        video,
-        -larguraDesenho / 2,
-        -alturaDesenho / 2,
-        larguraDesenho,
-        alturaDesenho
-      );
-
+      const vw=Number(video.videoWidth||origemW||0), vh=Number(video.videoHeight||origemH||0);
+      if (!(vw>0 && vh>0) || video.readyState<2) return;
+      const W=canvas.width,H=canvas.height,target=W/H;
+      const rot=obterRotacaoFallback_(vw,vh), swap=rot===90||rot===-90;
+      const ow=swap?vh:vw, oh=swap?vw:vh, ratio=ow/oh;
+      let dw,dh;
+      if (ratio>target){dh=H;dw=H*ratio;} else {dw=W;dh=W/ratio;}
+      ctx.fillStyle='#000'; ctx.fillRect(0,0,W,H);
+      ctx.save(); ctx.translate(W/2,H/2);
+      if (rot) ctx.rotate(rot*Math.PI/180);
+      ctx.drawImage(video,-dw/2,-dh/2,dw,dh);
       ctx.restore();
-    }
-    catch (_) {
-      /* Um frame perdido não interrompe a gravação. */
-    }
-
-    frameHandle = requestAnimationFrame(
-      desenharFrame
-    );
+    } catch (_) {}
   }
 
-  try {
-    video.play().catch(function() {});
-  }
-  catch (_) {}
-
-  frameHandle = requestAnimationFrame(
-    desenharFrame
-  );
-
-  try {
-    debugUploadCliente(
-      'CAMERA_COMPOSITOR_16_9_UNIVERSAL_V1391',
-      { mediaType: 'CAMERA' },
-      {
-        origemWidth:
-          Number(settings.width || 0),
-        origemHeight:
-          Number(settings.height || 0),
-        origemAspectRatio:
-          Number(settings.height || 0) > 0
-            ? Number(settings.width || 0) /
-              Number(settings.height || 0)
-            : 0,
-        saidaWidth: 1280,
-        saidaHeight: 720,
-        saidaAspectRatio: 16 / 9,
-        anguloTela:
-          obterAnguloTela_(),
-        rotacaoAplicada:
-          obterRotacaoFonte_(
-            Number(settings.width || 0),
-            Number(settings.height || 0)
-          )
-      }
-    );
-  }
-  catch (_) {}
-
-  const canvasStream =
-    canvas.captureStream(fpsGravacao);
-
-  const canvasTrack =
-    canvasStream.getVideoTracks()[0];
-
-  if (!canvasTrack) {
-    try { video.pause(); } catch (_) {}
-    try { video.srcObject = null; } catch (_) {}
-    try {
-      canvasStream
-        .getTracks()
-        .forEach(function(t) { t.stop(); });
+  function proximo(){
+    if(!ativo) return;
+    if(typeof video.requestVideoFrameCallback==='function'){
+      usandoRVFC=true;
+      video.requestVideoFrameCallback(function(){desenharFrame();proximo();});
+    } else {
+      frameHandle=requestAnimationFrame(function(){desenharFrame();proximo();});
     }
-    catch (_) {}
-    return {
-      track: videoTrack,
-      cleanup: function() {}
-    };
   }
 
-  return {
-    track: canvasTrack,
-    cleanup: function() {
-      ativo = false;
+  try { video.play().catch(function(){}); } catch (_) {}
+  proximo();
 
-      try {
-        if (frameHandle !== null) {
-          cancelAnimationFrame(frameHandle);
-        }
-      }
-      catch (_) {}
+  try { debugUploadCliente('VIDEO_COMPOSITOR_FALLBACK_16_9',{mediaType:'VIDEO'},{origemWidth:origemW,origemHeight:origemH,origemAspectRatio:origemRatio,saidaWidth:1280,saidaHeight:720,requestVideoFrameCallback:typeof video.requestVideoFrameCallback==='function',composicao:true}); } catch (_) {}
 
-      frameHandle = null;
-
-      try { video.pause(); } catch (_) {}
-      try { video.srcObject = null; } catch (_) {}
-      try { canvasTrack.stop(); } catch (_) {}
-
-      try {
-        canvasStream
-          .getTracks()
-          .forEach(function(track) {
-            try { track.stop(); } catch (_) {}
-          });
-      }
-      catch (_) {}
-    }
-  };
+  const canvasStream=canvas.captureStream(30), canvasTrack=canvasStream.getVideoTracks()[0];
+  if(!canvasTrack){ try{video.pause();}catch(_){} try{video.srcObject=null;}catch(_){} return {track:videoTrack,cleanup:function(){}}; }
+  return {track:canvasTrack,cleanup:function(){
+    ativo=false;
+    try{if(!usandoRVFC && frameHandle!==null) cancelAnimationFrame(frameHandle);}catch(_){}
+    frameHandle=null;
+    try{video.pause();}catch(_){} try{video.srcObject=null;}catch(_){}
+    try{canvasTrack.stop();}catch(_){}
+    try{canvasStream.getTracks().forEach(function(t){try{t.stop();}catch(_){}});}catch(_){}
+  }};
 }
 
 function criarStreamVideoComAudioMelhorado_(streamOriginal) {
-
-  const audioTrack =
-    streamOriginal &&
-    streamOriginal.getAudioTracks()[0];
-
-  /* V13.90: a composição 16:9 é independente da existência de áudio. */
   const videoPreparado = criarStreamVideo16x9_(streamOriginal);
   const videoTrack = videoPreparado.track;
-
-  if (!videoTrack) {
-    return {
-      stream: streamOriginal,
-      cleanup: videoPreparado.cleanup
-    };
-  }
-
-  if (!audioTrack) {
-    return {
-      stream: new MediaStream([videoTrack]),
-      cleanup: videoPreparado.cleanup
-    };
-  }
-
-  try {
-
-    const AudioContextClass =
-      window.AudioContext ||
-      window.webkitAudioContext;
-
-    if (!AudioContextClass) {
-      return {
-        stream: new MediaStream([videoTrack, audioTrack]),
-        cleanup: videoPreparado.cleanup
-      };
-    }
-
-    audioContextVideoGravacao = new AudioContextClass();
-
-    const source =
-      audioContextVideoGravacao.createMediaStreamSource(
-        new MediaStream([audioTrack])
-      );
-
-    const highpass =
-      audioContextVideoGravacao.createBiquadFilter();
-    highpass.type = 'highpass';
-    highpass.frequency.value = 110;
-    highpass.Q.value = 0.7;
-
-    const compressor =
-      audioContextVideoGravacao.createDynamicsCompressor();
-    compressor.threshold.value = -24;
-    compressor.knee.value = 18;
-    compressor.ratio.value = 4;
-    compressor.attack.value = 0.003;
-    compressor.release.value = 0.25;
-
-    const gain =
-      audioContextVideoGravacao.createGain();
-    gain.gain.value = 1.05;
-
-    const destination =
-      audioContextVideoGravacao.createMediaStreamDestination();
-
-    source.connect(highpass);
-    highpass.connect(compressor);
-    compressor.connect(gain);
-    gain.connect(destination);
-
-    if (typeof audioContextVideoGravacao.resume === 'function') {
-      audioContextVideoGravacao.resume().catch(function() {});
-    }
-
-    const audioProcessed =
-      destination.stream.getAudioTracks()[0];
-
-    if (!audioProcessed) {
-      throw new Error('Trilha de áudio processada indisponível.');
-    }
-
-    const streamNovo = new MediaStream([
-      videoTrack,
-      audioProcessed
-    ]);
-
-    audioCleanupVideoGravacao = function() {
-
-      try {
-        streamNovo.getTracks().forEach(function(track) {
-          try { track.stop(); } catch (_) {}
-        });
-      } catch (_) {}
-
-      try {
-        videoPreparado.cleanup();
-      } catch (_) {}
-
-      try {
-        if (audioContextVideoGravacao) {
-          audioContextVideoGravacao.close().catch(function() {});
-        }
-      } catch (_) {}
-
-      audioContextVideoGravacao = null;
-      audioCleanupVideoGravacao = null;
-    };
-
-    return {
-      stream: streamNovo,
-      cleanup: audioCleanupVideoGravacao
-    };
-
-  } catch (erro) {
-
-    try {
-      if (audioContextVideoGravacao) {
-        audioContextVideoGravacao.close().catch(function() {});
-      }
-    } catch (_) {}
-
-    audioContextVideoGravacao = null;
-    audioCleanupVideoGravacao = videoPreparado.cleanup;
-
-    return {
-      stream: new MediaStream([videoTrack, audioTrack]),
-      cleanup: videoPreparado.cleanup
-    };
-  }
+  const audioTrack = streamOriginal && streamOriginal.getAudioTracks()[0];
+  if (!videoTrack) return {stream:streamOriginal, cleanup:videoPreparado.cleanup};
+  const tracks=[videoTrack];
+  if(audioTrack) tracks.push(audioTrack);
+  return {stream:new MediaStream(tracks), cleanup:videoPreparado.cleanup};
 }
 
 function iniciarGravacao() {
@@ -20246,66 +19884,31 @@ function consultarResumoChunksUpload_(uploadId, totalChunks) {
  * 1. dispara POST VIDEO_FINALIZE;
  * 2. consulta o status final por JSONP.
  */
-async function finalizarUpload(
-  job
-) {
+async function finalizarUpload(job) {
+  const uploadId = job && job.uploadId ? job.uploadId : null;
+  if (!uploadId) throw new Error('Upload ID não informado para finalização.');
 
-  const uploadId =
-    job &&
-    job.uploadId
-      ? job.uploadId
-      : null;
-
-  if (!uploadId) {
-    throw new Error(
-      'Upload ID não informado para finalização.'
-    );
-  }
-
-  /*
-   * V13.93 — finalização idempotente.
-   * Primeiro consultamos o servidor. Se o vídeo já terminou,
-   * não enviamos VIDEO_FINALIZE novamente. Isso evita que um
-   * timeout de confirmação gere uma nova montagem desnecessária.
-   */
-  try {
-    const statusAnterior =
-      await consultarStatusFinalUpload_(uploadId, job);
-
-    if (
-      statusAnterior &&
-      statusAnterior.sucesso &&
-      statusAnterior.finalizado &&
-      statusAnterior.idArquivo
-    ) {
-      debugUploadCliente(
-        'FINALIZACAO_JA_CONCLUIDA_ANTES_POST',
-        job,
-        { idArquivo: statusAnterior.idArquivo }
-      );
-      return statusAnterior;
-    }
-  } catch (erroConsultaInicial) {
-    debugUploadCliente(
-      'CONSULTA_FINAL_INICIAL_FALHOU',
-      job,
-      {
-        erro: erroConsultaInicial && erroConsultaInicial.message
-          ? erroConsultaInicial.message
-          : String(erroConsultaInicial)
+  if (job.mediaType === 'VIDEO') {
+    /* Primeiro consulta apenas para aproveitar uma finalização já concluída. */
+    try {
+      const anterior = await consultarStatusFinalUpload_(uploadId, job);
+      if (anterior && anterior.sucesso && anterior.finalizado && anterior.idArquivo) {
+        return anterior;
       }
-    );
+    } catch (_) {}
+
+    await dispararPostFinalizacao(uploadId, job);
+    return {
+      tipo:'VIDEO',
+      sucesso:true,
+      finalizando:true,
+      enfileirado:true,
+      uploadId:uploadId
+    };
   }
 
-  await dispararPostFinalizacao(
-    uploadId,
-    job
-  );
-
-  return aguardarStatusFinal(
-    uploadId,
-    job
-  );
+  await dispararPostFinalizacao(uploadId, job);
+  return aguardarStatusFinal(uploadId, job);
 }
 
 
@@ -22336,6 +21939,8 @@ document.addEventListener(
 
     setTimeout(
       function() {
+
+        iniciarReconcilicaoFinalizacoesPeriodica_();
 
         inicializarFilaUploads()
           .catch(
