@@ -17285,14 +17285,22 @@ function criarStreamVideo16x9_(streamOriginal) {
   ctx.imageSmoothingQuality = 'high';
 
   /*
-   * V13.88 — COMPOSITOR UNIVERSAL 16:9
+   * V13.89 — COMPOSITOR UNIVERSAL 16:9 CORRIGIDO
    *
-   * Não confiamos na resolução/proporção informada pelo aparelho.
-   * Qualquer fonte (4:3, 16:9, 9:16, 3:4 etc.) passa pela mesma etapa:
-   *   fonte -> orientação -> crop proporcional -> 1280x720 -> recorder
+   * A V13.88 girava a fonte e depois calculava o crop usando largura/altura
+   * ainda na orientação original. Em fontes como 720x1280 isso podia produzir
+   * crop inválido e, dependendo do navegador, vídeo invertido/rotacionado.
    *
-   * Para fontes verticais, a rotação é feita antes do enquadramento.
-   * Isso evita o efeito de "faixa estreita" que aparecia nos Androids.
+   * Agora a sequência é sempre:
+   *   1) determina orientação real da fonte;
+   *   2) define rotação 0 / +90 / -90 / 180;
+   *   3) calcula as dimensões APÓS a rotação;
+   *   4) aplica COVER para 1280x720;
+   *   5) desenha centralizado.
+   *
+   * A rotação de fontes verticais usa a orientação da tela quando disponível,
+   * evitando escolher o sentido errado em tablets/celulares que alternam
+   * entre landscape esquerdo e direito.
    */
 
   let ativo = true;
@@ -17301,19 +17309,63 @@ function criarStreamVideo16x9_(streamOriginal) {
   const fpsGravacao = 24;
   const intervaloMs = 1000 / fpsGravacao;
 
-  function deveRotacionarFonte(vw, vh) {
-    if (!(vw > 0 && vh > 0)) return false;
+  function obterAnguloTela_() {
+    try {
+      if (window.screen &&
+          window.screen.orientation &&
+          typeof window.screen.orientation.angle === 'number') {
+        const a = ((Number(window.screen.orientation.angle) % 360) + 360) % 360;
+        if (a === 90 || a === 270) return a;
+      }
+    } catch (_) {}
+
+    try {
+      const a = Number(window.orientation);
+      if (a === 90 || a === -90 || a === 270) {
+        return a === -90 ? 270 : a;
+      }
+    } catch (_) {}
+
+    return 0;
+  }
+
+  function normalizarAngulo_(graus) {
+    let a = Number(graus || 0) % 360;
+    if (a < 0) a += 360;
+    if (a === 270) return -90;
+    if (a === 180) return 180;
+    if (a === 90) return 90;
+    return 0;
+  }
+
+  function obterRotacaoFonte_(vw, vh) {
+    if (!(vw > 0 && vh > 0)) return 0;
 
     const ratio = vw / vh;
-    const fonteVertical = ratio < 0.92;
-    if (!fonteVertical) return false;
+    const vertical = ratio < 0.92;
+    const horizontal = ratio > 1.08;
+    const tela = obterAnguloTela_();
 
-    /*
-     * Em Android a stream pode ser reportada vertical mesmo com o aparelho
-     * em paisagem. Para a saída operacional da fábrica, a regra é simples:
-     * uma fonte vertical sempre vira paisagem antes do enquadramento.
-     */
-    return true;
+    if (vertical) {
+      /*
+       * Em landscape, o sensor normalmente precisa de 90 graus para ficar
+       * horizontal. O sentido acompanha a orientação física da tela.
+       */
+      return tela === 270 ? 90 : -90;
+    }
+
+    if (horizontal) {
+      /* Alguns drivers entregam paisagem já correta. Só usa 180 quando o
+       * próprio driver expõe uma rotação útil, evitando inversão artificial. */
+      const rotation =
+        typeof settings.rotation === 'number'
+          ? Number(settings.rotation)
+          : 0;
+      const r = normalizarAngulo_(rotation);
+      return r === 180 ? 180 : 0;
+    }
+
+    return 0;
   }
 
   function desenharFrame(tempoAtual) {
@@ -17358,9 +17410,31 @@ function criarStreamVideo16x9_(streamOriginal) {
       const alvoW = canvas.width;
       const alvoH = canvas.height;
       const alvoRatio = alvoW / alvoH;
-      const rotacionar = deveRotacionarFonte(vw, vh);
+      const rotacao = obterRotacaoFonte_(vw, vh);
+      const trocaEixos =
+        rotacao === 90 ||
+        rotacao === -90;
 
-      /* Fundo sempre preto, inclusive durante o aquecimento da câmera. */
+      const orientadoW =
+        trocaEixos ? vh : vw;
+      const orientadoH =
+        trocaEixos ? vw : vh;
+
+      const orientadoRatio =
+        orientadoW / orientadoH;
+
+      let larguraDesenho = orientadoW;
+      let alturaDesenho = orientadoH;
+
+      /* COVER após a rotação: nunca usa crop em coordenadas erradas. */
+      if (orientadoRatio > alvoRatio) {
+        alturaDesenho = alvoH;
+        larguraDesenho = alvoH * orientadoRatio;
+      } else {
+        larguraDesenho = alvoW;
+        alturaDesenho = alvoW / orientadoRatio;
+      }
+
       ctx.fillStyle = '#000';
       ctx.fillRect(0, 0, alvoW, alvoH);
 
@@ -17370,78 +17444,19 @@ function criarStreamVideo16x9_(streamOriginal) {
         alvoH / 2
       );
 
-      let sourceW = vw;
-      let sourceH = vh;
-
-      if (rotacionar) {
-        sourceW = vh;
-        sourceH = vw;
-      }
-
-      const sourceRatio =
-        sourceW / sourceH;
-
-      /*
-       * COVER: preenche 100% do 16:9 sem deformar a imagem.
-       * O corte sempre ocorre no eixo excedente e é centralizado.
-       */
-      let sx = 0;
-      let sy = 0;
-      let sw = vw;
-      let sh = vh;
-
-      if (!rotacionar) {
-        if (sourceRatio > alvoRatio) {
-          sw = vh * alvoRatio;
-          sx = (vw - sw) / 2;
-        } else if (sourceRatio < alvoRatio) {
-          sh = vw / alvoRatio;
-          sy = (vh - sh) / 2;
-        }
-
-        ctx.drawImage(
-          video,
-          sx,
-          sy,
-          sw,
-          sh,
-          -alvoW / 2,
-          -alvoH / 2,
-          alvoW,
-          alvoH
-        );
-      } else {
-        /*
-         * Para 9:16 -> 16:9, primeiro rotacionamos e só então aplicamos
-         * o crop. Isso preserva a largura útil após a rotação.
-         */
-        const rotatedRatio = sourceRatio;
-        let cropW = vh;
-        let cropH = vw;
-
-        if (rotatedRatio > alvoRatio) {
-          cropW = vw * alvoRatio;
-          cropH = vw;
-        } else if (rotatedRatio < alvoRatio) {
-          cropW = vh;
-          cropH = vh / alvoRatio;
-        }
-
-        /* Desenho centrado na origem para a rotação. */
-        ctx.rotate(Math.PI / 2);
-
-        ctx.drawImage(
-          video,
-          (vw - cropW) / 2,
-          (vh - cropH) / 2,
-          cropW,
-          cropH,
-          -alvoW / 2,
-          -alvoH / 2,
-          alvoW,
-          alvoH
+      if (rotacao !== 0) {
+        ctx.rotate(
+          rotacao * Math.PI / 180
         );
       }
+
+      ctx.drawImage(
+        video,
+        -larguraDesenho / 2,
+        -alturaDesenho / 2,
+        larguraDesenho,
+        alturaDesenho
+      );
 
       ctx.restore();
     }
@@ -17465,7 +17480,7 @@ function criarStreamVideo16x9_(streamOriginal) {
 
   try {
     debugUploadCliente(
-      'CAMERA_COMPOSITOR_16_9_UNIVERSAL',
+      'CAMERA_COMPOSITOR_16_9_UNIVERSAL_V1389',
       { mediaType: 'CAMERA' },
       {
         origemWidth:
@@ -17480,10 +17495,13 @@ function criarStreamVideo16x9_(streamOriginal) {
         saidaWidth: 1280,
         saidaHeight: 720,
         saidaAspectRatio: 16 / 9,
-        rotacaoVertical:
-          Number(settings.height || 0) >
-          Number(settings.width || 0) * 1.08,
-        compositorUniversal: true
+        anguloTela:
+          obterAnguloTela_(),
+        rotacaoAplicada:
+          obterRotacaoFonte_(
+            Number(settings.width || 0),
+            Number(settings.height || 0)
+          )
       }
     );
   }
@@ -17498,7 +17516,12 @@ function criarStreamVideo16x9_(streamOriginal) {
   if (!canvasTrack) {
     try { video.pause(); } catch (_) {}
     try { video.srcObject = null; } catch (_) {}
-    try { canvasStream.getTracks().forEach(function(t) { t.stop(); }); } catch (_) {}
+    try {
+      canvasStream
+        .getTracks()
+        .forEach(function(t) { t.stop(); });
+    }
+    catch (_) {}
     return {
       track: videoTrack,
       cleanup: function() {}
@@ -17509,17 +17532,20 @@ function criarStreamVideo16x9_(streamOriginal) {
     track: canvasTrack,
     cleanup: function() {
       ativo = false;
+
       try {
         if (frameHandle !== null) {
           cancelAnimationFrame(frameHandle);
         }
       }
       catch (_) {}
+
       frameHandle = null;
 
       try { video.pause(); } catch (_) {}
       try { video.srcObject = null; } catch (_) {}
       try { canvasTrack.stop(); } catch (_) {}
+
       try {
         canvasStream
           .getTracks()
