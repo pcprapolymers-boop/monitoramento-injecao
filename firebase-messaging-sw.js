@@ -1,17 +1,33 @@
-/* RA Polymers — Service Worker V13.80 — PUSH NATIVO + UPLOAD EM SEGUNDO PLANO */
+/* RA Polymers — Service Worker V13.81 — PUSH NATIVO + UPLOAD EM SEGUNDO PLANO */
 const URL_APPS_SCRIPT = 'https://script.google.com/macros/s/AKfycbyyczQIADys9S5tG7G9WiR_tFiWubW4mcteLurFO_GOlrlSs9f9CWkcojnjsuG5Jgvt/exec';
 const DB_NAME = 'RAPolymersMonitoramentoVideo';
 const DB_VERSION = 4;
 const STORE_JOBS = 'jobs';
 const STORE_CHUNKS = 'chunks';
 const BG_SYNC_TAG = 'ra-polymers-upload';
-const MAX_CHUNKS_POR_EXECUCAO = 8;
-const MAX_BACKGROUND_RUN_MS = 3 * 60 * 1000;
+const MAX_CHUNKS_POR_EXECUCAO = 10;
+const MAX_BACKGROUND_RUN_MS = 4 * 60 * 1000;
 const FINALIZE_TIMEOUT_MS = 8 * 60 * 1000;
 const ICON_192 = '/monitoramento-injecao/icons/notification-icon.png';
 const BADGE_72 = '/monitoramento-injecao/icons/badge-72.png';
 let fcmHandledKeys = new Map();
 let backgroundUploadRunning = false;
+
+/* V13.81 — caminho oficial FCM em segundo plano. O push nativo abaixo
+ * continua como fallback. Se o firebase-config.js estiver disponível,
+ * o SDK também registra onBackgroundMessage. */
+try {
+  importScripts('./firebase-config.js');
+  importScripts('https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js');
+  importScripts('https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging-compat.js');
+  const __cfg = self.RA_POLYMERS_FIREBASE_CONFIG || globalThis.RA_POLYMERS_FIREBASE_CONFIG;
+  if (__cfg && __cfg.projectId && !firebase.apps.length) {
+    firebase.initializeApp(__cfg);
+  }
+} catch (e) {
+  /* O handler push nativo continua funcionando mesmo sem o SDK. */
+}
+
 
 function getNotificationKey_(payload) {
   const bruto = payload || {};
@@ -51,6 +67,22 @@ async function mostrarAlarmePush_(payload) {
     data: {url: destino, maquina, tipo: data.tipo || 'INSPECAO', ciclo}
   });
 }
+
+
+/* FCM SDK: tratamento oficial de mensagens recebidas em segundo plano.
+ * A chave interna impede dupla notificação quando o evento push bruto
+ * também chegar para a mesma mensagem. */
+try {
+  if (typeof firebase !== 'undefined' && firebase.messaging) {
+    const __messagingSW = firebase.messaging();
+    __messagingSW.onBackgroundMessage(function(payload) {
+      return mostrarAlarmePush_(payload);
+    });
+  }
+} catch (e) {
+  console.warn('FCM_SW_BACKGROUND_HANDLER_ERRO', e);
+}
+
 
 /* Recebe diretamente o Push do navegador. Não depende do SDK do Firebase no SW. */
 self.addEventListener('push', function(event){
@@ -113,17 +145,18 @@ function idbPut_(s,v){ return abrirBanco_().then(db=>new Promise((resolve,reject
 async function blobParaBase64_(blob){ const bytes=new Uint8Array(await blob.arrayBuffer()); let b=''; for(let i=0;i<bytes.length;i+=0x8000)b+=String.fromCharCode.apply(null,bytes.subarray(i,Math.min(i+0x8000,bytes.length))); return btoa(b); }
 async function postar_(params){
   let ultimoErro = null;
-  for(let tentativa=1; tentativa<=2; tentativa++){
+  for(let tentativa=1; tentativa<=3; tentativa++){
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 30000);
+    const timeout = setTimeout(() => controller.abort(), 45000);
     try{
-      await fetch(URL_APPS_SCRIPT,{method:'POST',mode:'no-cors',cache:'no-store',credentials:'omit',headers:{'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8'},body:params.toString(),signal:controller.signal});
+      const url = URL_APPS_SCRIPT + (URL_APPS_SCRIPT.indexOf('?') >= 0 ? '&' : '?') + 'bg=' + Date.now() + '_' + tentativa;
+      await fetch(url,{method:'POST',mode:'no-cors',cache:'no-store',credentials:'omit',headers:{'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8'},body:params.toString(),signal:controller.signal});
       clearTimeout(timeout);
       return true;
     }catch(e){
       clearTimeout(timeout);
       ultimoErro=e;
-      if(tentativa<2) await new Promise(r=>setTimeout(r,1500));
+      if(tentativa<3) await new Promise(r=>setTimeout(r,1500*tentativa));
     }
   }
   throw ultimoErro || new Error('POST_BACKGROUND_FALHOU');
