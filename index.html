@@ -6410,13 +6410,17 @@ async function reconciliarFinalizacoesVideo_() {
         debugUploadCliente('RECONCILIACAO_FINALIZACAO_AGUARDANDO',job,{erro:erro&&erro.message?erro.message:String(erro)});
       }
     }
-    if(finalizando.length) await atualizarFilaUI();
-  } finally { reconciliacaoFinalizacoesEmAndamento_=false; }
+    if(finalizando.length){
+      await atualizarFilaUI();
+    }
+  } finally {
+    reconciliacaoFinalizacoesEmAndamento_=false;
+  }
 }
 
 function iniciarReconcilicaoFinalizacoesPeriodica_(){
   if(reconciliacaoFinalizacoesTimer_) clearInterval(reconciliacaoFinalizacoesTimer_);
-  reconciliacaoFinalizacoesTimer_=setInterval(function(){reconciliarFinalizacoesVideo_().catch(function(){});},15000);
+  reconciliacaoFinalizacoesTimer_=setInterval(function(){reconciliarFinalizacoesVideo_().catch(function(){});},5000);
   reconciliarFinalizacoesVideo_().catch(function(){});
 }
 
