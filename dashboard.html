@@ -31,7 +31,7 @@
       <div class="dash-kpi"><span>Horas paradas</span><strong id="dashHorasParadas">0,00 h</strong></div>
       <div class="dash-kpi"><span>% do tempo parado</span><strong id="dashPercentualParada">0,0%</strong></div>
       <div class="dash-kpi"><span>Horas com defeito de peça</span><strong id="dashHorasDefeitos">0,00 h</strong></div>
-      <div class="dash-kpi"><span>Horas de paradas operacionais</span><strong id="dashHorasParadasOperacionais">0,00 h</strong></div><div class="dash-kpi"><span>Horas em SETUP</span><strong id="dashHorasSetup">0,00 h</strong></div>
+      <div class="dash-kpi"><span>Horas de paradas operacionais</span><strong id="dashHorasParadasOperacionais">0,00 h</strong></div><div class="dash-kpi"><span>Horas em SETUP</span><strong id="dashHorasSetup">0,00 h</strong></div><div class="dash-kpi"><span>Horas com molde em manutenção</span><strong id="dashHorasMoldeManutencao">0,00 h</strong></div>
       <div class="dash-kpi"><span>Máquinas com parada</span><strong id="dashMaquinasParadas">0</strong></div>
       <div class="dash-kpi"><span>Ocorrências de defeito</span><strong id="dashOcorrenciasDefeitos">0</strong></div>
       <div class="dash-kpi"><span>Ocorrências de parada operacional</span><strong id="dashOcorrenciasParadasOperacionais">0</strong></div>
@@ -69,7 +69,7 @@ async function carregarDashboardGerencial(){
     const k=r.kpis||{};
     document.getElementById('dashHorasParadas').textContent=horas(k.horasParadas);
     document.getElementById('dashHorasDefeitos').textContent=horas(k.horasDefeitos);
-    document.getElementById('dashHorasParadasOperacionais').textContent=horas(k.horasParadasOperacionais); document.getElementById('dashHorasSetup').textContent=horas(k.horasSetup);
+    document.getElementById('dashHorasParadasOperacionais').textContent=horas(k.horasParadasOperacionais); document.getElementById('dashHorasSetup').textContent=horas(k.horasSetup); document.getElementById('dashHorasMoldeManutencao').textContent=horas(k.horasMoldeManutencao);
     document.getElementById('dashPercentualParada').textContent=Number(k.percentualParada||0).toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1})+'%';
     document.getElementById('dashMaquinasParadas').textContent=String(k.maquinasParadas||0);
     document.getElementById('dashOcorrenciasDefeitos').textContent=String(k.ocorrenciasDefeitos||0);
