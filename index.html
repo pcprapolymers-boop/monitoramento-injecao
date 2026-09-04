@@ -19953,10 +19953,25 @@ function consultarStatusFinalUpload_(uploadId, job) {
     };
 
     script = document.createElement('script');
+    const dadosConsulta = job || {};
+
     script.src =
       URL_APPS_SCRIPT +
       '?status=final' +
       '&uploadId=' + encodeURIComponent(uploadId) +
+      '&maquina=' + encodeURIComponent(dadosConsulta.maquina || '') +
+      '&operador=' + encodeURIComponent(dadosConsulta.operador || '') +
+      '&produto=' + encodeURIComponent(dadosConsulta.produto || '') +
+      '&ciclo=' + encodeURIComponent(dadosConsulta.ciclo || '') +
+      '&conforme=' + encodeURIComponent(dadosConsulta.conforme || '') +
+      '&mimeType=' + encodeURIComponent(dadosConsulta.mimeType || 'video/webm') +
+      '&inicioVideo=' + encodeURIComponent(dadosConsulta.inicioVideo || '') +
+      '&fimVideo=' + encodeURIComponent(dadosConsulta.fimVideo || '') +
+      '&duracaoReal=' + encodeURIComponent(dadosConsulta.duracaoReal || 0) +
+      '&turno=' + encodeURIComponent(dadosConsulta.turno || '') +
+      '&data=' + encodeURIComponent(dadosConsulta.data || '') +
+      '&mes=' + encodeURIComponent(dadosConsulta.mes || '') +
+      '&ano=' + encodeURIComponent(dadosConsulta.ano || '') +
       '&_=' + Date.now();
 
     script.onerror = function() {
