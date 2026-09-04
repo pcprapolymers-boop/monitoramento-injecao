@@ -7,7 +7,7 @@ self.addEventListener('notificationclick', function(event){
   }));
 });
 
-/* RA Polymers — Service Worker V13.82 — PUSH NATIVO + UPLOAD EM SEGUNDO PLANO */
+/* RA Polymers — Service Worker V13.84 — PUSH NATIVO + UPLOAD EM SEGUNDO PLANO */
 const URL_APPS_SCRIPT = 'https://script.google.com/macros/s/AKfycbyyczQIADys9S5tG7G9WiR_tFiWubW4mcteLurFO_GOlrlSs9f9CWkcojnjsuG5Jgvt/exec';
 const DB_NAME = 'RAPolymersMonitoramentoVideo';
 const DB_VERSION = 4;
