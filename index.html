@@ -292,7 +292,7 @@
       width: 100%;
       display: block;
       aspect-ratio: 16 / 9;
-      object-fit: contain;
+      object-fit: cover;
       border-radius: 14px;
       background: #000;
     }
@@ -17158,10 +17158,7 @@ function criarStreamVideo16x9_(streamOriginal) {
     streamOriginal.getVideoTracks()[0];
 
   if (!videoTrack) {
-    return {
-      track: null,
-      cleanup: function() {}
-    };
+    return { track: null, cleanup: function() {} };
   }
 
   const settings =
@@ -17171,33 +17168,10 @@ function criarStreamVideo16x9_(streamOriginal) {
 
   const largura = Number(settings.width || 0);
   const altura = Number(settings.height || 0);
-  const proporcao = altura > 0 ? largura / altura : 0;
 
-  /*
-   * V13.85 — O arquivo deve nascer SEMPRE em 16:9.
-   * Não passamos mais o track original diretamente para o MediaRecorder,
-   * mesmo quando o driver afirma que é 16:9. Alguns Androids entregam
-   * metadados/rotação que fazem o resultado parecer estreito.
-   *
-   * A câmera é desenhada em um canvas 1280x720 e somente esse track é
-   * entregue ao gravador. Para fontes 4:3/portrait fazemos crop central
-   * proporcional, sem distorcer a imagem.
-   */
-  if (
-    !window.HTMLCanvasElement ||
-    typeof HTMLCanvasElement.prototype.captureStream !== 'function'
-  ) {
-    try {
-      debugUploadCliente('CAMERA_16_9_CANVAS_NAO_DISPONIVEL', {mediaType:'CAMERA'}, {
-        width: largura,
-        height: altura,
-        aspecto: proporcao
-      });
-    } catch (_) {}
-    return {
-      track: videoTrack,
-      cleanup: function() {}
-    };
+  if (!window.HTMLCanvasElement ||
+      typeof HTMLCanvasElement.prototype.captureStream !== 'function') {
+    return { track: videoTrack, cleanup: function() {} };
   }
 
   const video = document.createElement('video');
@@ -17210,100 +17184,98 @@ function criarStreamVideo16x9_(streamOriginal) {
   const canvas = document.createElement('canvas');
   canvas.width = 1280;
   canvas.height = 720;
+  const ctx = canvas.getContext('2d', {alpha:false});
+  if (!ctx) return {track: videoTrack, cleanup: function(){}};
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
 
-  const ctx = canvas.getContext('2d', { alpha: false });
-  if (!ctx) {
-    return {
-      track: videoTrack,
-      cleanup: function() {}
-    };
-  }
-
-  try {
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = 'high';
-  } catch (_) {}
+  /* Canvas auxiliar para corrigir a orientação dos tablets que expõem o sensor
+   * em retrato mesmo quando o aparelho está sendo usado em paisagem. */
+  const rotCanvas = document.createElement('canvas');
+  const rotCtx = rotCanvas.getContext('2d', {alpha:false});
 
   const canvasStream = canvas.captureStream(24);
   const canvasTrack = canvasStream.getVideoTracks()[0];
-  let desenhando = true;
+  let ativo = true;
   let frameHandle = null;
   let ultimoFrame = 0;
   const intervaloMs = 1000 / 24;
 
-  const desenhar = function(tempoAtual) {
-    if (!desenhando) return;
+  function desenhar(tempoAtual) {
+    if (!ativo) return;
+    const agora = Number(tempoAtual || performance.now());
+    if (agora - ultimoFrame < intervaloMs - 1) {
+      frameHandle = requestAnimationFrame(desenhar);
+      return;
+    }
+    ultimoFrame = agora;
 
     try {
-      const agora = Number(tempoAtual || performance.now());
-      if (agora - ultimoFrame < intervaloMs - 1) {
+      const vw = Number(video.videoWidth || largura || 0);
+      const vh = Number(video.videoHeight || altura || 0);
+      if (!(vw > 0 && vh > 0 && video.readyState >= 2)) {
         frameHandle = requestAnimationFrame(desenhar);
         return;
       }
-      ultimoFrame = agora;
 
-      const vw = Number(video.videoWidth || largura || 0);
-      const vh = Number(video.videoHeight || altura || 0);
+      const alvoW = canvas.width;
+      const alvoH = canvas.height;
+      const alvoRatio = alvoW / alvoH;
+      const retrato = vh > vw * 1.08;
 
-      if (vw > 0 && vh > 0 && video.readyState >= 2) {
-        const alvoW = canvas.width;
-        const alvoH = canvas.height;
+      if (retrato && rotCtx) {
+        /* Gira primeiro para transformar 720x1280 em 1280x720. */
+        rotCanvas.width = vh;
+        rotCanvas.height = vw;
+        rotCtx.save();
+        rotCtx.fillStyle = '#000';
+        rotCtx.fillRect(0,0,rotCanvas.width,rotCanvas.height);
+        rotCtx.translate(vh,0);
+        rotCtx.rotate(Math.PI / 2);
+        rotCtx.drawImage(video,0,0,vw,vh,0,0,vw,vh);
+        rotCtx.restore();
+
+        const rw = rotCanvas.width;
+        const rh = rotCanvas.height;
+        const rr = rw / rh;
+        let sx=0, sy=0, sw=rw, sh=rh;
+        if (rr > alvoRatio) {
+          sw = Math.round(rh * alvoRatio);
+          sx = Math.round((rw - sw) / 2);
+        } else if (rr < alvoRatio) {
+          sh = Math.round(rw / alvoRatio);
+          sy = Math.round((rh - sh) / 2);
+        }
+        ctx.drawImage(rotCanvas,sx,sy,sw,sh,0,0,alvoW,alvoH);
+      } else {
         const srcRatio = vw / vh;
-        const alvoRatio = alvoW / alvoH;
-
-        let sx = 0;
-        let sy = 0;
-        let sw = vw;
-        let sh = vh;
-
+        let sx=0, sy=0, sw=vw, sh=vh;
         if (srcRatio > alvoRatio) {
-          /* Fonte mais larga: corta laterais. */
           sw = Math.round(vh * alvoRatio);
           sx = Math.round((vw - sw) / 2);
         } else if (srcRatio < alvoRatio) {
-          /* Fonte mais alta/estreita: corta topo e base. */
           sh = Math.round(vw / alvoRatio);
           sy = Math.round((vh - sh) / 2);
         }
-
-        ctx.drawImage(
-          video,
-          sx,
-          sy,
-          sw,
-          sh,
-          0,
-          0,
-          alvoW,
-          alvoH
-        );
+        ctx.drawImage(video,sx,sy,sw,sh,0,0,alvoW,alvoH);
       }
     } catch (_) {}
 
     frameHandle = requestAnimationFrame(desenhar);
-  };
+  }
 
-  const iniciarDesenho = function() {
-    try {
-      frameHandle = requestAnimationFrame(desenhar);
-    } catch (_) {
-      frameHandle = setTimeout(function() { desenhar(performance.now()); }, 42);
-    }
-  };
-
-  try {
-    video.play().catch(function() {});
-  } catch (_) {}
-
-  iniciarDesenho();
+  try { video.play().catch(function(){}); } catch (_) {}
+  frameHandle = requestAnimationFrame(desenhar);
 
   try {
     debugUploadCliente('CAMERA_16_9_CANVAS_ATIVO', {mediaType:'CAMERA'}, {
       origemWidth: largura,
       origemHeight: altura,
+      origemAspectRatio: altura > 0 ? largura/altura : 0,
+      fonteRetrato: altura > largura * 1.08,
+      rotacaoRetratoAplicada: altura > largura * 1.08,
       gravaWidth: 1280,
       gravaHeight: 720,
-      origemAspectRatio: proporcao,
       forcarCanvas: true
     });
   } catch (_) {}
@@ -17311,21 +17283,13 @@ function criarStreamVideo16x9_(streamOriginal) {
   return {
     track: canvasTrack,
     cleanup: function() {
-      desenhando = false;
-      try {
-        if (frameHandle !== null && typeof cancelAnimationFrame === 'function') {
-          cancelAnimationFrame(frameHandle);
-        }
-      } catch (_) {}
+      ativo = false;
+      try { if (frameHandle !== null) cancelAnimationFrame(frameHandle); } catch (_) {}
       frameHandle = null;
       try { video.pause(); } catch (_) {}
       try { video.srcObject = null; } catch (_) {}
-      try { canvasTrack && canvasTrack.stop(); } catch (_) {}
-      try {
-        canvasStream.getTracks().forEach(function(t) {
-          if (t !== canvasTrack) t.stop();
-        });
-      } catch (_) {}
+      try { canvasTrack.stop(); } catch (_) {}
+      try { canvasStream.getTracks().forEach(function(t){ if (t !== canvasTrack) t.stop(); }); } catch (_) {}
     }
   };
 }
