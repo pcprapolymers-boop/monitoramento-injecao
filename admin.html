@@ -409,7 +409,7 @@ tr:nth-child(even) td {
 </head>
 <body>
 <div class="container">
-<div class="header"><img alt="RA Polymers" class="admin-logo" src="assets/ra-polymers-logo.png?v=13.77"/>
+<div class="header"><img alt="RA Polymers" class="admin-logo" src="assets/ra-polymers-logo.png"/>
 <div class="admin-brand"><h1>🔐 Área Administrativa</h1></div>
 <p>
       Monitoramento de Qualidade — histórico restrito ao administrador.
@@ -691,19 +691,12 @@ tr:nth-child(even) td {
       <select id="statusFiltro">
         <option value="">Todos os status</option>
         <option value="PRODUZINDO">🟢 Produzindo</option>
-        <option value="PARADA_PROGRAMADA">🟡 Parada Programada</option>
-        <option value="MANUTENCAO">🔧 Máquina em Manutenção</option>
-        <option value="MOLDE_MANUTENCAO">🧰 Molde em Manutenção</option>
-        <option value="SETUP">⚙️ SETUP</option>
-        <option value="FALTA_MAO_OBRA">👷 Falta de mão de obra</option>
-        <option value="FALTA_MATERIAL">📦 Falta Material</option>
-        <option value="OUTROS">⚪ Outros</option>
-        <option value="PECA_DEFEITO">🔴 Peça com defeito</option>
-      </select>
-
-      <select id="statusDetalhamento">
-        <option value="">Todos os detalhamentos</option>
-        <option value="RECHUPE">Rechupe</option><option value="FALHA_INJECAO">Falha de injeção</option><option value="PECA_UMIDADE">Peça com umidade</option><option value="MATERIAL_DEGRADADO">Material degradado / queimado</option><option value="REBARBA">Rebarba</option><option value="LINHA_SOLDAGEM">Linha de solda</option><option value="EMPENAMENTO">Empenamento / deformação</option><option value="VAZIO_BOLHA">Vazio / bolha interna</option><option value="JATEAMENTO">Jateamento (jetting)</option><option value="MARCAS_EXTRATOR">Marcas de extrator</option><option value="VARIACAO_COR">Variação de cor / manchas</option><option value="SPLAY">Splay / marcas de umidade</option><option value="DELAMINACAO">Delaminação</option><option value="OUTRO_DEFEITO_INJECAO">Outro defeito de injeção</option>
+        <option value="PARADA_PROGRAMADA">🟡 Parada programada</option>
+        <option value="QUEBRA">🔴 Quebra</option>
+        <option value="MANUTENCAO">🔧 Manutenção</option>
+        <option value="FALTA_MATERIAL">📦 Falta de material</option>
+        <option value="FALTA_MAO_OBRA">👷 FALTA DE MÃO DE OBRA</option>
+<option value="OUTROS">⚪ Outros</option>
       </select>
     </div>
 
@@ -743,8 +736,6 @@ tr:nth-child(even) td {
             <th>Máquina</th>
             <th>Status</th>
             <th>Operador</th>
-            <th>Detalhamento</th>
-            <th>Peça do molde</th>
             <th>Motivo</th>
             <th>Observação</th>
             <th>Áudio</th>
@@ -753,7 +744,7 @@ tr:nth-child(even) td {
         </thead>
         <tbody id="statusHistoricoTabela">
           <tr>
-            <td colspan="9" style="text-align:center;padding:20px;">
+            <td colspan="8" style="text-align:center;padding:20px;">
               Faça uma consulta.
             </td>
           </tr>
@@ -768,7 +759,7 @@ tr:nth-child(even) td {
     <div class="dashboard-head">
       <div>
         <h2>📊 Dashboard Gerencial</h2>
-        <p class="dashboard-subtitle">Visão consolidada de horas paradas, defeitos e classificações operacionais.</p>
+        <p class="dashboard-subtitle">Visão consolidada das horas paradas e principais motivos.</p>
       </div>
       <div class="dashboard-head-actions"><button class="btn btn-secondary" type="button" id="btnAbrirDashboardJanela" onclick="abrirDashboardNovaJanela()">↗ ABRIR EM NOVA JANELA</button><button class="btn btn-secondary" type="button" id="btnAtualizarDashboard" onclick="carregarDashboardGerencial()">🔄 ATUALIZAR DASHBOARD</button></div>
     </div>
@@ -787,32 +778,21 @@ tr:nth-child(even) td {
 
     <div id="dashboardResumo" class="dashboard-kpis">
       <div class="dash-kpi"><span>Horas paradas</span><strong id="dashHorasParadas">0,00 h</strong></div>
-      <div class="dash-kpi"><span>% do tempo parado</span><strong id="dashPercentualParada">0,0%</strong></div>
-      <div class="dash-kpi"><span>Horas com defeito de peça</span><strong id="dashHorasDefeitos">0,00 h</strong></div>
-      <div class="dash-kpi"><span>Horas de paradas operacionais</span><strong id="dashHorasParadasOperacionais">0,00 h</strong></div>
+      <div class="dash-kpi"><span>% do período em parada</span><strong id="dashPercentualParada">0,0%</strong></div>
       <div class="dash-kpi"><span>Máquinas com parada</span><strong id="dashMaquinasParadas">0</strong></div>
-      <div class="dash-kpi"><span>Ocorrências de defeito</span><strong id="dashOcorrenciasDefeitos">0</strong></div>
-      <div class="dash-kpi"><span>Ocorrências de parada operacional</span><strong id="dashOcorrenciasParadasOperacionais">0</strong></div>
+      <div class="dash-kpi"><span>Ocorrências</span><strong id="dashOcorrencias">0</strong></div>
     </div>
 
     <div class="dashboard-grid">
       <section class="dashboard-panel">
-        <h3>🔴 Horas por defeito de peça</h3>
-        <div id="dashDefeitos"></div>
-      </section>
-      <section class="dashboard-panel">
-        <h3>⏱️ Horas por parada operacional</h3>
-        <div id="dashParadasOperacionais"></div>
-      </section>
-      <section class="dashboard-panel">
-        <h3>📊 Horas paradas por classificação</h3>
+        <h3>⏱️ Horas paradas por motivo</h3>
         <div id="dashMotivos"></div>
       </section>
       <section class="dashboard-panel">
         <h3>🏭 Desempenho por máquina</h3>
         <div class="table-wrap">
           <table class="dashboard-table">
-            <thead><tr><th>Máquina</th><th>Horas paradas</th><th>Defeitos</th><th>Paradas operacionais</th><th>%</th><th>Ocorr.</th><th>Principal classificação</th><th>Status</th></tr></thead>
+            <thead><tr><th>Máquina</th><th>Horas</th><th>%</th><th>Ocorr.</th><th>Principal motivo</th><th>Status</th></tr></thead>
             <tbody id="dashMaquinas"></tbody>
           </table>
         </div>
@@ -1220,6 +1200,7 @@ async function entrarAdmin() {
     carregarFiltros();
 
     preencherPeriodoVigenteAdmin();
+    restaurarCacheAdminRapido_();
 
     /*
      * A abertura consulta somente o histórico de inspeções.
@@ -1503,11 +1484,6 @@ async function carregarHistoricoStatusMaquinas(
               'statusFiltro'
             ).value,
 
-          detalhamentoStatus:
-            document.getElementById(
-              'statusDetalhamento'
-            ).value,
-
           limite:
             '1000'
         },
@@ -1542,7 +1518,7 @@ async function carregarHistoricoStatusMaquinas(
       !registros.length
     ) {
       tabela.innerHTML =
-        '<tr><td colspan="10" style="text-align:center;padding:20px;">Nenhuma alteração de status encontrada.</td></tr>';
+        '<tr><td colspan="8" style="text-align:center;padding:20px;">Nenhuma alteração de status encontrada.</td></tr>';
       return;
     }
 
@@ -1556,40 +1532,18 @@ async function carregarHistoricoStatusMaquinas(
               ''
             ).toUpperCase();
 
-          const labels = {
-            PRODUZINDO:'🟢 PRODUZINDO',
-            PARADA_PROGRAMADA:'🟡 PARADA PROGRAMADA',
-            MANUTENCAO:'🔧 MÁQUINA EM MANUTENÇÃO',
-            MOLDE_MANUTENCAO:'🧰 MOLDE EM MANUTENÇÃO',
-            SETUP:'⚙️ SETUP',
-            FALTA_MAO_OBRA:'👷 FALTA DE MÃO DE OBRA',
-            FALTA_MATERIAL:'📦 FALTA MATERIAL',
-            OUTROS:'⚪ OUTROS',
-            PECA_DEFEITO:'🔴 PEÇA COM DEFEITO'
-          };
-          const label = labels[status] || status;
-          const detalhamentoMap = {
-            RECHUPE:'Rechupe',
-            FALHA_INJECAO:'Falha de injeção',
-            PECA_UMIDADE:'Peça com umidade',
-            MATERIAL_DEGRADADO:'Material degradado / queimado',
-            REBARBA:'Rebarba',
-            LINHA_SOLDAGEM:'Linha de solda',
-            EMPENAMENTO:'Empenamento / deformação',
-            VAZIO_BOLHA:'Vazio / bolha interna',
-            JATEAMENTO:'Jateamento (jetting)',
-            MARCAS_EXTRATOR:'Marcas de extrator',
-            VARIACAO_COR:'Variação de cor / manchas',
-            SPLAY:'Splay / marcas de umidade',
-            DELAMINACAO:'Delaminação',
-            OUTRO_DEFEITO_INJECAO:'Outro defeito de injeção'
-          };
-          const detalheCodigo = registro.detalhamentoStatus
-            ? String(registro.detalhamentoStatus).trim().toUpperCase()
-            : '';
-          const detalhamentoLabel = detalheCodigo
-            ? (detalhamentoMap[detalheCodigo] || detalheCodigo.replace(/_/g,' '))
-            : '';
+          const label =
+            status === 'PRODUZINDO'
+              ? '🟢 PRODUZINDO'
+              : status === 'PARADA_PROGRAMADA'
+                ? '🟡 PARADA PROGRAMADA'
+                : status === 'QUEBRA'
+                  ? '🔴 QUEBRA'
+                  : status === 'MANUTENCAO'
+                    ? '🔧 MANUTENÇÃO'
+                    : status === 'FALTA_MATERIAL'
+                      ? '📦 FALTA DE MATERIAL'
+                      : '⚪ OUTROS';
 
           return (
             '<tr>' +
@@ -1619,25 +1573,10 @@ async function carregarHistoricoStatusMaquinas(
             ) +
             '</td>' +
 
-            '<td style="font-weight:' + (status === 'PECA_DEFEITO' ? '800' : '400') + ';color:' + (status === 'PECA_DEFEITO' ? '#B71C1C' : 'inherit') + '">' +
-            escapeHtml(
-              detalhamentoLabel ||
-              (status === 'PECA_DEFEITO' ? 'Não informado' : '')
-            ) +
-            '</td>' +
-
             '<td>' +
             escapeHtml(
-              registro.produtoMoldeManutencao ||
+              registro.motivo ||
               ''
-            ) +
-            '</td>' +
-
-            '<td>' +
-            escapeHtml(
-              (String(registro.motivo || '').trim().toUpperCase() === 'MANUTENÇÃO DE STATUS')
-                ? 'Confirmação do status'
-                : (registro.motivo || '')
             ) +
             '</td>' +
 
@@ -2038,6 +1977,15 @@ async function carregarHistorico() {
         )
         .join('');
 
+    try {
+      localStorage.setItem('ra_polymers_admin_cache_inspecoes', JSON.stringify({
+        assinatura: obterAssinaturaFiltrosAdmin_('inspecoes'),
+        html: tabela.innerHTML,
+        resumo: resumo.textContent,
+        atualizadoEm: Date.now()
+      }));
+    } catch (eCache) {}
+
   }
   catch (erro) {
 
@@ -2171,7 +2119,7 @@ function mostrarHistoricoAdmin(
     const fim = document.getElementById('statusDataFinal');
     if (ini) ini.value = iso;
     if (fim) fim.value = iso;
-    ['statusMaquina','statusOperador','statusFiltro','statusDetalhamento'].forEach(function(id){const e=document.getElementById(id); if(e)e.value='';});
+    ['statusMaquina','statusOperador','statusFiltro'].forEach(function(id){const e=document.getElementById(id); if(e)e.value='';});
     carregarHistoricoStatusMaquinas();
   }
 
@@ -2209,6 +2157,16 @@ function limparFiltrosInspecoes() {
     'summary'
   ).textContent =
     'Filtros limpos.';
+
+
+  try {
+    localStorage.setItem('ra_polymers_admin_cache_status', JSON.stringify({
+      assinatura: obterAssinaturaFiltrosAdmin_('status'),
+      html: tabela.innerHTML,
+      resumo: resumo.textContent,
+      atualizadoEm: Date.now()
+    }));
+  } catch (eCacheStatus) {}
 
 }
 
@@ -2406,10 +2364,7 @@ async function carregarDashboardGerencial() {
     document.getElementById('dashHorasParadas').textContent = formatarHorasDashboard_(k.horasParadas);
     document.getElementById('dashPercentualParada').textContent = Number(k.percentualParada||0).toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1})+'%';
     document.getElementById('dashMaquinasParadas').textContent = String(k.maquinasParadas || 0);
-    document.getElementById('dashHorasDefeitos').textContent = formatarHorasDashboard_(k.horasDefeitos);
-    document.getElementById('dashHorasParadasOperacionais').textContent = formatarHorasDashboard_(k.horasParadasOperacionais);
-    document.getElementById('dashOcorrenciasDefeitos').textContent = String(k.ocorrenciasDefeitos || 0);
-    document.getElementById('dashOcorrenciasParadasOperacionais').textContent = String(k.ocorrenciasParadasOperacionais || 0);
+    document.getElementById('dashOcorrencias').textContent = String(k.ocorrencias || 0);
 
     const motivos = Array.isArray(resposta.porMotivo) ? resposta.porMotivo : [];
     const maxHoras = Math.max(1, ...motivos.map(x=>Number(x.horas||0)));
@@ -2419,18 +2374,9 @@ async function carregarDashboardGerencial() {
       return '<div class="dash-reason"><div class="dash-reason-top"><strong>'+escapeHtml(x.motivo||'Sem motivo')+'</strong><span>'+formatarHorasDashboard_(x.horas)+'</span></div><div class="dash-bar"><span style="width:'+pct.toFixed(1)+'%"></span></div></div>';
     }).join('') : '<div class="dashboard-empty">Nenhuma parada no período.</div>';
 
-    function renderGrupoDashboard_(id, arr, emptyText) {
-      const el=document.getElementById(id); if(!el) return;
-      const itens=Array.isArray(arr)?arr:[];
-      const max=Math.max(1,...itens.map(x=>Number(x.horas||0)));
-      el.innerHTML=itens.length?itens.map(x=>{const pct=Math.min(100,Math.max(0,Number(x.horas||0)/max*100));return '<div class="dash-reason"><div class="dash-reason-top"><strong>'+escapeHtml(x.motivo||'Sem classificação')+'</strong><span>'+formatarHorasDashboard_(x.horas)+'</span></div><div class="dash-bar"><span style="width:'+pct.toFixed(1)+'%"></span></div></div>'}).join(''): '<div class="dashboard-empty">'+emptyText+'</div>';
-    }
-    renderGrupoDashboard_('dashDefeitos', resposta.porDefeito, 'Nenhum defeito registrado.');
-    renderGrupoDashboard_('dashParadasOperacionais', resposta.porParadaOperacional, 'Nenhuma parada operacional registrada.');
-
     const maquinas = Array.isArray(resposta.porMaquina) ? resposta.porMaquina : [];
     const tbody = document.getElementById('dashMaquinas');
-    tbody.innerHTML = maquinas.length ? maquinas.map(x => '<tr><td><strong>'+escapeHtml(x.maquina)+'</strong></td><td>'+formatarHorasDashboard_(x.horas)+'</td><td>'+formatarHorasDashboard_(x.horasDefeitos)+'</td><td>'+formatarHorasDashboard_(x.horasParadasOperacionais)+'</td><td>'+Number(x.percentual||0).toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1})+'%</td><td>'+String(x.ocorrencias||0)+'</td><td>'+escapeHtml(x.principalMotivo||'-')+'</td><td>'+escapeHtml(x.statusAtual||'-')+'</td></tr>').join('') : '<tr><td colspan="8" class="dashboard-empty">Nenhuma máquina com parada registrada.</td></tr>';
+    tbody.innerHTML = maquinas.length ? maquinas.map(x => '<tr><td><strong>'+escapeHtml(x.maquina)+'</strong></td><td>'+formatarHorasDashboard_(x.horas)+'</td><td>'+Number(x.percentual||0).toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1})+'%</td><td>'+String(x.ocorrencias||0)+'</td><td>'+escapeHtml(x.principalMotivo||'-')+'</td><td>'+escapeHtml(x.statusAtual||'-')+'</td></tr>').join('') : '<tr><td colspan="6" class="dashboard-empty">Nenhuma máquina com parada registrada.</td></tr>';
 
     const up = document.getElementById('dashUltimaAtualizacao');
     if (up) up.textContent = resposta.periodo?.atualizadoEm ? '✅ Atualizado em '+resposta.periodo.atualizadoEm : '';
@@ -2505,6 +2451,48 @@ function preencherPeriodoVigenteAdmin() {
 }
 
 preencherPeriodoVigenteAdmin();
+
+
+function obterAssinaturaFiltrosAdmin_(tipo) {
+  const ids = tipo === 'status'
+    ? ['statusDataInicial','statusDataFinal','statusMaquina','statusOperador','statusFiltro']
+    : ['dataInicial','dataFinal','maquina','operador','produto','conforme'];
+  return ids.map(function(id){
+    const el=document.getElementById(id);
+    return id+'='+String(el ? el.value : '');
+  }).join('&');
+}
+
+function restaurarCacheAdminRapido_() {
+  const agora = Date.now();
+  try {
+    const cache = JSON.parse(localStorage.getItem('ra_polymers_admin_cache_inspecoes') || 'null');
+    const tabela = document.getElementById('tabela');
+    const resumo = document.getElementById('summary');
+    if (cache && tabela && cache.assinatura === obterAssinaturaFiltrosAdmin_('inspecoes') && agora - Number(cache.atualizadoEm || 0) < 10*60*1000) {
+      tabela.innerHTML = cache.html || '';
+      if (resumo) resumo.textContent = (cache.resumo || '') + '  ·  cache';
+    }
+  } catch (e) {}
+}
+
+(function persistirSenhaAdmin_(){
+  function aplicar(){
+    try {
+      const campo=document.getElementById('senhaAdmin');
+      const check=document.getElementById('lembrarSenhaAdmin');
+      const aviso=document.getElementById('avisoSenhaSalva');
+      const senha=localStorage.getItem('ra_polymers_admin_saved_password') || '';
+      const lembrar=localStorage.getItem('ra_polymers_admin_remember') === '1';
+      if(campo && senha) campo.value=senha;
+      if(check) check.checked=Boolean(senha && lembrar);
+      if(aviso && senha) aviso.style.display='block';
+    } catch(e) {}
+  }
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', aplicar);
+  else aplicar();
+})();
+
 </script>
 </body>
 </html>
