@@ -6467,11 +6467,11 @@ async function reconciliarFinalizacoesVideo_() {
           continue;
         }
         const ultima=Number(job.finalizationRequestedAt||0);
-        if(!ultima||Date.now()-ultima>=60000){
+        if(!ultima||Date.now()-ultima>=300000){
           try{
             await dispararPostFinalizacao(job.uploadId,job);
             job.finalizationRequestedAt=Date.now();
-            job.nextAttemptAt=Date.now()+60000;
+            job.nextAttemptAt=Date.now()+300000;
             job.updatedAt=Date.now();
             await salvarJobLocal(job);
           }catch(e){debugUploadCliente('RECONCILIACAO_REENVIO_FINAL_FALHOU',job,{erro:e&&e.message?e.message:String(e)});}
