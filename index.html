@@ -6454,32 +6454,26 @@ async function reconciliarFinalizacoesVideo_() {
   reconciliacaoFinalizacoesEmAndamento_=true;
   try {
     const jobs=await listarJobsLocais();
-    const finalizando=jobs.filter(function(j){return j&&j.mediaType==='VIDEO'&&j.status==='finalizing';});
-    for(const job of finalizando){
-      try{
+    const finalizando=jobs.filter(function(j){return j && j.mediaType==='VIDEO' && j.status==='finalizing';});
+    for (const job of finalizando) {
+      try {
         const r=await consultarStatusFinalUpload_(job.uploadId,job);
-        if(r&&r.sucesso&&r.finalizado&&r.idArquivo){
+        if(r && r.sucesso && r.finalizado && r.idArquivo){
           await apagarJobLocal(job.uploadId);
           limparVideoEmProcessamentoLocal_(job.maquina,job.uploadId);
           try{cacheUltimaInspecaoPorMaquina.delete(normalizarMaquinaChave_(job.maquina));}catch(_){}
           try{await consultarPendenciasAntesDaMaquina({forcarAtualizacao:true,silencioso:true});}catch(_){}
-          mostrarMensagem('✅ Vídeo enviado com sucesso.','success');
-          continue;
         }
-        const ultima=Number(job.finalizationRequestedAt||0);
-        if(!ultima||Date.now()-ultima>=300000){
-          try{
-            await dispararPostFinalizacao(job.uploadId,job);
-            job.finalizationRequestedAt=Date.now();
-            job.nextAttemptAt=Date.now()+300000;
-            job.updatedAt=Date.now();
-            await salvarJobLocal(job);
-          }catch(e){debugUploadCliente('RECONCILIACAO_REENVIO_FINAL_FALHOU',job,{erro:e&&e.message?e.message:String(e)});}
-        }
-      }catch(e){debugUploadCliente('RECONCILIACAO_FINALIZACAO_AGUARDANDO',job,{erro:e&&e.message?e.message:String(e)});}
+      } catch (erro) {
+        debugUploadCliente('RECONCILIACAO_FINALIZACAO_AGUARDANDO',job,{erro:erro&&erro.message?erro.message:String(erro)});
+      }
     }
-    if(finalizando.length) await atualizarFilaUI();
-  } finally { reconciliacaoFinalizacoesEmAndamento_=false; }
+    if(finalizando.length){
+      await atualizarFilaUI();
+    }
+  } finally {
+    reconciliacaoFinalizacoesEmAndamento_=false;
+  }
 }
 
 function iniciarReconcilicaoFinalizacoesPeriodica_(){
