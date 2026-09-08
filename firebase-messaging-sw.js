@@ -169,23 +169,7 @@ async function postar_(params){
   throw ultimoErro || new Error('POST_BACKGROUND_FALHOU');
 }
 function consultarJsonp_(url){ return new Promise(function(resolve,reject){ const cb='__raSwCb_'+Date.now()+'_'+Math.random().toString(36).slice(2,8); self[cb]=res=>{delete self[cb];resolve(res||null)}; try{ importScripts(url+(url.indexOf('?')>=0?'&':'?')+'callback='+encodeURIComponent(cb)); } catch(e){delete self[cb];reject(e);} }); }
-async function consultarFinal_(job){
-  const j=job||{};
-  const q='?status=final'
-    +'&uploadId='+encodeURIComponent(j.uploadId||'')
-    +'&maquina='+encodeURIComponent(j.maquina||'')
-    +'&operador='+encodeURIComponent(j.operador||'')
-    +'&produto='+encodeURIComponent(j.produto||'')
-    +'&ciclo='+encodeURIComponent(j.ciclo||'')
-    +'&conforme='+encodeURIComponent(j.conforme||'')
-    +'&mimeType='+encodeURIComponent(j.mimeType||'video/webm')
-    +'&inicioVideo='+encodeURIComponent(j.inicioVideo||'')
-    +'&fimVideo='+encodeURIComponent(j.fimVideo||'')
-    +'&defeitoPeca='+encodeURIComponent(j.defeitoPeca||'')
-    +'&_='+Date.now();
-  const d=await consultarJsonp_(URL_APPS_SCRIPT+q);
-  return d||null;
-}
+async function consultarFinal_(u){ const d=await consultarJsonp_(URL_APPS_SCRIPT+'?status=final&uploadId='+encodeURIComponent(u)+'&_='+Date.now()); return d||null; }
 
 async function processarJobBackground_(job, deadlineMs){
   if(await existeJanelaVisivel_() || (job&&job.status==='waiting_defect')) return false;
@@ -243,7 +227,7 @@ async function processarJobBackground_(job, deadlineMs){
 async function solicitarFinalizacaoBackground_(job){
   const agora=Date.now();
   if(job.backgroundFinalizeRequestedAt && agora-Number(job.backgroundFinalizeRequestedAt)<FINALIZE_TIMEOUT_MS){
-    const status=await consultarFinal_(job);
+    const status=await consultarFinal_(job.uploadId);
     if(status && status.sucesso && status.idArquivo){ await concluirJobBackground_(job,status); return true; }
     job.updatedAt=Date.now();
     await idbPut_(STORE_JOBS,job);
