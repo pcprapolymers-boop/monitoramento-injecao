@@ -5896,6 +5896,43 @@ async function processarFilaStatus() {
           item.operacaoId
         );
 
+        /* V13.98 — a resposta do servidor é a confirmação real.
+         * Não esperamos uma segunda consulta para liberar o fluxo
+         * quando o operador acabou de retornar a máquina para PRODUZINDO. */
+        try {
+          const mesmaMaquina =
+            normalizarMaquinaChave_(item.maquina || '') ===
+            normalizarMaquinaChave_(maquina || '');
+          if (mesmaMaquina && resposta && resposta.sucesso) {
+            statusOperacionalMaquina = normalizarStatusMaquinaUI_(resposta.status || item.novoStatus || 'PRODUZINDO');
+            statusAnteriorMaquina = statusOperacionalMaquina;
+            statusSelecionadoMaquina = statusOperacionalMaquina;
+            inicioStatusMaquina = resposta.inicioStatus || inicioStatusMaquina || new Date().toISOString();
+            statusAtualizadoEm = resposta.atualizadoEm || statusAtualizadoEm || new Date().toISOString();
+            responsavelStatusMaquina = resposta.operador || item.operador || responsavelStatusMaquina;
+            observacaoStatusMaquina = resposta.observacao || item.observacao || '';
+            motivoParadaMaquina = resposta.motivo || '';
+            detalhamentoStatusMaquina = normalizarDefeitoPecaUI_(resposta.detalhamentoStatus || item.detalhamentoStatus || '');
+            detalhamentoStatusSelecionadoMaquina = detalhamentoStatusMaquina;
+            produtoMoldeManutencao = String(resposta.produtoMoldeManutencao || item.produtoMoldeManutencao || '');
+            produtoMoldeSelecionado = produtoMoldeManutencao;
+            statusServidorCarregado = true;
+            if (statusOperacionalMaquina === 'PRODUZINDO') {
+              statusAudioConcluido = true;
+            }
+            atualizarStatusMaquinaUI();
+            atualizarSubmenuDefeitoPecaUI_();
+            atualizarSeletorPecaMoldeUI_();
+            atualizarVisibilidadeFluxoProducao_();
+            atualizarObrigatoriedadeAudioStatus();
+            atualizarBotoesManterStatus();
+            atualizarStatusAudioUI();
+            if (statusOperacionalMaquina === 'PRODUZINDO') {
+              try { carregarUltimaInspecaoMaquina(); } catch (e) {}
+            }
+          }
+        } catch (erroConfirmacaoUI) {}
+
         debugUploadCliente(
           'STATUS_SERVIDOR_CONFIRMOU',
           {
@@ -19972,6 +20009,7 @@ function consultarStatusFinalUpload_(uploadId, job) {
       '&data=' + encodeURIComponent(dadosConsulta.data || '') +
       '&mes=' + encodeURIComponent(dadosConsulta.mes || '') +
       '&ano=' + encodeURIComponent(dadosConsulta.ano || '') +
+      '&callback=' + encodeURIComponent(callbackName) +
       '&_=' + Date.now();
 
     script.onerror = function() {
@@ -21720,6 +21758,8 @@ document.addEventListener(
 
     iniciarRelogioAlarmeInspecao();
     atualizarAlarmeInspecaoUI();
+    /* V13.98 — aplica a regra de visibilidade logo na abertura. */
+    try { atualizarVisibilidadeFluxoProducao_(); } catch (e) {}
 
     try {
       debugUploadCliente(
