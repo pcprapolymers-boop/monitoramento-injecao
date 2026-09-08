@@ -23,6 +23,11 @@ const SITE_URL = 'https://pcprapolymers-boop.github.io/monitoramento-injecao/';
 let fcmHandledKeys = new Map();
 let backgroundUploadRunning = false;
 
+async function existeJanelaVisivel_(){
+  try{const list=await self.clients.matchAll({type:'window',includeUncontrolled:true});return list.some(c=>c&&c.visibilityState==='visible');}
+  catch(e){return false;}
+}
+
 /* V13.82 — caminho oficial FCM em segundo plano. O push nativo abaixo
  * continua como fallback. Se o firebase-config.js estiver disponível,
  * o SDK também registra onBackgroundMessage. */
@@ -164,13 +169,31 @@ async function postar_(params){
   throw ultimoErro || new Error('POST_BACKGROUND_FALHOU');
 }
 function consultarJsonp_(url){ return new Promise(function(resolve,reject){ const cb='__raSwCb_'+Date.now()+'_'+Math.random().toString(36).slice(2,8); self[cb]=res=>{delete self[cb];resolve(res||null)}; try{ importScripts(url+(url.indexOf('?')>=0?'&':'?')+'callback='+encodeURIComponent(cb)); } catch(e){delete self[cb];reject(e);} }); }
-async function consultarFinal_(u){ const d=await consultarJsonp_(URL_APPS_SCRIPT+'?status=final&uploadId='+encodeURIComponent(u)+'&_='+Date.now()); return d||null; }
+async function consultarFinal_(job){
+  const j=job||{};
+  const q='?status=final'
+    +'&uploadId='+encodeURIComponent(j.uploadId||'')
+    +'&maquina='+encodeURIComponent(j.maquina||'')
+    +'&operador='+encodeURIComponent(j.operador||'')
+    +'&produto='+encodeURIComponent(j.produto||'')
+    +'&ciclo='+encodeURIComponent(j.ciclo||'')
+    +'&conforme='+encodeURIComponent(j.conforme||'')
+    +'&mimeType='+encodeURIComponent(j.mimeType||'video/webm')
+    +'&inicioVideo='+encodeURIComponent(j.inicioVideo||'')
+    +'&fimVideo='+encodeURIComponent(j.fimVideo||'')
+    +'&defeitoPeca='+encodeURIComponent(j.defeitoPeca||'')
+    +'&_='+Date.now();
+  const d=await consultarJsonp_(URL_APPS_SCRIPT+q);
+  return d||null;
+}
 
 async function processarJobBackground_(job, deadlineMs){
+  if(await existeJanelaVisivel_() || (job&&job.status==='waiting_defect')) return false;
   const total=Number(job.totalChunks||0);
   if(!total) return true;
 
   while(Date.now() < deadlineMs){
+    if(await existeJanelaVisivel_()) return false;
     let next=Number(job.nextChunk||0);
 
     if(next>=total){
@@ -202,6 +225,7 @@ async function processarJobBackground_(job, deadlineMs){
         p.set('duracaoReal',String(job.duracaoReal||0));
         p.set('inicioVideo',job.inicioVideo||'');
         p.set('fimVideo',job.fimVideo||'');
+        p.set('defeitoPeca',job.defeitoPeca||'');
       }
       await postar_(p);
       /* O servidor grava cada chunk por índice e é idempotente. */
@@ -219,7 +243,7 @@ async function processarJobBackground_(job, deadlineMs){
 async function solicitarFinalizacaoBackground_(job){
   const agora=Date.now();
   if(job.backgroundFinalizeRequestedAt && agora-Number(job.backgroundFinalizeRequestedAt)<FINALIZE_TIMEOUT_MS){
-    const status=await consultarFinal_(job.uploadId);
+    const status=await consultarFinal_(job);
     if(status && status.sucesso && status.idArquivo){ await concluirJobBackground_(job,status); return true; }
     job.updatedAt=Date.now();
     await idbPut_(STORE_JOBS,job);
@@ -233,7 +257,7 @@ async function solicitarFinalizacaoBackground_(job){
   p.set('totalChunks',String(job.totalChunks||0));
   p.set('mimeType',job.mimeType||(audio?'audio/webm':'video/webm'));
   if(audio){p.set('parentUploadId',job.parentUploadId||'');p.set('inicioAudio',job.inicioAudio||'');}
-  else {p.set('duracaoReal',String(job.duracaoReal||0));p.set('inicioVideo',job.inicioVideo||'');p.set('fimVideo',job.fimVideo||'');}
+  else {p.set('duracaoReal',String(job.duracaoReal||0));p.set('inicioVideo',job.inicioVideo||'');p.set('fimVideo',job.fimVideo||'');p.set('defeitoPeca',job.defeitoPeca||'');}
   await postar_(p);
   job.backgroundFinalizeRequestedAt=agora;
   job.status='finalizing';
@@ -264,7 +288,7 @@ async function processarUploadsEmSegundoPlano_(){
   const limiteGlobal=Date.now()+MAX_BACKGROUND_RUN_MS;
   try{
     const jobs=(await idbGetAll_(STORE_JOBS))
-      .filter(j=>j&&j.status!=='completed'&&j.status!=='recording')
+      .filter(j=>j&&j.status!=='completed'&&j.status!=='recording'&&j.status!=='waiting_defect')
       .sort((a,b)=>Number(a.createdAt||0)-Number(b.createdAt||0));
 
     for(const job of jobs){
@@ -273,7 +297,7 @@ async function processarUploadsEmSegundoPlano_(){
         await processarJobBackground_(job,limiteGlobal);
       }catch(erro){
         try{
-          job.status='queued';
+          if(job.status!=='finalizing') job.status='queued';
           job.lastBackgroundError=String(erro&&erro.message||erro);
           job.updatedAt=Date.now();
           job.nextAttemptAt=Date.now()+5000;
