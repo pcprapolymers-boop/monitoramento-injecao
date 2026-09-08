@@ -9922,6 +9922,10 @@ async function selecionarMaquinaProvisoria() {
       dadosLocais =
         lerCacheCadastrosLocal();
 
+      if (!dadosLocais) {
+        dadosLocais = lerCacheCadastrosLocal(true);
+      }
+
     }
     catch (erroCache) {
       dadosLocais =
@@ -10003,21 +10007,26 @@ async function selecionarMaquinaProvisoria() {
   else {
 
     /*
-     * Primeira abertura sem cache:
-     * carrega os cadastros uma vez. Trocas seguintes não repetem isso.
+     * Sem cache, consulta somente os cadastros em segundo plano.
+     * Não chamamos carregarDados() aqui para evitar duplicar a consulta
+     * de status/última inspeção que já foi iniciada acima.
      */
     try {
-
-      await carregarDados();
-
-    }
-    catch (erro) {
-
+      carregarDadosRemotos()
+        .then(function(dados) {
+          aplicarCadastrosNoFormulario_(dados);
+        })
+        .catch(function(erro) {
+          console.warn(
+            'Falha ao carregar cadastros para o status:',
+            erro
+          );
+        });
+    } catch (erro) {
       console.warn(
-        'Falha ao carregar cadastros para o status:',
+        'Falha ao iniciar carregamento de cadastros para o status:',
         erro
       );
-
     }
 
   }
@@ -15303,6 +15312,21 @@ async function carregarDados(opcoes) {
     dadosCadastrosEmMemoria ||
     lerCacheCadastrosLocal();
 
+  /* V13.103 — cache vencido continua útil para a UI.
+     Mostramos os operadores/produtos imediatamente e
+     atualizamos os dados reais em segundo plano. */
+  const dadosImediatos =
+    dados && dados.sucesso
+      ? dados
+      : lerCacheCadastrosLocal(true);
+
+  if (dadosImediatos && dadosImediatos.sucesso) {
+    dados = dadosImediatos;
+    try {
+      aplicarCadastrosNoFormulario_(dadosImediatos);
+    } catch (erroCacheImediato) {}
+  }
+
   const forcar =
     Boolean(
       opcoes &&
@@ -15310,13 +15334,17 @@ async function carregarDados(opcoes) {
     );
 
   /*
-   * Cadastros são carregados da memória/cache primeiro.
-   * Em paralelo, buscamos somente os dados específicos da máquina.
+   * Memória/cache válido: mantém instantâneo.
+   * Cache vencido: usa a cópia local agora e busca a versão nova sem bloquear a UI.
+   * Sem cache: consulta normalmente.
    */
+  const cacheValido = Boolean(
+    (dadosCadastrosEmMemoria && dadosCadastrosEmMemoria.sucesso) ||
+    lerCacheCadastrosLocal()
+  );
+
   const cadastroPromise =
-    dados &&
-    dados.sucesso &&
-    !forcar
+    !forcar && cacheValido
       ? Promise.resolve(dados)
       : carregarDadosRemotos();
 
@@ -15515,7 +15543,7 @@ const CACHE_CADASTROS_TTL_MS =
   30 * 60 * 1000;
 
 
-function lerCacheCadastrosLocal() {
+function lerCacheCadastrosLocal(permitirExpirado) {
 
   try {
 
@@ -15542,6 +15570,7 @@ function lerCacheCadastrosLocal() {
     }
 
     if (
+      !permitirExpirado &&
       Date.now() -
       Number(
         cache.salvoEm
@@ -15711,6 +15740,10 @@ function garantirOperadoresDisponiveis_() {
     const cache =
       lerCacheCadastrosLocal();
 
+    if (!cache) {
+      cache = lerCacheCadastrosLocal(true);
+    }
+
     if (
       cache &&
       cache.sucesso
@@ -15720,6 +15753,8 @@ function garantirOperadoresDisponiveis_() {
         cache
       );
 
+      /* Cache vencido é apenas uma ponte visual; a versão nova
+         continuará sendo obtida em background quando necessário. */
       return;
 
     }
