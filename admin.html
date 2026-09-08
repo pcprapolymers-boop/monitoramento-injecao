@@ -627,6 +627,7 @@ tr:nth-child(even) td {
     <div style="margin:8px 0 12px;color:var(--muted);font-size:13px;">
       🎙️ Quando houver áudio associado à inspeção, <strong>OUVIR</strong> abre a gravação armazenada no Google Drive.
     </div>
+    <div id="dashDefeitosInspecao" style="margin:8px 0 12px;color:var(--muted);font-size:13px;">🔎 Defeitos de peça aparecem na coluna <strong>Defeito</strong> quando a inspeção for NÃO CONFORME.</div>
 
     <div class="table-wrap">
       <table>
@@ -640,13 +641,14 @@ tr:nth-child(even) td {
             <th>Duração</th>
             <th>Resultado</th>
             <th>Turno</th>
+            <th>Defeito</th>
             <th>Vídeo</th>
             <th>Áudio</th>
           </tr>
         </thead>
         <tbody id="tabela">
           <tr>
-            <td colspan="10" style="text-align:center;padding:20px;">
+            <td colspan="11" style="text-align:center;padding:20px;">
               Faça uma consulta.
             </td>
           </tr>
@@ -1938,6 +1940,12 @@ async function carregarHistorico() {
               '<td>' +
               escapeHtml(
                 registro.turno
+              ) +
+              '</td>' +
+
+              '<td>' +
+              escapeHtml(
+                registro.defeitoPeca || ''
               ) +
               '</td>' +
 
