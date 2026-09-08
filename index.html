@@ -4173,7 +4173,7 @@ const VERSAO_DB_VIDEO =
   4;
 
 const VERSAO_APLICACAO =
-  'V13.99';
+  'V13.102';
 
 const STORE_JOBS =
   'jobs';
@@ -6991,17 +6991,6 @@ async function processarJobUpload(
       debugUploadCliente('RESUMO_FINAL_CHUNKS_FALHOU', job, {
         erro: erroResumoFinal && erroResumoFinal.message ? erroResumoFinal.message : String(erroResumoFinal)
       });
-    }
-
-    if (job.mediaType === 'VIDEO' && String(job.conforme || '').trim().toUpperCase() === 'NÃO' && !normalizarDefeitoPecaUI_(job.defeitoPeca || '')) {
-      job.status = 'waiting_defect';
-      job.aguardaDefeito = true;
-      job.nextAttemptAt = 0;
-      job.updatedAt = Date.now();
-      await salvarJobLocal(job);
-      await atualizarFilaUI();
-      atualizarDefeitoPecaInspecaoUI_();
-      return true;
     }
 
     job.status =
