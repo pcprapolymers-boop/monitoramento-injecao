@@ -9496,6 +9496,8 @@ function aplicarStatusPreCarregadoDaProximaMaquina_(status, detalhamento) {
   statusAnteriorMaquina = normalizado;
   statusSelecionadoMaquina = normalizado;
   statusOperacionalMaquina = normalizado;
+  /* V13.105 — status vindo do painel global já é uma confirmação do servidor. */
+  statusServidorCarregado = true;
   produtoMoldeManutencao = String(produtoMoldeManutencao || '');
   produtoMoldeSelecionado = produtoMoldeManutencao;
   detalhamentoStatusMaquina = detalheNormalizado;
@@ -13268,7 +13270,9 @@ async function salvarStatusMaquina() {
       statusAtualizadoEm = new Date().toISOString();
       statusConfirmadoLocalEm = Date.now();
       statusAtualizacaoObrigatoria = false;
-      statusServidorCarregado = false;
+      /* V13.105 — MANTER PRODUZINDO já confirma localmente o status.
+         Não esconder o fluxo enquanto a fila em segundo plano sincroniza. */
+      statusServidorCarregado = true;
       atualizarVisibilidadeFluxoProducao_();
 
       atualizarStatusAudioUI();
@@ -13405,10 +13409,9 @@ async function salvarStatusMaquina() {
 
     statusAudioConcluido = statusNovo === 'PRODUZINDO';
 
-    // Não libera o botão antes de decidir para qual máquina o fluxo vai.
-    setTimeout(function() {
-      avancarAposAtualizacaoStatus_(statusNovo, maquinaNoInicio);
-    }, 80);
+    // V13.105 — a decisão de transição já pode ocorrer imediatamente.
+    // A gravação do status continua em segundo plano e não bloqueia a tela.
+    avancarAposAtualizacaoStatus_(statusNovo, maquinaNoInicio);
 
     if (new URLSearchParams(window.location.search).get('debug') === '1') {
       verificarStatusSalvoEmSegundoPlano(statusNovo, operacaoId);
@@ -15737,7 +15740,7 @@ function garantirOperadoresDisponiveis_() {
 
   try {
 
-    const cache =
+    let cache =
       lerCacheCadastrosLocal();
 
     if (!cache) {
