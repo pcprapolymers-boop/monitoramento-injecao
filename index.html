@@ -9323,6 +9323,35 @@ function preencherSeletorPecaMoldeUI_() {
   if (valorAtual) select.value = valorAtual;
 }
 
+function obterProdutoAtualComoPecaMolde_() {
+  const selectProduto = document.getElementById('produto');
+  const valor = String((selectProduto || {}).value || '').trim();
+  if (!valor) return '';
+  const alvo = valor.toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+  const encontrado = (produtos || []).some(function(item) {
+    const nome = String(typeof item === 'string' ? item : (item && item.nome) || '').trim();
+    return nome && nome.toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'') === alvo;
+  });
+  return encontrado ? valor : '';
+}
+
+function prepararPecaMoldeParaStatus_() {
+  const status = normalizarStatusMaquinaUI_(
+    (document.getElementById('machineStatusSelector') || {}).value || statusOperacionalMaquina || ''
+  );
+  if (status !== 'MOLDE_MANUTENCAO') return '';
+
+  let valor = String(produtoMoldeSelecionado || produtoMoldeManutencao || '').trim();
+  if (!valor) valor = obterProdutoAtualComoPecaMolde_();
+
+  if (valor) {
+    produtoMoldeSelecionado = valor;
+    const select = document.getElementById('machineMoldProductSelector');
+    if (select && !select.value) select.value = valor;
+  }
+  return valor;
+}
+
 function atualizarSeletorPecaMoldeUI_() {
   const statusSelect = document.getElementById('machineStatusSelector');
   const box = document.getElementById('machineMoldProductCard');
@@ -9333,7 +9362,12 @@ function atualizarSeletorPecaMoldeUI_() {
   const mostrar = status === 'MOLDE_MANUTENCAO';
   box.style.display = mostrar ? 'block' : 'none';
   if (mostrar) {
-    select.value = produtoMoldeSelecionado || produtoMoldeManutencao || '';
+    let valor = String(produtoMoldeSelecionado || produtoMoldeManutencao || '').trim();
+    if (!valor) valor = obterProdutoAtualComoPecaMolde_();
+    if (valor) {
+      produtoMoldeSelecionado = valor;
+      select.value = valor;
+    }
   } else {
     select.value = '';
     produtoMoldeSelecionado = '';
@@ -13232,6 +13266,7 @@ async function salvarStatusMaquina() {
   const defectSelect = document.getElementById('machineDefectSelector');
   const detalhamentoNovo = statusNovo === 'PECA_DEFEITO' ? normalizarDefeitoPecaUI_(defectSelect ? defectSelect.value : detalhamentoStatusSelecionadoMaquina) : '';
   const detalhamentoAtual = statusAtual === 'PECA_DEFEITO' ? normalizarDefeitoPecaUI_(detalhamentoStatusMaquina) : '';
+  if (statusNovo === 'MOLDE_MANUTENCAO') prepararPecaMoldeParaStatus_();
   const produtoMoldeNovo = statusNovo === 'MOLDE_MANUTENCAO' ? String((document.getElementById('machineMoldProductSelector') || {}).value || produtoMoldeSelecionado || produtoMoldeManutencao || '').trim() : '';
   const produtoMoldeAtual = statusAtual === 'MOLDE_MANUTENCAO' ? String(produtoMoldeManutencao || '').trim() : '';
   const statusMudou = statusNovo !== statusAtual || (statusNovo === 'PECA_DEFEITO' && detalhamentoNovo !== detalhamentoAtual) || (statusNovo === 'MOLDE_MANUTENCAO' && produtoMoldeNovo !== produtoMoldeAtual);
@@ -21936,6 +21971,7 @@ document.addEventListener(
 
           atualizarSubmenuDefeitoPecaUI_();
           atualizarSeletorPecaMoldeUI_();
+          prepararPecaMoldeParaStatus_();
           detalhamentoStatusSelecionadoMaquina = normalizarDefeitoPecaUI_((document.getElementById('machineDefectSelector') || {}).value || '');
           atualizarObrigatoriedadeAudioStatus();
           atualizarStatusAudioUI();
