@@ -1,4 +1,6 @@
 <!DOCTYPE html>
+
+<!-- Monitoramento de Produção V13.107 -->
 <html lang="pt-BR">
 
 <head>
@@ -5972,10 +5974,11 @@ async function processarFilaStatus() {
           }
         );
 
-        try {
-          carregarStatusMaquina();
-        }
-        catch (erro) {}
+        /* V13.107 — não refazer uma consulta imediata após a confirmação.
+         * A resposta de machineStatusSet já é a fonte de verdade desta alteração.
+         * Uma segunda leitura imediata pode pegar a planilha antes da propagação
+         * e devolver temporariamente o status anterior, escondendo o fluxo de produto.
+         */
 
       }
       catch (erro) {
