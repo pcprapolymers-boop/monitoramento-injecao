@@ -1,5 +1,4 @@
 <!DOCTYPE html>
-<!-- V13.104 — rótulos corretos no histórico de status do ADM -->
 
 <html lang="pt-BR">
 <head>
@@ -1544,17 +1543,9 @@ async function carregarHistoricoStatusMaquinas(
                   ? '🔴 QUEBRA'
                   : status === 'MANUTENCAO'
                     ? '🔧 MANUTENÇÃO'
-                    : status === 'MOLDE_MANUTENCAO'
-                      ? '🧰 MOLDE EM MANUTENÇÃO'
-                      : status === 'SETUP'
-                        ? '⚙️ SETUP'
-                        : status === 'FALTA_MAO_OBRA'
-                          ? '👷 FALTA DE MÃO DE OBRA'
-                          : status === 'FALTA_MATERIAL'
-                            ? '📦 FALTA DE MATERIAL'
-                            : status === 'OUTROS'
-                              ? '⚪ OUTROS'
-                              : '⚪ OUTROS';
+                    : status === 'FALTA_MATERIAL'
+                      ? '📦 FALTA DE MATERIAL'
+                      : '⚪ OUTROS';
 
           return (
             '<tr>' +
