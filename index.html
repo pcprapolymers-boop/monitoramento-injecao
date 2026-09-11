@@ -4175,7 +4175,7 @@ const VERSAO_DB_VIDEO =
   4;
 
 const VERSAO_APLICACAO =
-  'V13.118';
+  'V13.119';
 
 const STORE_JOBS =
   'jobs';
@@ -9377,6 +9377,51 @@ function atualizarSeletorPecaMoldeUI_() {
   }
 }
 
+function fluxoProducaoLiberadoLocal_() {
+  const statusOperacional =
+    normalizarStatusMaquinaUI_(statusOperacionalMaquina || '');
+
+  const statusSelecionado =
+    normalizarStatusMaquinaUI_(statusSelecionadoMaquina || '');
+
+  const seletorStatus =
+    document.getElementById('machineStatusSelector');
+
+  const statusNoSeletor =
+    normalizarStatusMaquinaUI_(
+      seletorStatus && seletorStatus.value
+        ? seletorStatus.value
+        : ''
+    );
+
+  /*
+   * V13.119 — considera também a confirmação local recente.
+   * Isso evita que uma leitura antiga do servidor/ultima inspeção
+   * trave os controles depois que o operador acabou de voltar
+   * para PRODUZINDO.
+   */
+  const idadeConfirmacaoLocal =
+    Date.now() - Number(statusConfirmadoLocalEm || 0);
+
+  const confirmacaoLocalRecente =
+    Number(statusConfirmadoLocalEm || 0) > 0 &&
+    idadeConfirmacaoLocal >= 0 &&
+    idadeConfirmacaoLocal < 20000;
+
+  return (
+    statusOperacional === 'PRODUZINDO' ||
+    statusSelecionado === 'PRODUZINDO' ||
+    statusNoSeletor === 'PRODUZINDO' ||
+    (
+      confirmacaoLocalRecente &&
+      (
+        statusSelecionado === 'PRODUZINDO' ||
+        statusNoSeletor === 'PRODUZINDO'
+      )
+    )
+  );
+}
+
 function atualizarVisibilidadeFluxoProducao_() {
   /* V13.109 — o status não controla mais a visibilidade do fluxo.
    * Depois que existe uma máquina selecionada, Produto, Conformidade e
@@ -9402,7 +9447,7 @@ function atualizarVisibilidadeFluxoProducao_() {
   }
 
   const statusEhProduzindo =
-    normalizarStatusMaquinaUI_(statusOperacionalMaquina || '') === 'PRODUZINDO';
+    fluxoProducaoLiberadoLocal_();
   const btnSim = document.getElementById('btnSim');
   const btnNao = document.getElementById('btnNao');
   if (btnSim) btnSim.disabled = !temMaquina || !statusEhProduzindo;
@@ -11301,14 +11346,42 @@ function aplicarDadosUltimaInspecaoNaTela_(
   if (
     dados.statusAtual
   ) {
+    const statusRemotoUltimaInspecao =
+      normalizarStatusMaquinaUI_(dados.statusAtual || '');
 
-    statusOperacionalMaquina =
-      String(
-        dados.statusAtual
-      )
-        .trim()
-        .toUpperCase();
+    const statusLocalAtual =
+      normalizarStatusMaquinaUI_(statusOperacionalMaquina || '');
 
+    const idadeConfirmacaoLocal =
+      Date.now() - Number(statusConfirmadoLocalEm || 0);
+
+    const preservarProduzindoLocal =
+      Number(statusConfirmadoLocalEm || 0) > 0 &&
+      idadeConfirmacaoLocal >= 0 &&
+      idadeConfirmacaoLocal < 20000 &&
+      (
+        statusLocalAtual === 'PRODUZINDO' ||
+        normalizarStatusMaquinaUI_(statusSelecionadoMaquina || '') === 'PRODUZINDO'
+      ) &&
+      statusRemotoUltimaInspecao !== 'PRODUZINDO';
+
+    if (!preservarProduzindoLocal) {
+      statusOperacionalMaquina =
+        statusRemotoUltimaInspecao;
+    }
+    else {
+      try {
+        debugUploadCliente(
+          'ULTIMA_INSPECAO_NAO_SOBRESCREVE_PRODUZINDO',
+          { mediaType: 'STATUS', maquina: maquina },
+          {
+            statusLocal: statusLocalAtual,
+            statusRemoto: statusRemotoUltimaInspecao,
+            idadeMs: idadeConfirmacaoLocal
+          }
+        );
+      } catch (_) {}
+    }
   }
 
   if (
@@ -16394,7 +16467,7 @@ function verificarFormulario() {
   const pronto =
     Boolean(
       maquina &&
-      normalizarStatusMaquinaUI_(statusOperacionalMaquina || '') === 'PRODUZINDO' &&
+      fluxoProducaoLiberadoLocal_() &&
       dadosBasicosOk &&
       tempoCiclo > 0 &&
       conformidadeSelecionada
