@@ -21468,21 +21468,6 @@ function novoRegistro() {
   }
 
   /*
-   * V13.114 — atualização instantânea das pendências.
-   * A inspeção já foi marcada localmente como concluída por
-   * marcarInspecaoComoConcluida()/marcarInspecaoConcluidaLocal_().
-   * Redesenhamos a lista ANTES de limpar a máquina e os dados da inspeção,
-   * usando a última resposta já disponível em memória.
-   * Nenhuma chamada de rede é aguardada aqui.
-   */
-  try {
-    atualizarPainelPendenciasAntesDaMaquina(
-      ultimaRespostaPendenciasGlobal || {}
-    );
-  }
-  catch (erroPendenciaLocal) {}
-
-  /*
    * A partir daqui, NOVA INSPEÇÃO significa:
    * limpar absolutamente todos os dados da inspeção anterior.
    */
