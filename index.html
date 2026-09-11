@@ -8858,125 +8858,71 @@ function consultarPendenciasAntesDaMaquina(
   opcoes
 ) {
 
-  const forcar =
-    Boolean(
-      opcoes &&
-      opcoes.forcarAtualizacao
-    );
-
-  const agora =
-    Date.now();
+  const op = opcoes || {};
+  const forcar = Boolean(op.forcarAtualizacao);
+  const emBackground = Boolean(op.__background);
 
   /*
-   * Memória: resposta imediata.
+   * V13.111 — stale-while-revalidate:
+   * o painel nunca deve ficar esperando a rede quando já existe
+   * uma resposta anterior utilizável. A lista local aparece primeiro
+   * e a confirmação mais recente é buscada em segundo plano.
    */
-  if (
-    !forcar &&
-    cachePendenciasGlobais &&
-    (
-      agora -
-      cachePendenciasGlobais.at
-    ) <
-    CACHE_PENDENCIAS_TTL_MS
-  ) {
+  const aplicarCacheImediato_ = function(dados) {
+    const resposta = dados || {};
+    ultimaRespostaPendenciasGlobal = resposta;
+    atualizarPainelPendenciasAntesDaMaquina(resposta);
+    return resposta;
+  };
 
-    const dados =
-      cachePendenciasGlobais.data ||
-      {};
+  if (!emBackground) {
+    let cacheDisponivel = false;
+    let dadosCache = null;
 
-    ultimaRespostaPendenciasGlobal =
-      dados;
-
-    atualizarPainelPendenciasAntesDaMaquina(
-      dados
-    );
-
-    /*
-     * Revalidação em background.
-     */
-    if (
-      !carregandoPendenciasPromise
-    ) {
-      consultarPendenciasAntesDaMaquina({
-        forcarAtualizacao:
-          true,
-        silencioso:
-          true
-      });
+    if (cachePendenciasGlobais && cachePendenciasGlobais.data) {
+      cacheDisponivel = true;
+      dadosCache = cachePendenciasGlobais.data;
+    } else {
+      try {
+        const salvo = JSON.parse(
+          localStorage.getItem(CACHE_PENDENCIAS_STORAGE_KEY) || 'null'
+        );
+        if (salvo && salvo.data) {
+          cacheDisponivel = true;
+          dadosCache = salvo.data;
+          cachePendenciasGlobais = salvo;
+        }
+      } catch (erroCache) {}
     }
 
-    return Promise.resolve(
-      dados
-    );
+    if (cacheDisponivel) {
+      const idade = Date.now() - Number((cachePendenciasGlobais && cachePendenciasGlobais.at) || 0);
+      aplicarCacheImediato_(dadosCache);
 
+      /*
+       * Atualização real não bloqueante. Em chamadas forçadas também
+       * mostramos primeiro o último estado conhecido e só depois
+       * buscamos a versão nova.
+       */
+      if (!carregandoPendenciasPromise && (forcar || idade >= CACHE_PENDENCIAS_TTL_MS)) {
+        setTimeout(function() {
+          consultarPendenciasAntesDaMaquina({
+            forcarAtualizacao: true,
+            silencioso: true,
+            __background: true
+          }).catch(function() {});
+        }, 0);
+      }
+
+      return Promise.resolve(dadosCache);
+    }
   }
 
   /*
    * Não inicia duas consultas ao mesmo tempo.
    */
-  if (
-    carregandoPendenciasPromise
-  ) {
+  if (carregandoPendenciasPromise) {
     return carregandoPendenciasPromise;
-  }
-
-  /*
-   * Se não houver memória, tenta localStorage antes da rede.
-   */
-  if (
-    !forcar &&
-    !cachePendenciasGlobais
-  ) {
-
-    try {
-
-      const salvo =
-        JSON.parse(
-          localStorage.getItem(
-            CACHE_PENDENCIAS_STORAGE_KEY
-          ) ||
-          'null'
-        );
-
-      if (
-        salvo &&
-        salvo.data
-      ) {
-
-        cachePendenciasGlobais =
-          salvo;
-
-        ultimaRespostaPendenciasGlobal =
-          salvo.data;
-
-        atualizarPainelPendenciasAntesDaMaquina(
-          salvo.data
-        );
-
-        /*
-         * A tela já fica pronta; a atualização nova
-         * é feita em background.
-         */
-        if (
-          !carregandoPendenciasPromise
-        ) {
-          consultarPendenciasAntesDaMaquina({
-            forcarAtualizacao:
-              true,
-            silencioso:
-              true
-          });
-        }
-
-        return Promise.resolve(
-          salvo.data
-        );
-
-      }
-
-    }
-    catch (erroCache) {}
-
   }
 
   carregandoPendenciasPromise =
@@ -8989,276 +8935,101 @@ function consultarPendenciasAntesDaMaquina(
           '_' +
           Math.random()
             .toString(36)
-            .substring(
-              2,
-              8
-            );
+            .substring(2, 8);
 
         const script =
-          document.createElement(
-            'script'
-          );
+          document.createElement('script');
 
-        let finalizado =
-          false;
+        let finalizado = false;
+        let timeout = null;
 
-        let timeout =
-          null;
+        const finalizar = function(dados) {
 
-        const finalizar =
-          function(
-            dados
-          ) {
+          if (finalizado) return;
+          finalizado = true;
 
-            if (
-              finalizado
-            ) {
-              return;
-            }
+          if (timeout) clearTimeout(timeout);
 
-            finalizado =
-              true;
+          try { delete window[callbackName]; } catch (erro) {}
+          try {
+            if (script.parentNode) script.parentNode.removeChild(script);
+          } catch (erro) {}
 
-            if (timeout) {
-              clearTimeout(
-                timeout
-              );
-            }
+          const resposta =
+            dados && typeof dados === 'object'
+              ? dados
+              : { sucesso:false, pendencias:[], total:0 };
 
-            try {
-              delete window[
-                callbackName
-              ];
-            }
-            catch (erro) {}
-
-            try {
-
-              if (
-                script.parentNode
-              ) {
-
-                script.parentNode.removeChild(
-                  script
-                );
-
-              }
-
-            }
-            catch (erro) {}
-
-            const resposta =
-              dados &&
-              typeof dados ===
-                'object'
-                ? dados
-                : {
-                    sucesso:
-                      false,
-                    pendencias:
-                      [],
-                    total:
-                      0
-                  };
-
-            cachePendenciasGlobais =
-              {
-                at:
-                  Date.now(),
-                data:
-                  resposta
-              };
-
-            try {
-
-              localStorage.setItem(
-                CACHE_PENDENCIAS_STORAGE_KEY,
-                JSON.stringify(
-                  cachePendenciasGlobais
-                )
-              );
-
-            }
-            catch (erroCache) {}
-
-            ultimaRespostaPendenciasGlobal =
-              resposta;
-
-            /*
-             * Se o servidor já registrou a nova inspeção, libera
-             * o marcador local. Enquanto a resposta ainda estiver
-             * atrasada, o marcador continua impedindo que a máquina
-             * volte a ser cobrada visualmente.
-             */
-            if (
-              resposta &&
-              Array.isArray(
-                resposta.pendencias
-              )
-            ) {
-
-              resposta.pendencias.forEach(
-                function(item) {
-
-                  if (
-                    item &&
-                    item.maquina &&
-                    item.ultimaInspecao
-                  ) {
-
-                    const instanteServidor =
-                      new Date(
-                        item.ultimaInspecao
-                      ).getTime();
-
-                    if (
-                      !isNaN(
-                        instanteServidor
-                      )
-                    ) {
-
-                      confirmarInspecaoServidorLocal_(
-                        item.maquina,
-                        instanteServidor
-                      );
-
-                    }
-
-                  }
-
-                }
-              );
-
-            }
-
-            atualizarPainelPendenciasAntesDaMaquina(
-              resposta
-            );
-
-            try {
-
-              debugUploadCliente(
-              'V13.46_COBRANCA_INSPECAO_REGRA_UNIFICADA',
-              {
-                mediaType:
-                  'ALARM'
-              },
-              {
-                totalCobrancas:
-                  Number(
-                    resposta.total ||
-                    0
-                  ),
-                totalAdiadoPorStatus:
-                  Number(
-                    resposta.totalAdiadoPorStatus ||
-                    (
-                      Array.isArray(
-                        resposta.adiadasPorStatus
-                      )
-                        ? resposta.adiadasPorStatus.length
-                        : 0
-                    )
-                  )
-              }
-            );
-
-            debugUploadCliente(
-                'ALARME_PENDENCIAS_GLOBAIS',
-                {
-                  mediaType:
-                    'ALARM'
-                },
-                {
-                  total:
-                    Number(
-                      resposta.total ||
-                      0
-                    ),
-                  origem:
-                    'NETWORK_CACHE_V13_41'
-                }
-              );
-
-            }
-            catch (debugErro) {}
-
-            resolve(
-              resposta
-            );
-
+          cachePendenciasGlobais = {
+            at: Date.now(),
+            data: resposta
           };
 
-        window[
-          callbackName
-        ] =
-        finalizar;
+          try {
+            localStorage.setItem(
+              CACHE_PENDENCIAS_STORAGE_KEY,
+              JSON.stringify(cachePendenciasGlobais)
+            );
+          } catch (erroCache) {}
 
-        script.async =
-          true;
+          ultimaRespostaPendenciasGlobal = resposta;
 
+          if (resposta && Array.isArray(resposta.pendencias)) {
+            resposta.pendencias.forEach(function(item) {
+              if (!item || !item.maquina || !item.ultimaInspecao) return;
+              const instanteServidor = new Date(item.ultimaInspecao).getTime();
+              if (!isNaN(instanteServidor)) {
+                confirmarInspecaoServidorLocal_(item.maquina, instanteServidor);
+              }
+            });
+          }
+
+          atualizarPainelPendenciasAntesDaMaquina(resposta);
+
+          try {
+            debugUploadCliente(
+              'V13.111_PENDENCIAS_CARREGADAS',
+              {mediaType:'ALARM'},
+              {total:Number(resposta.total || 0), origem: emBackground ? 'BACKGROUND' : 'NETWORK'}
+            );
+          } catch (debugErro) {}
+
+          resolve(resposta);
+        };
+
+        window[callbackName] = finalizar;
+        script.async = true;
         script.src =
           URL_APPS_SCRIPT +
           '?status=pendenciasInspecao' +
-          '&callback=' +
-          encodeURIComponent(
-            callbackName
-          ) +
-          '&_=' +
-          Date.now();
+          '&callback=' + encodeURIComponent(callbackName) +
+          '&_=' + Date.now();
 
-        script.onerror =
-          function() {
+        script.onerror = function() {
+          finalizar({
+            sucesso:false,
+            pendencias:[],
+            total:0,
+            erro:'Falha de comunicação com o Apps Script.'
+          });
+        };
 
-            finalizar({
-              sucesso:
-                false,
-              pendencias:
-                [],
-              total:
-                0,
-              erro:
-                'Falha de comunicação com o Apps Script.'
-            });
+        timeout = setTimeout(function() {
+          finalizar({
+            sucesso:false,
+            pendencias:[],
+            total:0,
+            erro:'Tempo excedido ao carregar inspeções pendentes.'
+          });
+        }, 5000);
 
-          };
-
-        timeout =
-          setTimeout(
-            function() {
-
-              finalizar({
-                sucesso:
-                  false,
-                pendencias:
-                  [],
-                total:
-                  0,
-                erro:
-                  'Tempo excedido ao carregar inspeções pendentes.'
-              });
-
-            },
-            5000
-          );
-
-        document.head.appendChild(
-          script
-        );
-
+        document.head.appendChild(script);
       }
-    )
-    .finally(
-      function() {
-
-        carregandoPendenciasPromise =
-          null;
-
-      }
-    );
+    ).finally(function() {
+      carregandoPendenciasPromise = null;
+    });
 
   return carregandoPendenciasPromise;
-
 }
 
 
