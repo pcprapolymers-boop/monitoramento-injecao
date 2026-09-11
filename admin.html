@@ -1,3 +1,4 @@
+<!-- Monitoramento de Produção V13.121 -->
 <!DOCTYPE html>
 
 <html lang="pt-BR">
@@ -696,9 +697,11 @@ tr:nth-child(even) td {
         <option value="PARADA_PROGRAMADA">🟡 Parada programada</option>
         <option value="QUEBRA">🔴 Quebra</option>
         <option value="MANUTENCAO">🔧 Manutenção</option>
+        <option value="MOLDE_MANUTENCAO">🧰 Molde em manutenção</option>
+        <option value="SETUP">⚙️ Setup</option>
         <option value="FALTA_MATERIAL">📦 Falta de material</option>
         <option value="FALTA_MAO_OBRA">👷 FALTA DE MÃO DE OBRA</option>
-<option value="OUTROS">⚪ Outros</option>
+        <option value="OUTROS">⚪ Outros</option>
       </select>
     </div>
 
@@ -1528,24 +1531,41 @@ async function carregarHistoricoStatusMaquinas(
       registros.map(
         function(registro) {
 
-          const status =
+          const statusBruto =
             String(
+              registro.novoStatus ||
               registro.status ||
               ''
-            ).toUpperCase();
+            )
+              .trim()
+              .toUpperCase();
+
+          const status =
+            statusBruto
+              .normalize('NFD')
+              .replace(/[\u0300-\u036f]/g, '')
+              .replace(/[ -]+/g, '_')
+              .replace(/__+/g, '_');
+
+          const labelMap = {
+            PRODUZINDO: '🟢 PRODUZINDO',
+            PARADA_PROGRAMADA: '🟡 PARADA PROGRAMADA',
+            QUEBRA: '🔴 QUEBRA',
+            MANUTENCAO: '🔧 MANUTENÇÃO',
+            MOLDE_MANUTENCAO: '🧰 MOLDE EM MANUTENÇÃO',
+            MOLDE_EM_MANUTENCAO: '🧰 MOLDE EM MANUTENÇÃO',
+            SETUP: '⚙️ SETUP',
+            FALTA_MATERIAL: '📦 FALTA DE MATERIAL',
+            FALTA_MAO_OBRA: '👷 FALTA DE MÃO DE OBRA',
+            OUTROS: '⚪ OUTROS',
+            PECA_DEFEITO: '🔴 PEÇA COM DEFEITO',
+            PECA_COM_DEFEITO: '🔴 PEÇA COM DEFEITO',
+            PECA_COM_DEFEITO_INJECAO: '🔴 PEÇA COM DEFEITO'
+          };
 
           const label =
-            status === 'PRODUZINDO'
-              ? '🟢 PRODUZINDO'
-              : status === 'PARADA_PROGRAMADA'
-                ? '🟡 PARADA PROGRAMADA'
-                : status === 'QUEBRA'
-                  ? '🔴 QUEBRA'
-                  : status === 'MANUTENCAO'
-                    ? '🔧 MANUTENÇÃO'
-                    : status === 'FALTA_MATERIAL'
-                      ? '📦 FALTA DE MATERIAL'
-                      : '⚪ OUTROS';
+            labelMap[status] ||
+            '⚪ OUTROS';
 
           return (
             '<tr>' +
