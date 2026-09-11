@@ -4175,7 +4175,7 @@ const VERSAO_DB_VIDEO =
   4;
 
 const VERSAO_APLICACAO =
-  'V13.123';
+  'V13.124';
 
 const STORE_JOBS =
   'jobs';
@@ -5943,6 +5943,13 @@ async function processarFilaStatus() {
             detalhamentoStatusSelecionadoMaquina = detalhamentoStatusMaquina;
             produtoMoldeManutencao = String(resposta.produtoMoldeManutencao || item.produtoMoldeManutencao || '');
             produtoMoldeSelecionado = produtoMoldeManutencao;
+
+            if (produtoMoldeManutencao) {
+              lembrarPecaMoldeConhecida_(
+                maquina,
+                produtoMoldeManutencao
+              );
+            }
             statusServidorCarregado = true;
             if (statusOperacionalMaquina === 'PRODUZINDO') {
               statusAudioConcluido = true;
@@ -9329,10 +9336,66 @@ function normalizarDefeitoPecaUI_(valor){
   return MAPA_DEFEITOS_PECA_UI_[normalizada]?normalizada:'';
 }
 
+const STORAGE_PECA_MOLDE_MAQUINA =
+  'ra_polymers_peca_molde_maquina_v1';
+
+function lerMapaPecasMoldeConhecidas_() {
+  try {
+    return JSON.parse(
+      localStorage.getItem(
+        STORAGE_PECA_MOLDE_MAQUINA
+      ) || '{}'
+    ) || {};
+  } catch (_) {
+    return {};
+  }
+}
+
+function obterUltimaPecaMoldeConhecida_(maquinaValor) {
+  const chave = normalizarMaquinaChave_(
+    maquinaValor || maquina || ''
+  );
+  if (!chave) return '';
+  const mapa = lerMapaPecasMoldeConhecidas_();
+  return String(
+    mapa[chave] || ''
+  ).trim();
+}
+
+function lembrarPecaMoldeConhecida_(
+  maquinaValor,
+  pecaValor
+) {
+  const chave = normalizarMaquinaChave_(
+    maquinaValor || maquina || ''
+  );
+  const peca = String(
+    pecaValor || ''
+  ).trim();
+
+  if (!chave || !peca) return;
+
+  try {
+    const mapa =
+      lerMapaPecasMoldeConhecidas_();
+
+    mapa[chave] = peca;
+
+    localStorage.setItem(
+      STORAGE_PECA_MOLDE_MAQUINA,
+      JSON.stringify(mapa)
+    );
+  } catch (_) {}
+}
+
 function preencherSeletorPecaMoldeUI_() {
   const select = document.getElementById('machineMoldProductSelector');
   if (!select) return;
-  const valorAtual = produtoMoldeSelecionado || produtoMoldeManutencao || '';
+  const valorAtual =
+    produtoMoldeSelecionado ||
+    produtoMoldeManutencao ||
+    obterUltimaPecaMoldeConhecida_(maquina) ||
+    '';
   while (select.options.length > 1) select.remove(1);
   (produtos || []).forEach(function(item) {
     const nome = typeof item === 'string' ? item : item.nome;
@@ -9363,8 +9426,16 @@ function prepararPecaMoldeParaStatus_() {
   );
   if (status !== 'MOLDE_MANUTENCAO') return '';
 
-  let valor = String(produtoMoldeSelecionado || produtoMoldeManutencao || '').trim();
-  if (!valor) valor = obterProdutoAtualComoPecaMolde_();
+  let valor = String(
+    produtoMoldeSelecionado ||
+    produtoMoldeManutencao ||
+    obterUltimaPecaMoldeConhecida_(maquina) ||
+    ''
+  ).trim();
+
+  if (!valor) {
+    valor = obterProdutoAtualComoPecaMolde_();
+  }
 
   if (valor) {
     produtoMoldeSelecionado = valor;
@@ -9384,8 +9455,16 @@ function atualizarSeletorPecaMoldeUI_() {
   const mostrar = status === 'MOLDE_MANUTENCAO';
   box.style.display = mostrar ? 'block' : 'none';
   if (mostrar) {
-    let valor = String(produtoMoldeSelecionado || produtoMoldeManutencao || '').trim();
-    if (!valor) valor = obterProdutoAtualComoPecaMolde_();
+    let valor = String(
+      produtoMoldeSelecionado ||
+      produtoMoldeManutencao ||
+      obterUltimaPecaMoldeConhecida_(maquina) ||
+      ''
+    ).trim();
+
+    if (!valor) {
+      valor = obterProdutoAtualComoPecaMolde_();
+    }
     if (valor) {
       produtoMoldeSelecionado = valor;
       select.value = valor;
@@ -9811,8 +9890,22 @@ function aplicarStatusPreCarregadoDaProximaMaquina_(status, detalhamento) {
   statusOperacionalMaquina = normalizado;
   /* V13.105 — status vindo do painel global já é uma confirmação do servidor. */
   statusServidorCarregado = true;
-  produtoMoldeManutencao = String(produtoMoldeManutencao || '');
-  produtoMoldeSelecionado = produtoMoldeManutencao;
+  produtoMoldeManutencao =
+    String(
+      produtoMoldeManutencao ||
+      obterUltimaPecaMoldeConhecida_(maquina) ||
+      ''
+    );
+
+  produtoMoldeSelecionado =
+    produtoMoldeManutencao;
+
+  if (produtoMoldeManutencao) {
+    lembrarPecaMoldeConhecida_(
+      maquina,
+      produtoMoldeManutencao
+    );
+  }
   detalhamentoStatusMaquina = detalheNormalizado;
   detalhamentoStatusSelecionadoMaquina = detalheNormalizado;
   statusAudioConcluido = normalizado === 'PRODUZINDO';
@@ -13594,8 +13687,20 @@ async function salvarStatusMaquina() {
   const defectSelect = document.getElementById('machineDefectSelector');
   const detalhamentoNovo = statusNovo === 'PECA_DEFEITO' ? normalizarDefeitoPecaUI_(defectSelect ? defectSelect.value : detalhamentoStatusSelecionadoMaquina) : '';
   const detalhamentoAtual = statusAtual === 'PECA_DEFEITO' ? normalizarDefeitoPecaUI_(detalhamentoStatusMaquina) : '';
-  if (statusNovo === 'MOLDE_MANUTENCAO') prepararPecaMoldeParaStatus_();
-  const produtoMoldeNovo = statusNovo === 'MOLDE_MANUTENCAO' ? String((document.getElementById('machineMoldProductSelector') || {}).value || produtoMoldeSelecionado || produtoMoldeManutencao || '').trim() : '';
+  if (statusNovo === 'MOLDE_MANUTENCAO') {
+    prepararPecaMoldeParaStatus_();
+  }
+
+  const produtoMoldeNovo =
+    statusNovo === 'MOLDE_MANUTENCAO'
+      ? String(
+          (document.getElementById('machineMoldProductSelector') || {}).value ||
+          produtoMoldeSelecionado ||
+          produtoMoldeManutencao ||
+          obterUltimaPecaMoldeConhecida_(maquina) ||
+          ''
+        ).trim()
+      : '';
   const produtoMoldeAtual = statusAtual === 'MOLDE_MANUTENCAO' ? String(produtoMoldeManutencao || '').trim() : '';
   const statusMudou = statusNovo !== statusAtual || (statusNovo === 'PECA_DEFEITO' && detalhamentoNovo !== detalhamentoAtual) || (statusNovo === 'MOLDE_MANUTENCAO' && produtoMoldeNovo !== produtoMoldeAtual);
 
@@ -13746,6 +13851,16 @@ async function salvarStatusMaquina() {
       mensagem.textContent = statusNovo === 'PRODUZINDO'
         ? '✅ Status PRODUZINDO atualizado.'
         : '✅ Status atualizado. 🎙️ Áudio sendo enviado em segundo plano...';
+    }
+
+    if (
+      statusNovo === 'MOLDE_MANUTENCAO' &&
+      produtoMoldeNovo
+    ) {
+      lembrarPecaMoldeConhecida_(
+        maquina,
+        produtoMoldeNovo
+      );
     }
 
     salvarStatusMaquinaEmSegundoPlano(
@@ -13954,8 +14069,22 @@ function salvarStatusMaquinaNoServidor(
             dados.motivo ||
             '';
 
-          produtoMoldeManutencao = String(dados.produtoMoldeManutencao || produtoMoldeManutencao || '');
-          produtoMoldeSelecionado = produtoMoldeManutencao;
+          produtoMoldeManutencao = String(
+            dados.produtoMoldeManutencao ||
+            produtoMoldeManutencao ||
+            obterUltimaPecaMoldeConhecida_(maquina) ||
+            ''
+          );
+
+          produtoMoldeSelecionado =
+            produtoMoldeManutencao;
+
+          if (produtoMoldeManutencao) {
+            lembrarPecaMoldeConhecida_(
+              maquina,
+              produtoMoldeManutencao
+            );
+          }
           statusServidorCarregado = true;
 
           detalhamentoStatusMaquina = normalizarDefeitoPecaUI_(dados.detalhamentoStatus || '');
