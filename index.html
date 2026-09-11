@@ -2015,7 +2015,7 @@ button:active {
       <div class="inspection-title" style="font-size:18px;color:#8B1E1E;">🔎 DEFEITO DA PEÇA</div>
       <div id="defeitoPecaInfo" class="result-info" style="color:#6E3A3A;">Selecione o defeito encontrado.</div>
       <label for="defeitoPecaSelector" style="display:block;font-size:12px;font-weight:800;color:#6E3A3A;margin:8px 0 5px;">Tipo de defeito</label>
-      <select id="defeitoPecaSelector" style="width:100%;min-height:44px;">
+      <select id="defeitoPecaSelector" onchange="selecionarDefeitoPecaInspecao_()" style="width:100%;min-height:44px;">
         <option value="">Selecione o defeito</option>
         <option value="RECHUPE">1. Rechupe</option>
         <option value="FALHA_INJECAO_FALTA_PREENCHIMENTO">2. Falha de injeção / falta de preenchimento</option>
@@ -4175,7 +4175,7 @@ const VERSAO_DB_VIDEO =
   4;
 
 const VERSAO_APLICACAO =
-  'V13.119';
+  'V13.120';
 
 const STORE_JOBS =
   'jobs';
@@ -9464,15 +9464,172 @@ function atualizarDefeitoPecaInspecaoUI_(){
   const select=document.getElementById('defeitoPecaSelector');
   const button=document.getElementById('btnConfirmarDefeitoPeca');
   const info=document.getElementById('defeitoPecaInfo');
-  const naoConforme=String(conformidade||'').trim().toUpperCase()==='NÃO';
-  const pronto=Boolean(naoConforme&&inspecaoVideoConcluido&&audioConcluido);
-  if(card){card.classList.toggle('hidden',!pronto);card.style.display=pronto?'block':'none';}
-  if(select){if(defeitoPecaConfirmado) select.value=defeitoPecaSelecionado||''; else if(!naoConforme) select.value='';}
-  const valido=Boolean(pronto&&normalizarDefeitoPecaUI_(select?select.value:defeitoPecaSelecionado));
-  if(button){button.disabled=!valido||defeitoPecaConfirmado;button.style.opacity=(!button.disabled&&!defeitoPecaConfirmado)?'1':'0.75';}
-  if(info){if(!naoConforme) info.textContent=''; else if(!inspecaoVideoConcluido) info.textContent='⏳ Finalize o vídeo primeiro.'; else if(!audioConcluido) info.textContent='⏳ Finalize o áudio obrigatório primeiro.'; else if(defeitoPecaConfirmado) info.textContent='✅ Defeito confirmado: '+(MAPA_DEFEITOS_PECA_UI_[defeitoPecaSelecionado]||defeitoPecaSelecionado); else info.textContent='Selecione o defeito encontrado e confirme para concluir a inspeção.';}
-  const btnNova=document.getElementById('btnNovaInspecaoVideo');
-  if(btnNova&&naoConforme) btnNova.disabled=!defeitoPecaConfirmado;
+
+  const naoConforme =
+    String(conformidade || '').trim().toUpperCase() === 'NÃO';
+
+  const videoPronto =
+    Boolean(inspecaoVideoConcluido);
+
+  const audioPronto =
+    Boolean(audioConcluido);
+
+  const pronto =
+    Boolean(
+      naoConforme &&
+      videoPronto &&
+      audioPronto
+    );
+
+  if(card){
+    card.classList.toggle('hidden', !pronto);
+    card.style.display = pronto ? 'block' : 'none';
+  }
+
+  if(select){
+    if(defeitoPecaConfirmado){
+      select.value = defeitoPecaSelecionado || '';
+    }
+    else if(!naoConforme){
+      select.value = '';
+    }
+  }
+
+  const defeitoAtual =
+    normalizarDefeitoPecaUI_(
+      select
+        ? select.value
+        : defeitoPecaSelecionado
+    );
+
+  const valido =
+    Boolean(
+      pronto &&
+      defeitoAtual
+    );
+
+  /*
+   * V13.120 — CONFIRMAR DEFEITO fica liberado assim que
+   * vídeo + áudio estiverem concluídos e houver uma seleção.
+   * A mudança da seleção chama esta função imediatamente.
+   */
+  if(button){
+    button.disabled =
+      !valido ||
+      defeitoPecaConfirmado;
+
+    button.textContent =
+      defeitoPecaConfirmado
+        ? '✅ DEFEITO CONFIRMADO'
+        : '✅ CONFIRMAR DEFEITO';
+
+    button.style.opacity =
+      button.disabled
+        ? '0.75'
+        : '1';
+
+    button.style.cursor =
+      button.disabled
+        ? 'not-allowed'
+        : 'pointer';
+  }
+
+  if(info){
+    if(!naoConforme){
+      info.textContent = '';
+    }
+    else if(!videoPronto){
+      info.textContent = '⏳ Finalize o vídeo primeiro.';
+    }
+    else if(!audioPronto){
+      info.textContent = '⏳ Finalize o áudio obrigatório primeiro.';
+    }
+    else if(defeitoPecaConfirmado){
+      info.textContent =
+        '✅ Defeito confirmado: ' +
+        (
+          MAPA_DEFEITOS_PECA_UI_[defeitoPecaSelecionado] ||
+          defeitoPecaSelecionado
+        );
+    }
+    else{
+      info.textContent =
+        'Selecione o defeito encontrado e confirme para concluir a inspeção.';
+    }
+  }
+
+  /*
+   * V13.120 — depois que vídeo/áudio já estão prontos, os controles
+   * auxiliares nunca ficam desabilitados por uma consulta remota.
+   */
+  const btnRegravar =
+    document.getElementById('btnRegravar');
+
+  if(btnRegravar && videoPronto){
+    btnRegravar.disabled = false;
+    btnRegravar.style.opacity = '1';
+    btnRegravar.style.cursor = 'pointer';
+  }
+
+  const btnGravarAudio =
+    document.getElementById('btnGravarAudio');
+
+  if(btnGravarAudio && audioPronto && !audioGravando){
+    btnGravarAudio.disabled = false;
+    btnGravarAudio.style.opacity = '1';
+    btnGravarAudio.style.cursor = 'pointer';
+  }
+
+  const btnNova =
+    document.getElementById('btnNovaInspecaoVideo');
+
+  if(btnNova){
+    btnNova.disabled =
+      naoConforme
+        ? !defeitoPecaConfirmado
+        : false;
+
+    btnNova.style.opacity =
+      btnNova.disabled
+        ? '0.75'
+        : '1';
+
+    btnNova.style.cursor =
+      btnNova.disabled
+        ? 'not-allowed'
+        : 'pointer';
+  }
+}
+
+
+/*
+ * V13.120 — seleção do defeito atualiza a interface imediatamente.
+ * Não depende de uma nova consulta nem de outro evento.
+ */
+function selecionarDefeitoPecaInspecao_(){
+  const select =
+    document.getElementById('defeitoPecaSelector');
+
+  const novoDefeito =
+    normalizarDefeitoPecaUI_(
+      select ? select.value : ''
+    );
+
+  /*
+   * Se o operador mudar o defeito depois de uma confirmação,
+   * a confirmação anterior deixa de valer e precisa ser refeita.
+   */
+  if(
+    defeitoPecaConfirmado &&
+    novoDefeito !== defeitoPecaSelecionado
+  ){
+    defeitoPecaConfirmado = false;
+  }
+
+  defeitoPecaSelecionado =
+    novoDefeito;
+
+  atualizarDefeitoPecaInspecaoUI_();
 }
 
 async function confirmarDefeitoPecaInspecao_(){
@@ -9482,38 +9639,78 @@ async function confirmarDefeitoPecaInspecao_(){
   if(!inspecaoVideoConcluido||!audioConcluido){mostrarMensagem('⚠️ Grave o vídeo e o áudio antes de classificar o defeito.','warning');return;}
   if(!defeito){mostrarMensagem('⚠️ Selecione o defeito da peça.','warning');return;}
 
-  defeitoPecaSelecionado=defeito;
-  defeitoPecaConfirmado=true;
+  defeitoPecaSelecionado = defeito;
+  defeitoPecaConfirmado = true;
 
-  try{
-    if(gravacaoUploadId){
-      const job=await obterJobLocal(gravacaoUploadId);
-      if(job){
-        job.defeitoPeca=defeito;
-        job.aguardaDefeito=false;
-        if(job.status==='waiting_defect')job.status='queued';
-        job.nextAttemptAt=0;
-        job.updatedAt=Date.now();
-        await salvarJobLocal(job);
-      }
-    }
-  }catch(e){console.warn('Falha ao gravar defeito no job:',e);}
-
-  /* Atualização complementar do registro no servidor.
-     Normalmente o vídeo ainda não foi finalizado aqui, mas esta chamada
-     torna a classificação idempotente caso a montagem tenha terminado antes. */
-  try{
-    if(gravacaoUploadId){
-      await atualizarDefeitoInspecaoNoServidor_(gravacaoUploadId,defeito);
-    }
-  }catch(e){
-    debugUploadCliente('DEFEITO_SERVIDOR_PENDENTE',{uploadId:gravacaoUploadId,mediaType:'INSPECAO'},{erro:e&&e.message?e.message:String(e)});
-  }
-
+  /*
+   * V13.120 — libera a interface imediatamente.
+   * Nenhuma chamada remota pode segurar CONFIRMAR / GRAVAR NOVAMENTE /
+   * NOVA INSPEÇÃO.
+   */
   atualizarDefeitoPecaInspecaoUI_();
   tentarConcluirInspecao_();
-  await atualizarFilaUI();
-  try{await processarFilaUploads();}catch(_){ }
+
+  /*
+   * Persistência local primeiro, sem bloquear a UI.
+   */
+  try{
+    if(gravacaoUploadId){
+      obterJobLocal(gravacaoUploadId)
+        .then(function(job){
+          if(!job) return;
+
+          job.defeitoPeca = defeito;
+          job.aguardaDefeito = false;
+
+          if(job.status === 'waiting_defect'){
+            job.status = 'queued';
+          }
+
+          job.nextAttemptAt = 0;
+          job.updatedAt = Date.now();
+
+          return salvarJobLocal(job);
+        })
+        .catch(function(e){
+          console.warn('Falha ao gravar defeito no job:', e);
+        });
+    }
+  }catch(e){
+    console.warn('Falha ao iniciar persistência local do defeito:', e);
+  }
+
+  /*
+   * Atualização complementar do servidor em segundo plano.
+   * O operador não precisa esperar essa chamada.
+   */
+  try{
+    if(gravacaoUploadId){
+      atualizarDefeitoInspecaoNoServidor_(
+        gravacaoUploadId,
+        defeito
+      )
+      .catch(function(e){
+        debugUploadCliente(
+          'DEFEITO_SERVIDOR_PENDENTE',
+          {
+            uploadId: gravacaoUploadId,
+            mediaType: 'INSPECAO'
+          },
+          {
+            erro: e && e.message
+              ? e.message
+              : String(e)
+          }
+        );
+      });
+    }
+  }catch(e){}
+
+  atualizarFilaUI();
+
+  try{
+    processarFilaUploads().catch(function(){});
+  }catch(_){}
 }
 
 function atualizarDefeitoInspecaoNoServidor_(uploadId,defeito){
@@ -18166,6 +18363,15 @@ function iniciarGravacao() {
       inspecaoVideoConcluido =
         !gravacaoPersistenciaFalhou;
 
+      const btnRegravarVideo =
+        document.getElementById('btnRegravar');
+
+      if(btnRegravarVideo && inspecaoVideoConcluido){
+        btnRegravarVideo.disabled = false;
+        btnRegravarVideo.style.opacity = '1';
+        btnRegravarVideo.style.cursor = 'pointer';
+      }
+
       atualizarDefeitoPecaInspecaoUI_();
       tentarConcluirInspecao_();
 
@@ -18883,6 +19089,9 @@ async function iniciarGravacaoAudio() {
 
         if (btnGravar) {
           btnGravar.classList.remove('hidden');
+          btnGravar.disabled = false;
+          btnGravar.style.opacity = '1';
+          btnGravar.style.cursor = 'pointer';
           btnGravar.textContent =
             '🔄 GRAVAR ÁUDIO NOVAMENTE';
         }
