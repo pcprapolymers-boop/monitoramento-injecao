@@ -1,4 +1,6 @@
 <!DOCTYPE html>
+
+<!-- Monitoramento de Produção V13.118 -->
 <html lang="pt-BR">
 
 <head>
@@ -4173,7 +4175,7 @@ const VERSAO_DB_VIDEO =
   4;
 
 const VERSAO_APLICACAO =
-  'V13.99';
+  'V13.118';
 
 const STORE_JOBS =
   'jobs';
@@ -5972,10 +5974,11 @@ async function processarFilaStatus() {
           }
         );
 
-        try {
-          carregarStatusMaquina();
-        }
-        catch (erro) {}
+        /* V13.107 — não refazer uma consulta imediata após a confirmação.
+         * A resposta de machineStatusSet já é a fonte de verdade desta alteração.
+         * Uma segunda leitura imediata pode pegar a planilha antes da propagação
+         * e devolver temporariamente o status anterior, escondendo o fluxo de produto.
+         */
 
       }
       catch (erro) {
@@ -6991,17 +6994,6 @@ async function processarJobUpload(
       debugUploadCliente('RESUMO_FINAL_CHUNKS_FALHOU', job, {
         erro: erroResumoFinal && erroResumoFinal.message ? erroResumoFinal.message : String(erroResumoFinal)
       });
-    }
-
-    if (job.mediaType === 'VIDEO' && String(job.conforme || '').trim().toUpperCase() === 'NÃO' && !normalizarDefeitoPecaUI_(job.defeitoPeca || '')) {
-      job.status = 'waiting_defect';
-      job.aguardaDefeito = true;
-      job.nextAttemptAt = 0;
-      job.updatedAt = Date.now();
-      await salvarJobLocal(job);
-      await atualizarFilaUI();
-      atualizarDefeitoPecaInspecaoUI_();
-      return true;
     }
 
     job.status =
@@ -9334,6 +9326,35 @@ function preencherSeletorPecaMoldeUI_() {
   if (valorAtual) select.value = valorAtual;
 }
 
+function obterProdutoAtualComoPecaMolde_() {
+  const selectProduto = document.getElementById('produto');
+  const valor = String((selectProduto || {}).value || '').trim();
+  if (!valor) return '';
+  const alvo = valor.toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+  const encontrado = (produtos || []).some(function(item) {
+    const nome = String(typeof item === 'string' ? item : (item && item.nome) || '').trim();
+    return nome && nome.toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'') === alvo;
+  });
+  return encontrado ? valor : '';
+}
+
+function prepararPecaMoldeParaStatus_() {
+  const status = normalizarStatusMaquinaUI_(
+    (document.getElementById('machineStatusSelector') || {}).value || statusOperacionalMaquina || ''
+  );
+  if (status !== 'MOLDE_MANUTENCAO') return '';
+
+  let valor = String(produtoMoldeSelecionado || produtoMoldeManutencao || '').trim();
+  if (!valor) valor = obterProdutoAtualComoPecaMolde_();
+
+  if (valor) {
+    produtoMoldeSelecionado = valor;
+    const select = document.getElementById('machineMoldProductSelector');
+    if (select && !select.value) select.value = valor;
+  }
+  return valor;
+}
+
 function atualizarSeletorPecaMoldeUI_() {
   const statusSelect = document.getElementById('machineStatusSelector');
   const box = document.getElementById('machineMoldProductCard');
@@ -9344,7 +9365,12 @@ function atualizarSeletorPecaMoldeUI_() {
   const mostrar = status === 'MOLDE_MANUTENCAO';
   box.style.display = mostrar ? 'block' : 'none';
   if (mostrar) {
-    select.value = produtoMoldeSelecionado || produtoMoldeManutencao || '';
+    let valor = String(produtoMoldeSelecionado || produtoMoldeManutencao || '').trim();
+    if (!valor) valor = obterProdutoAtualComoPecaMolde_();
+    if (valor) {
+      produtoMoldeSelecionado = valor;
+      select.value = valor;
+    }
   } else {
     select.value = '';
     produtoMoldeSelecionado = '';
@@ -9352,21 +9378,36 @@ function atualizarSeletorPecaMoldeUI_() {
 }
 
 function atualizarVisibilidadeFluxoProducao_() {
+  /* V13.109 — o status não controla mais a visibilidade do fluxo.
+   * Depois que existe uma máquina selecionada, Produto, Conformidade e
+   * Iniciar inspeção permanecem na tela. O bloqueio passa a ser feito
+   * apenas por habilitação/desabilitação dos controles.
+   */
   const productCard = document.getElementById('productCard');
   const conformidadeCard = document.getElementById('conformidadeCard');
   const startCard = document.getElementById('startCard');
-  const produzindoConfirmado = Boolean(
-    statusServidorCarregado &&
-    normalizarStatusMaquinaUI_(statusOperacionalMaquina || '') === 'PRODUZINDO'
-  );
+  const temMaquina = Boolean(String(maquina || '').trim());
+
   if (productCard) {
-    productCard.classList.toggle('hidden', !produzindoConfirmado);
-    productCard.style.display = produzindoConfirmado ? 'block' : 'none';
+    productCard.classList.toggle('hidden', !temMaquina);
+    productCard.style.display = temMaquina ? 'block' : 'none';
   }
-  if (!produzindoConfirmado) {
-    if (conformidadeCard) conformidadeCard.classList.add('hidden');
-    if (startCard) startCard.classList.add('hidden');
+  if (conformidadeCard) {
+    conformidadeCard.classList.toggle('hidden', !temMaquina);
+    conformidadeCard.style.display = temMaquina ? 'block' : 'none';
   }
+  if (startCard) {
+    startCard.classList.toggle('hidden', !temMaquina);
+    startCard.style.display = temMaquina ? 'block' : 'none';
+  }
+
+  const statusEhProduzindo =
+    normalizarStatusMaquinaUI_(statusOperacionalMaquina || '') === 'PRODUZINDO';
+  const btnSim = document.getElementById('btnSim');
+  const btnNao = document.getElementById('btnNao');
+  if (btnSim) btnSim.disabled = !temMaquina || !statusEhProduzindo;
+  if (btnNao) btnNao.disabled = !temMaquina || !statusEhProduzindo;
+
   atualizarSubmenuDefeitoPecaUI_();
   atualizarSeletorPecaMoldeUI_();
 }
@@ -9507,6 +9548,8 @@ function aplicarStatusPreCarregadoDaProximaMaquina_(status, detalhamento) {
   statusAnteriorMaquina = normalizado;
   statusSelecionadoMaquina = normalizado;
   statusOperacionalMaquina = normalizado;
+  /* V13.105 — status vindo do painel global já é uma confirmação do servidor. */
+  statusServidorCarregado = true;
   produtoMoldeManutencao = String(produtoMoldeManutencao || '');
   produtoMoldeSelecionado = produtoMoldeManutencao;
   detalhamentoStatusMaquina = detalheNormalizado;
@@ -9933,6 +9976,10 @@ async function selecionarMaquinaProvisoria() {
       dadosLocais =
         lerCacheCadastrosLocal();
 
+      if (!dadosLocais) {
+        dadosLocais = lerCacheCadastrosLocal(true);
+      }
+
     }
     catch (erroCache) {
       dadosLocais =
@@ -10014,21 +10061,26 @@ async function selecionarMaquinaProvisoria() {
   else {
 
     /*
-     * Primeira abertura sem cache:
-     * carrega os cadastros uma vez. Trocas seguintes não repetem isso.
+     * Sem cache, consulta somente os cadastros em segundo plano.
+     * Não chamamos carregarDados() aqui para evitar duplicar a consulta
+     * de status/última inspeção que já foi iniciada acima.
      */
     try {
-
-      await carregarDados();
-
-    }
-    catch (erro) {
-
+      carregarDadosRemotos()
+        .then(function(dados) {
+          aplicarCadastrosNoFormulario_(dados);
+        })
+        .catch(function(erro) {
+          console.warn(
+            'Falha ao carregar cadastros para o status:',
+            erro
+          );
+        });
+    } catch (erro) {
       console.warn(
-        'Falha ao carregar cadastros para o status:',
+        'Falha ao iniciar carregamento de cadastros para o status:',
         erro
       );
-
     }
 
   }
@@ -12165,6 +12217,27 @@ function aplicarDadosStatusNaTela_(
   if (!dados || !dados.sucesso) return;
 
   const statusServidor = normalizarStatusMaquinaUI_(dados.status || 'PRODUZINDO');
+
+  /* V13.108: não deixar uma resposta/cache antigo sobrescrever uma
+     alteração de status confirmada localmente há poucos segundos. */
+  const statusLocalAtual = normalizarStatusMaquinaUI_(statusOperacionalMaquina || '');
+  const idadeConfirmacaoLocal = Date.now() - Number(statusConfirmadoLocalEm || 0);
+  if (
+    Number(statusConfirmadoLocalEm || 0) > 0 &&
+    idadeConfirmacaoLocal >= 0 &&
+    idadeConfirmacaoLocal < 20000 &&
+    statusLocalAtual &&
+    statusLocalAtual !== statusServidor
+  ) {
+    try {
+      debugUploadCliente(
+        'STATUS_REMOTO_ANTIGO_IGNORADO',
+        { mediaType: 'STATUS', maquina: maquina },
+        { statusLocal: statusLocalAtual, statusRemoto: statusServidor, idadeMs: idadeConfirmacaoLocal }
+      );
+    } catch (_) {}
+    return;
+  }
   statusAnteriorMaquina = statusServidor;
   statusSelecionadoMaquina = statusServidor;
   statusOperacionalMaquina = statusServidor;
@@ -13028,7 +13101,7 @@ function verificarStatusSalvoEmSegundoPlano(
   setTimeout(
     function() {
 
-      carregarStatusMaquina()
+      carregarStatusMaquina(true)
         .then(
           function(dados) {
 
@@ -13232,6 +13305,7 @@ async function salvarStatusMaquina() {
   const defectSelect = document.getElementById('machineDefectSelector');
   const detalhamentoNovo = statusNovo === 'PECA_DEFEITO' ? normalizarDefeitoPecaUI_(defectSelect ? defectSelect.value : detalhamentoStatusSelecionadoMaquina) : '';
   const detalhamentoAtual = statusAtual === 'PECA_DEFEITO' ? normalizarDefeitoPecaUI_(detalhamentoStatusMaquina) : '';
+  if (statusNovo === 'MOLDE_MANUTENCAO') prepararPecaMoldeParaStatus_();
   const produtoMoldeNovo = statusNovo === 'MOLDE_MANUTENCAO' ? String((document.getElementById('machineMoldProductSelector') || {}).value || produtoMoldeSelecionado || produtoMoldeManutencao || '').trim() : '';
   const produtoMoldeAtual = statusAtual === 'MOLDE_MANUTENCAO' ? String(produtoMoldeManutencao || '').trim() : '';
   const statusMudou = statusNovo !== statusAtual || (statusNovo === 'PECA_DEFEITO' && detalhamentoNovo !== detalhamentoAtual) || (statusNovo === 'MOLDE_MANUTENCAO' && produtoMoldeNovo !== produtoMoldeAtual);
@@ -13269,8 +13343,11 @@ async function salvarStatusMaquina() {
       statusAudioConcluido = true;
       statusAtualizadoEm = new Date().toISOString();
       statusConfirmadoLocalEm = Date.now();
+      try { cacheStatusPorMaquina.delete(normalizarMaquinaChave_(maquinaNoInicio || maquina)); } catch (_) {}
       statusAtualizacaoObrigatoria = false;
-      statusServidorCarregado = false;
+      /* V13.105 — MANTER PRODUZINDO já confirma localmente o status.
+         Não esconder o fluxo enquanto a fila em segundo plano sincroniza. */
+      statusServidorCarregado = true;
       atualizarVisibilidadeFluxoProducao_();
 
       atualizarStatusAudioUI();
@@ -13348,6 +13425,7 @@ async function salvarStatusMaquina() {
     statusServidorCarregado = statusNovo === 'PRODUZINDO';
     statusAtualizadoEm = new Date().toISOString();
     statusConfirmadoLocalEm = Date.now();
+    try { cacheStatusPorMaquina.delete(normalizarMaquinaChave_(maquinaNoInicio || maquina)); } catch (_) {}
     statusAtualizacaoObrigatoria = false;
     inicioStatusMaquina = new Date().toISOString();
     motivoParadaMaquina = statusNovo === 'PRODUZINDO' ? 'RETORNO À PRODUÇÃO' : (statusNovo === 'PECA_DEFEITO' ? (MAPA_DEFEITOS_PECA_UI_[detalhamentoNovo] || 'PEÇA COM DEFEITO') : statusNovo);
@@ -13407,10 +13485,9 @@ async function salvarStatusMaquina() {
 
     statusAudioConcluido = statusNovo === 'PRODUZINDO';
 
-    // Não libera o botão antes de decidir para qual máquina o fluxo vai.
-    setTimeout(function() {
-      avancarAposAtualizacaoStatus_(statusNovo, maquinaNoInicio);
-    }, 80);
+    // V13.105 — a decisão de transição já pode ocorrer imediatamente.
+    // A gravação do status continua em segundo plano e não bloqueia a tela.
+    avancarAposAtualizacaoStatus_(statusNovo, maquinaNoInicio);
 
     if (new URLSearchParams(window.location.search).get('debug') === '1') {
       verificarStatusSalvoEmSegundoPlano(statusNovo, operacaoId);
@@ -15218,6 +15295,7 @@ function manterStatusAtual() {
     statusAudioConcluido = true;
     statusAtualizadoEm = new Date().toISOString();
     statusConfirmadoLocalEm = Date.now();
+    try { cacheStatusPorMaquina.delete(normalizarMaquinaChave_(maquina)); } catch (_) {}
     statusAtualizacaoObrigatoria = false;
 
     if (statusAtual === 'PRODUZINDO') {
@@ -15314,6 +15392,21 @@ async function carregarDados(opcoes) {
     dadosCadastrosEmMemoria ||
     lerCacheCadastrosLocal();
 
+  /* V13.103 — cache vencido continua útil para a UI.
+     Mostramos os operadores/produtos imediatamente e
+     atualizamos os dados reais em segundo plano. */
+  const dadosImediatos =
+    dados && dados.sucesso
+      ? dados
+      : lerCacheCadastrosLocal(true);
+
+  if (dadosImediatos && dadosImediatos.sucesso) {
+    dados = dadosImediatos;
+    try {
+      aplicarCadastrosNoFormulario_(dadosImediatos);
+    } catch (erroCacheImediato) {}
+  }
+
   const forcar =
     Boolean(
       opcoes &&
@@ -15321,13 +15414,17 @@ async function carregarDados(opcoes) {
     );
 
   /*
-   * Cadastros são carregados da memória/cache primeiro.
-   * Em paralelo, buscamos somente os dados específicos da máquina.
+   * Memória/cache válido: mantém instantâneo.
+   * Cache vencido: usa a cópia local agora e busca a versão nova sem bloquear a UI.
+   * Sem cache: consulta normalmente.
    */
+  const cacheValido = Boolean(
+    (dadosCadastrosEmMemoria && dadosCadastrosEmMemoria.sucesso) ||
+    lerCacheCadastrosLocal()
+  );
+
   const cadastroPromise =
-    dados &&
-    dados.sucesso &&
-    !forcar
+    !forcar && cacheValido
       ? Promise.resolve(dados)
       : carregarDadosRemotos();
 
@@ -15526,7 +15623,7 @@ const CACHE_CADASTROS_TTL_MS =
   30 * 60 * 1000;
 
 
-function lerCacheCadastrosLocal() {
+function lerCacheCadastrosLocal(permitirExpirado) {
 
   try {
 
@@ -15553,6 +15650,7 @@ function lerCacheCadastrosLocal() {
     }
 
     if (
+      !permitirExpirado &&
       Date.now() -
       Number(
         cache.salvoEm
@@ -15719,8 +15817,12 @@ function garantirOperadoresDisponiveis_() {
 
   try {
 
-    const cache =
+    let cache =
       lerCacheCadastrosLocal();
+
+    if (!cache) {
+      cache = lerCacheCadastrosLocal(true);
+    }
 
     if (
       cache &&
@@ -15731,6 +15833,8 @@ function garantirOperadoresDisponiveis_() {
         cache
       );
 
+      /* Cache vencido é apenas uma ponte visual; a versão nova
+         continuará sendo obtida em background quando necessário. */
       return;
 
     }
@@ -16289,7 +16393,7 @@ function verificarFormulario() {
 
   const pronto =
     Boolean(
-      statusServidorCarregado &&
+      maquina &&
       normalizarStatusMaquinaUI_(statusOperacionalMaquina || '') === 'PRODUZINDO' &&
       dadosBasicosOk &&
       tempoCiclo > 0 &&
@@ -16317,60 +16421,17 @@ function verificarFormulario() {
     );
 
 
-  const fluxoProducaoLiberado = Boolean(
-    statusServidorCarregado &&
-    normalizarStatusMaquinaUI_(statusOperacionalMaquina || '') === 'PRODUZINDO'
-  );
-
-  if (
-    dadosBasicosOk &&
-    fluxoProducaoLiberado
-  ) {
-
-    conformidadeCard
-      .classList
-      .remove(
-        'hidden'
-      );
-
+  /* V13.109 — os cards permanecem visíveis; apenas o botão é controlado. */
+  if (conformidadeCard) {
+    conformidadeCard.classList.remove('hidden');
+    conformidadeCard.style.display = 'block';
   }
-  else {
-
-    conformidadeCard
-      .classList
-      .add(
-        'hidden'
-      );
-
+  if (startCard) {
+    startCard.classList.remove('hidden');
+    startCard.style.display = 'block';
   }
 
-
-  if (
-    pronto
-  ) {
-
-    startCard
-      .classList
-      .remove(
-        'hidden'
-      );
-
-    btn.disabled =
-      false;
-
-  }
-  else {
-
-    startCard
-      .classList
-      .add(
-        'hidden'
-      );
-
-    btn.disabled =
-      true;
-
-  }
+  btn.disabled = !pronto;
 
 }
 
@@ -21909,6 +21970,7 @@ document.addEventListener(
 
           atualizarSubmenuDefeitoPecaUI_();
           atualizarSeletorPecaMoldeUI_();
+          prepararPecaMoldeParaStatus_();
           detalhamentoStatusSelecionadoMaquina = normalizarDefeitoPecaUI_((document.getElementById('machineDefectSelector') || {}).value || '');
           atualizarObrigatoriedadeAudioStatus();
           atualizarStatusAudioUI();
