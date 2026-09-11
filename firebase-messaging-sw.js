@@ -28,6 +28,26 @@ async function existeJanelaVisivel_(){
   catch(e){return false;}
 }
 
+async function notificarClientesUploadFinalizado_(job,status){
+  try{
+    const clientes = await self.clients.matchAll({
+      type:'window',
+      includeUncontrolled:true
+    });
+
+    for(const cliente of clientes){
+      try{
+        cliente.postMessage({
+          tipo:'UPLOAD_FINALIZADO',
+          uploadId: job && job.uploadId ? job.uploadId : '',
+          maquina: job && job.maquina ? job.maquina : '',
+          status: status || {}
+        });
+      }catch(e){}
+    }
+  }catch(e){}
+}
+
 /* V13.82 — caminho oficial FCM em segundo plano. O push nativo abaixo
  * continua como fallback. Se o firebase-config.js estiver disponível,
  * o SDK também registra onBackgroundMessage. */
@@ -120,7 +140,13 @@ self.addEventListener('activate', function(event){ event.waitUntil(self.clients.
 self.addEventListener('message', function(event) {
   const dados = event && event.data ? event.data : {};
   if (dados.tipo === 'ALARME_BLOQUEIO_TELA') { event.waitUntil(mostrarAlarmeLocal_(dados)); return; }
-  if (dados.tipo === 'PROCESSAR_UPLOADS_AGORA') event.waitUntil(processarUploadsEmSegundoPlano_());
+  if (dados.tipo === 'PROCESSAR_UPLOADS_AGORA') {
+    event.waitUntil(
+      processarUploadsEmSegundoPlano_(
+        Boolean(dados.forcarEmSegundoPlano)
+      )
+    );
+  }
 });
 
 self.addEventListener('sync', function(event) {
@@ -171,13 +197,13 @@ async function postar_(params){
 function consultarJsonp_(url){ return new Promise(function(resolve,reject){ const cb='__raSwCb_'+Date.now()+'_'+Math.random().toString(36).slice(2,8); self[cb]=res=>{delete self[cb];resolve(res||null)}; try{ importScripts(url+(url.indexOf('?')>=0?'&':'?')+'callback='+encodeURIComponent(cb)); } catch(e){delete self[cb];reject(e);} }); }
 async function consultarFinal_(u){ const d=await consultarJsonp_(URL_APPS_SCRIPT+'?status=final&uploadId='+encodeURIComponent(u)+'&_='+Date.now()); return d||null; }
 
-async function processarJobBackground_(job, deadlineMs){
-  if(await existeJanelaVisivel_() || (job&&job.status==='waiting_defect')) return false;
+async function processarJobBackground_(job, deadlineMs, forcarEmSegundoPlano){
+  if((!forcarEmSegundoPlano && await existeJanelaVisivel_()) || (job&&job.status==='waiting_defect')) return false;
   const total=Number(job.totalChunks||0);
   if(!total) return true;
 
   while(Date.now() < deadlineMs){
-    if(await existeJanelaVisivel_()) return false;
+    if(!forcarEmSegundoPlano && await existeJanelaVisivel_()) return false;
     let next=Number(job.nextChunk||0);
 
     if(next>=total){
@@ -253,6 +279,7 @@ async function solicitarFinalizacaoBackground_(job){
 async function concluirJobBackground_(job,status){
   job.status='completed'; job.completedAt=Date.now(); job.resultadoFinal=status||{};
   await idbPut_(STORE_JOBS,job);
+  await notificarClientesUploadFinalizado_(job,status||{});
   try{
     const db=await abrirBanco_();
     await new Promise((resolve)=>{
@@ -266,7 +293,7 @@ async function concluirJobBackground_(job,status){
   }catch(e){}
 }
 
-async function processarUploadsEmSegundoPlano_(){
+async function processarUploadsEmSegundoPlano_(forcarEmSegundoPlano){
   if(backgroundUploadRunning) return;
   backgroundUploadRunning=true;
   const limiteGlobal=Date.now()+MAX_BACKGROUND_RUN_MS;
@@ -278,7 +305,7 @@ async function processarUploadsEmSegundoPlano_(){
     for(const job of jobs){
       if(Date.now()>=limiteGlobal) break;
       try{
-        await processarJobBackground_(job,limiteGlobal);
+        await processarJobBackground_(job,limiteGlobal,Boolean(forcarEmSegundoPlano));
       }catch(erro){
         try{
           if(job.status!=='finalizing') job.status='queued';
