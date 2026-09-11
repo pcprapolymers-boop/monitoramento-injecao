@@ -4175,7 +4175,7 @@ const VERSAO_DB_VIDEO =
   4;
 
 const VERSAO_APLICACAO =
-  'V13.120';
+  'V13.123';
 
 const STORE_JOBS =
   'jobs';
@@ -4644,7 +4644,9 @@ async function agendarUploadsEmSegundoPlano_() {
 }
 
 
-function solicitarProcessamentoUploadsServiceWorker_() {
+function solicitarProcessamentoUploadsServiceWorker_(
+  forcarEmSegundoPlano
+) {
 
   try {
 
@@ -4666,7 +4668,9 @@ function solicitarProcessamentoUploadsServiceWorker_() {
         }
 
         trabalhador.postMessage({
-          tipo: 'PROCESSAR_UPLOADS_AGORA'
+          tipo: 'PROCESSAR_UPLOADS_AGORA',
+          forcarEmSegundoPlano:
+            Boolean(forcarEmSegundoPlano)
         });
 
       })
@@ -6465,6 +6469,8 @@ async function reconciliarFinalizacoesVideo_() {
           await apagarJobLocal(job.uploadId);
           limparVideoEmProcessamentoLocal_(job.maquina,job.uploadId);
           try{cacheUltimaInspecaoPorMaquina.delete(normalizarMaquinaChave_(job.maquina));}catch(_){}
+          try{atualizarAlarmeGlobalAposMudancaLocal_();}catch(_){}
+          try{atualizarPendenciasAposVideoLocal_();}catch(_){}
           try{await consultarPendenciasAntesDaMaquina({forcarAtualizacao:true,silencioso:true});}catch(_){}
         }
       } catch (erro) {
@@ -7095,6 +7101,19 @@ async function processarJobUpload(
 
       }
       catch (erroCache) {}
+
+      /*
+       * V13.123 — atualiza a lista de pendências imediatamente
+       * usando o estado local já conhecido. A consulta ao servidor
+       * continua depois, em segundo plano.
+       */
+      try {
+        atualizarAlarmeGlobalAposMudancaLocal_();
+      } catch (_) {}
+
+      try {
+        atualizarPendenciasAposVideoLocal_();
+      } catch (_) {}
 
       setTimeout(
         function() {
@@ -21839,7 +21858,7 @@ document.addEventListener(
     ) {
 
       /* V13.80 — entrega imediata da fila ao Service Worker. */
-      solicitarProcessamentoUploadsServiceWorker_();
+      solicitarProcessamentoUploadsServiceWorker_(true);
       agendarUploadsEmSegundoPlano_();
 
       /* V13.82 — não parar o alarme sonoro artificialmente ao entrar em hidden. */
@@ -22052,9 +22071,74 @@ document.addEventListener(
 /* V13.82 — última tentativa de entregar a fila ao Service Worker
  * quando a página estiver sendo descartada/navegada. */
 document.addEventListener('pagehide', function() {
-  try { solicitarProcessamentoUploadsServiceWorker_(); } catch (_) {}
+  try { solicitarProcessamentoUploadsServiceWorker_(true); } catch (_) {}
   try { agendarUploadsEmSegundoPlano_(); } catch (_) {}
 }, { capture: true });
+
+
+/*
+ * V13.123 — o Service Worker avisa imediatamente quando um vídeo
+ * terminou no Drive, sem esperar o próximo ciclo de reconciliação.
+ */
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.addEventListener(
+    'message',
+    function(event) {
+      const dados =
+        event && event.data
+          ? event.data
+          : null;
+
+      if (
+        !dados ||
+        dados.tipo !== 'UPLOAD_FINALIZADO' ||
+        !dados.uploadId
+      ) {
+        return;
+      }
+
+      (async function() {
+        try {
+          const job =
+            await obterJobLocal(
+              dados.uploadId
+            );
+
+          if (job) {
+            await apagarJobLocal(
+              dados.uploadId
+            );
+          }
+
+          if (dados.maquina) {
+            limparVideoEmProcessamentoLocal_(
+              dados.maquina,
+              dados.uploadId
+            );
+
+            try {
+              cacheUltimaInspecaoPorMaquina.delete(
+                normalizarMaquinaChave_(
+                  dados.maquina
+                )
+              );
+            } catch (_) {}
+          }
+
+          atualizarAlarmeGlobalAposMudancaLocal_();
+          atualizarPendenciasAposVideoLocal_();
+          await atualizarFilaUI();
+        }
+        catch (erro) {
+          console.warn(
+            'Falha ao processar conclusão do Service Worker:',
+            erro
+          );
+        }
+      })();
+    }
+  );
+}
 
 
 document.getElementById(
