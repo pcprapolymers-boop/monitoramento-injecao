@@ -9378,21 +9378,36 @@ function atualizarSeletorPecaMoldeUI_() {
 }
 
 function atualizarVisibilidadeFluxoProducao_() {
+  /* V13.109 — o status não controla mais a visibilidade do fluxo.
+   * Depois que existe uma máquina selecionada, Produto, Conformidade e
+   * Iniciar inspeção permanecem na tela. O bloqueio passa a ser feito
+   * apenas por habilitação/desabilitação dos controles.
+   */
   const productCard = document.getElementById('productCard');
   const conformidadeCard = document.getElementById('conformidadeCard');
   const startCard = document.getElementById('startCard');
-  const produzindoConfirmado = Boolean(
-    statusServidorCarregado &&
-    normalizarStatusMaquinaUI_(statusOperacionalMaquina || '') === 'PRODUZINDO'
-  );
+  const temMaquina = Boolean(String(maquina || '').trim());
+
   if (productCard) {
-    productCard.classList.toggle('hidden', !produzindoConfirmado);
-    productCard.style.display = produzindoConfirmado ? 'block' : 'none';
+    productCard.classList.toggle('hidden', !temMaquina);
+    productCard.style.display = temMaquina ? 'block' : 'none';
   }
-  if (!produzindoConfirmado) {
-    if (conformidadeCard) conformidadeCard.classList.add('hidden');
-    if (startCard) startCard.classList.add('hidden');
+  if (conformidadeCard) {
+    conformidadeCard.classList.toggle('hidden', !temMaquina);
+    conformidadeCard.style.display = temMaquina ? 'block' : 'none';
   }
+  if (startCard) {
+    startCard.classList.toggle('hidden', !temMaquina);
+    startCard.style.display = temMaquina ? 'block' : 'none';
+  }
+
+  const statusEhProduzindo =
+    normalizarStatusMaquinaUI_(statusOperacionalMaquina || '') === 'PRODUZINDO';
+  const btnSim = document.getElementById('btnSim');
+  const btnNao = document.getElementById('btnNao');
+  if (btnSim) btnSim.disabled = !temMaquina || !statusEhProduzindo;
+  if (btnNao) btnNao.disabled = !temMaquina || !statusEhProduzindo;
+
   atualizarSubmenuDefeitoPecaUI_();
   atualizarSeletorPecaMoldeUI_();
 }
@@ -16378,7 +16393,7 @@ function verificarFormulario() {
 
   const pronto =
     Boolean(
-      statusServidorCarregado &&
+      maquina &&
       normalizarStatusMaquinaUI_(statusOperacionalMaquina || '') === 'PRODUZINDO' &&
       dadosBasicosOk &&
       tempoCiclo > 0 &&
@@ -16406,60 +16421,17 @@ function verificarFormulario() {
     );
 
 
-  const fluxoProducaoLiberado = Boolean(
-    statusServidorCarregado &&
-    normalizarStatusMaquinaUI_(statusOperacionalMaquina || '') === 'PRODUZINDO'
-  );
-
-  if (
-    dadosBasicosOk &&
-    fluxoProducaoLiberado
-  ) {
-
-    conformidadeCard
-      .classList
-      .remove(
-        'hidden'
-      );
-
+  /* V13.109 — os cards permanecem visíveis; apenas o botão é controlado. */
+  if (conformidadeCard) {
+    conformidadeCard.classList.remove('hidden');
+    conformidadeCard.style.display = 'block';
   }
-  else {
-
-    conformidadeCard
-      .classList
-      .add(
-        'hidden'
-      );
-
+  if (startCard) {
+    startCard.classList.remove('hidden');
+    startCard.style.display = 'block';
   }
 
-
-  if (
-    pronto
-  ) {
-
-    startCard
-      .classList
-      .remove(
-        'hidden'
-      );
-
-    btn.disabled =
-      false;
-
-  }
-  else {
-
-    startCard
-      .classList
-      .add(
-        'hidden'
-      );
-
-    btn.disabled =
-      true;
-
-  }
+  btn.disabled = !pronto;
 
 }
 
