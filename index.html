@@ -12202,6 +12202,27 @@ function aplicarDadosStatusNaTela_(
   if (!dados || !dados.sucesso) return;
 
   const statusServidor = normalizarStatusMaquinaUI_(dados.status || 'PRODUZINDO');
+
+  /* V13.108: não deixar uma resposta/cache antigo sobrescrever uma
+     alteração de status confirmada localmente há poucos segundos. */
+  const statusLocalAtual = normalizarStatusMaquinaUI_(statusOperacionalMaquina || '');
+  const idadeConfirmacaoLocal = Date.now() - Number(statusConfirmadoLocalEm || 0);
+  if (
+    Number(statusConfirmadoLocalEm || 0) > 0 &&
+    idadeConfirmacaoLocal >= 0 &&
+    idadeConfirmacaoLocal < 20000 &&
+    statusLocalAtual &&
+    statusLocalAtual !== statusServidor
+  ) {
+    try {
+      debugUploadCliente(
+        'STATUS_REMOTO_ANTIGO_IGNORADO',
+        { mediaType: 'STATUS', maquina: maquina },
+        { statusLocal: statusLocalAtual, statusRemoto: statusServidor, idadeMs: idadeConfirmacaoLocal }
+      );
+    } catch (_) {}
+    return;
+  }
   statusAnteriorMaquina = statusServidor;
   statusSelecionadoMaquina = statusServidor;
   statusOperacionalMaquina = statusServidor;
@@ -13065,7 +13086,7 @@ function verificarStatusSalvoEmSegundoPlano(
   setTimeout(
     function() {
 
-      carregarStatusMaquina()
+      carregarStatusMaquina(true)
         .then(
           function(dados) {
 
@@ -13307,6 +13328,7 @@ async function salvarStatusMaquina() {
       statusAudioConcluido = true;
       statusAtualizadoEm = new Date().toISOString();
       statusConfirmadoLocalEm = Date.now();
+      try { cacheStatusPorMaquina.delete(normalizarMaquinaChave_(maquinaNoInicio || maquina)); } catch (_) {}
       statusAtualizacaoObrigatoria = false;
       /* V13.105 — MANTER PRODUZINDO já confirma localmente o status.
          Não esconder o fluxo enquanto a fila em segundo plano sincroniza. */
@@ -13388,6 +13410,7 @@ async function salvarStatusMaquina() {
     statusServidorCarregado = statusNovo === 'PRODUZINDO';
     statusAtualizadoEm = new Date().toISOString();
     statusConfirmadoLocalEm = Date.now();
+    try { cacheStatusPorMaquina.delete(normalizarMaquinaChave_(maquinaNoInicio || maquina)); } catch (_) {}
     statusAtualizacaoObrigatoria = false;
     inicioStatusMaquina = new Date().toISOString();
     motivoParadaMaquina = statusNovo === 'PRODUZINDO' ? 'RETORNO À PRODUÇÃO' : (statusNovo === 'PECA_DEFEITO' ? (MAPA_DEFEITOS_PECA_UI_[detalhamentoNovo] || 'PEÇA COM DEFEITO') : statusNovo);
@@ -15257,6 +15280,7 @@ function manterStatusAtual() {
     statusAudioConcluido = true;
     statusAtualizadoEm = new Date().toISOString();
     statusConfirmadoLocalEm = Date.now();
+    try { cacheStatusPorMaquina.delete(normalizarMaquinaChave_(maquina)); } catch (_) {}
     statusAtualizacaoObrigatoria = false;
 
     if (statusAtual === 'PRODUZINDO') {
