@@ -285,7 +285,7 @@
       width: 100%;
       display: block;
       aspect-ratio: 16 / 9;
-      object-fit: cover;
+      object-fit: contain;
       object-position: center center;
       background: #000;
     }
@@ -17106,7 +17106,7 @@ function iniciarPreviewCamera16x9_(camera) {
     camera.style.width = '100%';
     camera.style.height = 'auto';
     camera.style.aspectRatio = '16 / 9';
-    camera.style.objectFit = 'cover';
+    camera.style.objectFit = 'contain';
     camera.style.objectPosition = 'center center';
     camera.style.background = '#000';
     camera.style.transform = 'none';
@@ -17512,7 +17512,7 @@ async function iniciarCameraInterna_() {
       '16 / 9';
 
     camera.style.objectFit =
-      'cover';
+      'contain';
 
     camera.style.background =
       '#000';
