@@ -1342,39 +1342,16 @@ button:active {
     </div>
 
     <div class="card" id="machineSelectionCard">
-
-      <div class="clean-step-title">
-        <span class="clean-step-number">1</span>
-        <span>🏭 SELECIONE A MÁQUINA <span class="clean-required">obrigatório</span></span>
-      </div>
-
-      <div class="clean-subtitle">
-        Escolha a máquina que será inspecionada.
-      </div>
-
-      <div class="clean-field">
-        <label for="machineSelector">Máquina</label>
-
-        <select
-          id="machineSelector"
-          onchange="selecionarMaquinaProvisoria()"
-        >
-          <option value="">Selecione a máquina</option>
-          <option value="M1">M-1</option>
-          <option value="M2">M-2</option>
-          <option value="M3">M-3</option>
-          <option value="M4">M-4</option>
-          <option value="M5">M-5</option>
-          <option value="M6">M-6</option>
-        </select>
-
-        <div class="clean-help">
-          A máquina selecionada ficará vinculada à inspeção e ao status informado.
-        </div>
-      </div>
-
+      <div class="clean-step-title"><span class="clean-step-number">1</span><span>📳 IDENTIFICAÇÃO NFC DA MÁQUINA</span></div>
+      <div class="clean-subtitle">Aproxime o telefone da etiqueta da injetora. Não há seleção manual.</div>
+      <button type="button" id="btnIniciarNfc" onclick="iniciarLeituraNfcRA_()" style="width:100%;min-height:54px;font-weight:800">📳 LER TAG NFC</button>
+      <div id="nfcMensagemRA" role="status" aria-live="polite" style="padding:10px 0;font-weight:700">Aguardando leitura NFC.</div>
+      <select id="machineSelector" style="display:none" aria-hidden="true" tabindex="-1">
+        <option value="">Sem máquina</option>
+        <option value="M1">M-1</option><option value="M2">M-2</option><option value="M3">M-3</option>
+        <option value="M4">M-4</option><option value="M5">M-5</option><option value="M6">M-6</option>
+      </select>
     </div>
-
 
     <!-- STATUS OPERACIONAL DA MÁQUINA -->
     <div
@@ -3315,7 +3292,6 @@ const parametros =
 
 let maquina =
   (
-    parametros.get('m') ||
     ''
   )
   .trim()
@@ -9956,6 +9932,10 @@ function finalizarTransicaoMaquinaUI_(maquinaConfirmada, sucesso) {
 async function selecionarMaquinaPendenteDoPainel(
   elemento
 ) {
+  informarNfcRA_("Para abrir uma máquina, leia sua etiqueta NFC.");
+  document.getElementById("machineSelectionCard")?.scrollIntoView({behavior:"smooth"});
+  return;
+
 
   const novaMaquina =
     normalizarMaquinaTela(
@@ -10095,7 +10075,56 @@ async function selecionarMaquinaPendenteDoPainel(
 
 
 
+/* V13.128: seleção exclusivamente por leitura NDEF. Não confiar em UID como segredo. */
+let autorizacaoLeituraNfcRA_ = false;
+let leitorNfcRA_ = null;
+function informarNfcRA_(mensagem) {
+  const el=document.getElementById('nfcMensagemRA');
+  if(el) el.textContent=mensagem;
+}
+async function iniciarLeituraNfcRA_() {
+  if (!('NDEFReader' in window)) {
+    informarNfcRA_('NFC pelo navegador indisponível. Use Chrome no Android com HTTPS e NFC ligado.');
+    return;
+  }
+  try {
+    if (leitorNfcRA_) { try { leitorNfcRA_.onreading=null; leitorNfcRA_.onreadingerror=null; } catch(e){} }
+    const leitor=new NDEFReader();
+    leitorNfcRA_=leitor;
+    await leitor.scan();
+    informarNfcRA_('Aguardando etiqueta RA Polymers. Aproxime o telefone...');
+    leitor.onreadingerror=()=>informarNfcRA_('Falha na leitura. Aproxime novamente.');
+    leitor.onreading=async evento=>{
+      if(leitor!==leitorNfcRA_) return;
+      let identificador='';
+      for (const registro of evento.message.records) {
+        if(registro.recordType!=='text') continue;
+        try {
+          const texto=new TextDecoder(registro.encoding||'utf-8').decode(registro.data).trim().toUpperCase();
+          if(/^RA_POLYMERS_M[1-6]$/.test(texto)) {identificador=texto;break;}
+        } catch(e){}
+      }
+      if(!identificador){informarNfcRA_('Etiqueta não cadastrada. Use RA_POLYMERS_M1 até M6.');return;}
+      const destino=identificador.replace('RA_POLYMERS_','');
+      const seletor=document.getElementById('machineSelector');
+      if(!seletor)return;
+      if(videoEmPreparacaoOuGravacao || statusAudioGravando){
+        informarNfcRA_('Finalize a gravação em andamento antes de trocar de máquina.');
+        return;
+      }
+      informarNfcRA_('Etiqueta '+identificador+' reconhecida. Carregando...');
+      seletor.value=destino;
+      autorizacaoLeituraNfcRA_=true;
+      try { await selecionarMaquinaProvisoria(); informarNfcRA_('Máquina '+destino+' identificada por NFC.'); }
+      catch(e) { informarNfcRA_('Erro ao carregar máquina: '+(e.message||e)); }
+      finally { autorizacaoLeituraNfcRA_=false; }
+    };
+  } catch(e) { informarNfcRA_('Não foi possível ativar NFC: '+(e.message||e)); }
+}
+
 async function selecionarMaquinaProvisoria() {
+  if (!autorizacaoLeituraNfcRA_) { informarNfcRA_("Leitura NFC obrigatória."); return; }
+
 
   garantirOperadoresDisponiveis_();
 
