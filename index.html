@@ -1121,6 +1121,38 @@ button:active {
   opacity: 1 !important;
 }
 /* V13.58 — bloqueio de tela + Push */
+
+/* V13.129 — portão obrigatório de entrada NFC */
+#nfcGateRA {
+  position:fixed;
+  inset:0;
+  z-index:2147483647;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:22px;
+  overflow:auto;
+  background:linear-gradient(145deg,#0F3556 0%,#174A78 58%,#0B263F 100%);
+}
+#nfcGateRA .nfc-gate-card {
+  width:100%;
+  max-width:460px;
+  padding:28px 22px;
+  border-radius:22px;
+  background:#FFFFFF;
+  box-shadow:0 18px 55px rgba(0,0,0,.28);
+  text-align:center;
+}
+#nfcGateRA .nfc-gate-logo { width:170px; max-width:70%; height:auto; margin:0 auto 14px; display:block; }
+#nfcGateRA .nfc-gate-title { color:#17324D; font-size:22px; font-weight:900; line-height:1.2; }
+#nfcGateRA .nfc-gate-subtitle { color:#536777; font-size:14px; line-height:1.45; margin:10px 0 20px; }
+#nfcGateRA .nfc-gate-symbol { width:112px; height:112px; margin:0 auto 18px; border-radius:50%; display:flex; align-items:center; justify-content:center; background:#EAF2F8; color:#174A78; }
+#nfcGateRA .nfc-gate-symbol svg { width:56px; height:56px; }
+#btnIniciarNfc { width:100%; min-height:58px; border-radius:14px; background:#174A78; color:#FFFFFF; font-size:17px; font-weight:900; }
+#nfcMensagemRA { min-height:48px; padding:14px 8px 2px; color:#17324D; font-size:14px; font-weight:800; line-height:1.4; }
+#nfcTrocarMaquinaBtn { width:100%; min-height:42px; margin-top:10px; border-radius:12px; background:#EAF2F8; color:#174A78; font-size:14px; font-weight:900; }
+#machineSelectionCard { display:none !important; }
+
 </style>
 
   <link rel="preconnect" href="https://script.google.com">
@@ -1129,6 +1161,22 @@ button:active {
 
 <body>
 
+<div id="nfcGateRA" role="dialog" aria-modal="true" aria-hidden="false" aria-labelledby="nfcGateTitleRA">
+  <div class="nfc-gate-card">
+    <img src="assets/ra-polymers-logo.png?v=13.129" class="nfc-gate-logo" alt="RA Polymers">
+    <div class="nfc-gate-title" id="nfcGateTitleRA">IDENTIFIQUE A MÁQUINA</div>
+    <div class="nfc-gate-subtitle">Para acessar status, inspeção e produção, aproxime este telefone da etiqueta NFC instalada na injetora.</div>
+    <div class="nfc-gate-symbol" aria-hidden="true">
+      <svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round">
+        <path d="M23 17c-8 8-8 22 0 30M31 24c-4 4-4 12 0 16M41 17c8 8 8 22 0 30M49 10c12 12 12 32 0 44"/>
+        <rect x="25" y="25" width="14" height="14" rx="3" fill="currentColor" stroke="none"/>
+      </svg>
+    </div>
+    <button type="button" id="btnIniciarNfc" onclick="iniciarLeituraNfcRA_()">📳 LER TAG NFC</button>
+    <div id="nfcMensagemRA" role="status" aria-live="polite">Aguardando identificação da máquina.</div>
+    <div style="margin-top:14px;color:#71808D;font-size:11px;line-height:1.4">A seleção manual está desativada. Somente uma etiqueta RA Polymers cadastrada libera o sistema.</div>
+  </div>
+</div>
 
 <div
   id="statusMandatoryOverlay"
@@ -1148,7 +1196,7 @@ button:active {
   </div>
 </div>
 
-<div class="app">
+<div class="app" id="appContainerRA" aria-hidden="true" style="display:none;">
 
   <!-- CABEÇALHO -->
 
@@ -1167,9 +1215,11 @@ button:active {
     <div
       class="machine"
       id="machine"
-     style="display:none !important;">
-      SELECIONE A MÁQUINA
+      style="display:block !important;">
+      AGUARDANDO NFC
     </div>
+
+    <button type="button" id="nfcTrocarMaquinaBtn" onclick="abrirPortaoNfcRA_()">📳 TROCAR MÁQUINA (NFC)</button>
 
   </div>
 
@@ -1341,12 +1391,8 @@ button:active {
       ></div>
     </div>
 
-    <div class="card" id="machineSelectionCard">
-      <div class="clean-step-title"><span class="clean-step-number">1</span><span>📳 IDENTIFICAÇÃO NFC DA MÁQUINA</span></div>
-      <div class="clean-subtitle">Aproxime o telefone da etiqueta da injetora. Não há seleção manual.</div>
-      <button type="button" id="btnIniciarNfc" onclick="iniciarLeituraNfcRA_()" style="width:100%;min-height:54px;font-weight:800">📳 LER TAG NFC</button>
-      <div id="nfcMensagemRA" role="status" aria-live="polite" style="padding:10px 0;font-weight:700">Aguardando leitura NFC.</div>
-      <select id="machineSelector" style="display:none" aria-hidden="true" tabindex="-1">
+    <div id="machineSelectionCard" style="display:none!important" aria-hidden="true">
+      <select id="machineSelector" tabindex="-1">
         <option value="">Sem máquina</option>
         <option value="M1">M-1</option><option value="M2">M-2</option><option value="M3">M-3</option>
         <option value="M4">M-4</option><option value="M5">M-5</option><option value="M6">M-6</option>
@@ -8864,6 +8910,8 @@ function consultarPendenciasAntesDaMaquina(
   opcoes
 ) {
 
+  if (!nfcMaquinaLiberadaRA_) return Promise.resolve(null);
+
   const forcar =
     Boolean(
       opcoes &&
@@ -9932,8 +9980,8 @@ function finalizarTransicaoMaquinaUI_(maquinaConfirmada, sucesso) {
 async function selecionarMaquinaPendenteDoPainel(
   elemento
 ) {
-  informarNfcRA_("Para abrir uma máquina, leia sua etiqueta NFC.");
-  document.getElementById("machineSelectionCard")?.scrollIntoView({behavior:"smooth"});
+  abrirPortaoNfcRA_();
+  informarNfcRA_("Leia a etiqueta NFC da máquina que deseja acessar.");
   return;
 
 
@@ -10075,6 +10123,47 @@ async function selecionarMaquinaPendenteDoPainel(
 
 
 
+/* V13.129 — nenhum dado de status/inspeção é consultado antes da leitura NFC. */
+let nfcMaquinaLiberadaRA_ = false;
+let nfcPendenciasIniciadasRA_ = false;
+
+function abrirPortaoNfcRA_() {
+  if (videoEmPreparacaoOuGravacao || statusAudioGravando || gravacaoAtivaBloqueiaAlarme()) {
+    informarNfcRA_('Finalize a gravação em andamento antes de trocar de máquina.');
+    return;
+  }
+  nfcMaquinaLiberadaRA_ = false;
+  const app=document.getElementById('appContainerRA');
+  const gate=document.getElementById('nfcGateRA');
+  if(app) { app.style.display='none'; app.setAttribute('aria-hidden','true'); }
+  if(gate) { gate.style.display='flex'; gate.setAttribute('aria-hidden','false'); }
+  document.body.style.overflow='hidden';
+  informarNfcRA_('Aproxime o telefone da etiqueta NFC da máquina.');
+  const botao=document.getElementById('btnIniciarNfc');
+  if(botao){botao.disabled=false;botao.textContent='📳 LER TAG NFC';}
+}
+
+function liberarPortaoNfcRA_(maquinaLiberada) {
+  const gate=document.getElementById('nfcGateRA');
+  const app=document.getElementById('appContainerRA');
+  const card=document.getElementById('machineSelectionCard');
+  if(card) card.style.display='none';
+  if(gate) { gate.style.display='none'; gate.setAttribute('aria-hidden','true'); }
+  if(app) { app.style.display='block'; app.setAttribute('aria-hidden','false'); }
+  document.body.style.overflow='';
+  nfcMaquinaLiberadaRA_=true;
+  const nome=document.getElementById('machine');
+  if(nome) nome.textContent='MÁQUINA '+maquinaLiberada.replace(/^M/,'M-');
+  if(!nfcPendenciasIniciadasRA_) {
+    nfcPendenciasIniciadasRA_=true;
+    try { mostrarPendenciasNaAbertura_(); } catch(e) {}
+    try { consultarPendenciasAntesDaMaquina(); } catch(e) {}
+    if(!pendenciasGlobaisTimer) {
+      pendenciasGlobaisTimer=setInterval(consultarPendenciasAntesDaMaquina,30000);
+    }
+  }
+}
+
 /* V13.128: seleção exclusivamente por leitura NDEF. Não confiar em UID como segredo. */
 let autorizacaoLeituraNfcRA_ = false;
 let leitorNfcRA_ = null;
@@ -10112,11 +10201,24 @@ async function iniciarLeituraNfcRA_() {
         informarNfcRA_('Finalize a gravação em andamento antes de trocar de máquina.');
         return;
       }
-      informarNfcRA_('Etiqueta '+identificador+' reconhecida. Carregando...');
+      informarNfcRA_('Etiqueta '+identificador+' reconhecida. Carregando máquina...');
+      leitor.onreading=null;
+      leitor.onreadingerror=null;
+      const botao=document.getElementById('btnIniciarNfc');
+      if(botao) botao.disabled=true;
       seletor.value=destino;
       autorizacaoLeituraNfcRA_=true;
-      try { await selecionarMaquinaProvisoria(); informarNfcRA_('Máquina '+destino+' identificada por NFC.'); }
-      catch(e) { informarNfcRA_('Erro ao carregar máquina: '+(e.message||e)); }
+      nfcMaquinaLiberadaRA_=true;
+      try {
+        await selecionarMaquinaProvisoria();
+        if(!maquinaValida || normalizarMaquinaTela(maquina)!==destino) throw new Error('A máquina não foi carregada corretamente.');
+        liberarPortaoNfcRA_(destino);
+      }
+      catch(e) {
+        nfcMaquinaLiberadaRA_=false;
+        if(botao) botao.disabled=false;
+        informarNfcRA_('Erro ao carregar máquina: '+(e.message||e)+'. Tente novamente.');
+      }
       finally { autorizacaoLeituraNfcRA_=false; }
     };
   } catch(e) { informarNfcRA_('Não foi possível ativar NFC: '+(e.message||e)); }
@@ -11431,6 +11533,8 @@ function emitirAlarmeInspecao() {
 
 function carregarUltimaInspecaoMaquina() {
 
+  if (!nfcMaquinaLiberadaRA_) return Promise.resolve(null);
+
   if (!maquina) {
 
     ultimaInspecaoRegistrada = null;
@@ -12393,6 +12497,8 @@ function atualizarStatusMaquinaUI() {
 
 
 function carregarStatusMaquina(forcarRede) {
+
+  if (!nfcMaquinaLiberadaRA_) return Promise.resolve(null);
 
   return new Promise(
     function(
@@ -22384,7 +22490,6 @@ document.addEventListener(
   'DOMContentLoaded',
   async function() {
 
-    mostrarPendenciasNaAbertura_();
     atualizarStatusPushUI_();
 
     carregarInspecoesConcluidasLocal_();
@@ -22455,12 +22560,7 @@ document.addEventListener(
 
     }
 
-    consultarPendenciasAntesDaMaquina();
-    pendenciasGlobaisTimer =
-      setInterval(
-        consultarPendenciasAntesDaMaquina,
-        30000
-      );
+    /* A consulta global de pendências só começa depois da leitura NFC válida. */
 
 
 
