@@ -1153,6 +1153,23 @@ button:active {
 #nfcTrocarMaquinaBtn { width:100%; min-height:42px; margin-top:10px; border-radius:12px; background:#EAF2F8; color:#174A78; font-size:14px; font-weight:900; }
 #machineSelectionCard { display:none !important; }
 
+
+/* V13.130 — fluxo em etapas: pendências -> NFC -> status -> inspeção. */
+#nfcGateRA { display:none; }
+#homePendingScreenRA { display:block; }
+#preMachineAlarmCard { display:block; border:2px solid #D6E4EE !important; background:#FFFFFF !important; }
+#appContainerRA.ra-home-pendencias #mainForm,
+#appContainerRA.ra-home-pendencias #pushCard,
+#appContainerRA.ra-home-pendencias #uploadQueueCard,
+#appContainerRA.ra-home-pendencias #debugLocalContainer,
+#appContainerRA.ra-home-pendencias #nfcTrocarMaquinaBtn { display:none !important; }
+#appContainerRA.ra-home-pendencias #homePendingScreenRA { display:block !important; }
+#appContainerRA.ra-machine-active #homePendingScreenRA { display:none !important; }
+#appContainerRA.ra-machine-active #mainForm { display:block !important; }
+#appContainerRA.ra-machine-active #nfcTrocarMaquinaBtn { display:block !important; }
+#appContainerRA.ra-machine-active #machineSelectionCard { display:none !important; }
+#btnVoltarPendenciasStatusRA { width:100%; min-height:46px; margin-top:10px; border-radius:10px; background:#EAF2F8; color:#174A78; font-weight:900; }
+
 </style>
 
   <link rel="preconnect" href="https://script.google.com">
@@ -1161,11 +1178,11 @@ button:active {
 
 <body>
 
-<div id="nfcGateRA" role="dialog" aria-modal="true" aria-hidden="false" aria-labelledby="nfcGateTitleRA">
+<div id="nfcGateRA" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="nfcGateTitleRA" style="display:none">
   <div class="nfc-gate-card">
-    <img src="assets/ra-polymers-logo.png?v=13.129" class="nfc-gate-logo" alt="RA Polymers">
-    <div class="nfc-gate-title" id="nfcGateTitleRA">IDENTIFIQUE A MÁQUINA</div>
-    <div class="nfc-gate-subtitle">Para acessar status, inspeção e produção, aproxime este telefone da etiqueta NFC instalada na injetora.</div>
+    <img src="assets/ra-polymers-logo.png?v=13.130" class="nfc-gate-logo" alt="RA Polymers">
+    <div class="nfc-gate-title" id="nfcGateTitleRA">CONFIRME A MÁQUINA</div>
+    <div class="nfc-gate-subtitle" id="nfcGateSubtitleRA">A máquina selecionada precisa ser confirmada pela etiqueta NFC correspondente.</div>
     <div class="nfc-gate-symbol" aria-hidden="true">
       <svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round">
         <path d="M23 17c-8 8-8 22 0 30M31 24c-4 4-4 12 0 16M41 17c8 8 8 22 0 30M49 10c12 12 12 32 0 44"/>
@@ -1174,7 +1191,8 @@ button:active {
     </div>
     <button type="button" id="btnIniciarNfc" onclick="iniciarLeituraNfcRA_()">📳 LER TAG NFC</button>
     <div id="nfcMensagemRA" role="status" aria-live="polite">Aguardando identificação da máquina.</div>
-    <div style="margin-top:14px;color:#71808D;font-size:11px;line-height:1.4">A seleção manual está desativada. Somente uma etiqueta RA Polymers cadastrada libera o sistema.</div>
+    <div style="margin-top:14px;color:#71808D;font-size:11px;line-height:1.4">A etiqueta precisa corresponder exatamente à máquina selecionada.</div>
+    <button type="button" id="btnCancelarNfcRA" onclick="cancelarNfcVoltarPendenciasRA_()" style="width:100%;min-height:44px;margin-top:12px;border-radius:12px;background:#EAF2F8;color:#174A78;font-weight:900">CANCELAR E VOLTAR ÀS PENDÊNCIAS</button>
   </div>
 </div>
 
@@ -1196,7 +1214,7 @@ button:active {
   </div>
 </div>
 
-<div class="app" id="appContainerRA" aria-hidden="true" style="display:none;">
+<div class="app ra-home-pendencias" id="appContainerRA" aria-hidden="false" style="display:block;">
 
   <!-- CABEÇALHO -->
 
@@ -1216,10 +1234,10 @@ button:active {
       class="machine"
       id="machine"
       style="display:block !important;">
-      AGUARDANDO NFC
+      PENDÊNCIAS DA FÁBRICA
     </div>
 
-    <button type="button" id="nfcTrocarMaquinaBtn" onclick="abrirPortaoNfcRA_()">📳 TROCAR MÁQUINA (NFC)</button>
+    <button type="button" id="nfcTrocarMaquinaBtn" onclick="voltarPendenciasRA_()">↩️ VOLTAR ÀS PENDÊNCIAS</button>
 
   </div>
 
@@ -1230,6 +1248,40 @@ button:active {
     id="message"
     class="message"
   ></div>
+
+  <section id="homePendingScreenRA" aria-label="Pendências das máquinas" style="padding:0 12px 16px;">
+    <div style="font-size:16px;font-weight:900;color:#17324D;margin:4px 0 10px;">SELECIONE A MÁQUINA QUE PRECISA DE ATENDIMENTO</div>
+    <div
+      id="preMachineAlarmCard"
+      class="card alarm-overview-card"
+      style="display:block;margin-bottom:12px;"
+    >
+      <div
+        id="preMachineAlarmTitle"
+        style="
+          font-size:18px;
+          font-weight:800;
+          color:#17324D;
+        "
+      >
+        🏭 PENDÊNCIAS DAS MÁQUINAS
+      </div>
+
+      <div
+        id="preMachineAlarmText"
+        style="
+          margin-top:6px;
+          font-size:14px;
+          line-height:1.4;
+        "
+      ></div>
+
+      <div
+        id="preMachineAlarmList"
+        style="margin-top:10px;"
+      ></div>
+    </div>
+  </section>
 
   <!-- FILA DE UPLOADS -->
   <div
@@ -1360,36 +1412,7 @@ button:active {
 
     <!-- MÁQUINA — MODO PROVISÓRIO -->
 
-    <div
-      id="preMachineAlarmCard"
-      class="card alarm-overview-card"
-      style="display:none;margin-bottom:12px;"
-    >
-      <div
-        id="preMachineAlarmTitle"
-        style="
-          font-size:18px;
-          font-weight:800;
-          color:#B71C1C;
-        "
-      >
-        🚨 INSPEÇÕES PENDENTES
-      </div>
 
-      <div
-        id="preMachineAlarmText"
-        style="
-          margin-top:6px;
-          font-size:14px;
-          line-height:1.4;
-        "
-      ></div>
-
-      <div
-        id="preMachineAlarmList"
-        style="margin-top:10px;"
-      ></div>
-    </div>
 
     <div id="machineSelectionCard" style="display:none!important" aria-hidden="true">
       <select id="machineSelector" tabindex="-1">
@@ -1618,7 +1641,9 @@ button:active {
           font-size:12px;
           font-weight:700;
         "
-      ></div></div>
+      ></div>
+      <button type="button" id="btnVoltarPendenciasStatusRA" onclick="voltarPendenciasRA_()">↩️ VOLTAR ÀS PENDÊNCIAS</button>
+    </div>
 
 
     <!-- ALARME DE INSPEÇÃO HORÁRIA -->
@@ -7988,11 +8013,13 @@ function atualizarPainelPendenciasAntesDaMaquina(
     !processando.length
   ) {
 
+    /* V13.130: a tela inicial permanece útil mesmo quando tudo está em dia. */
     card.style.display =
-      'none';
+      'block';
 
     pararAlarmePendenciaGlobal();
-
+    text.textContent = '✅ Todas as máquinas estão sem pendências de inspeção neste momento.';
+    list.innerHTML = '<div class="alarm-overview-item"><span class="alarm-overview-machine">✅ Nenhuma máquina precisa de ação. A lista será atualizada automaticamente.</span></div>';
     return;
 
   }
@@ -8327,8 +8354,8 @@ function atualizarPainelPendenciasAntesDaMaquina(
                   '👉 ' +
                   (
                     silenciada
-                      ? 'VER STATUS'
-                      : 'INSPECIONAR'
+                      ? 'CONFIRMAR NFC'
+                      : 'CONFIRMAR NFC'
                   ) +
                 '</span>' +
 
@@ -8910,7 +8937,7 @@ function consultarPendenciasAntesDaMaquina(
   opcoes
 ) {
 
-  if (!nfcMaquinaLiberadaRA_) return Promise.resolve(null);
+  if (!nfcMaquinaLiberadaRA_ && !raTelaPendenciasAtivaRA_) return Promise.resolve(null);
 
   const forcar =
     Boolean(
@@ -9549,35 +9576,32 @@ function fluxoProducaoLiberadoLocal_() {
 }
 
 function atualizarVisibilidadeFluxoProducao_() {
-  /* V13.109 — o status não controla mais a visibilidade do fluxo.
-   * Depois que existe uma máquina selecionada, Produto, Conformidade e
-   * Iniciar inspeção permanecem na tela. O bloqueio passa a ser feito
-   * apenas por habilitação/desabilitação dos controles.
-   */
   const productCard = document.getElementById('productCard');
   const conformidadeCard = document.getElementById('conformidadeCard');
   const startCard = document.getElementById('startCard');
-  const temMaquina = Boolean(String(maquina || '').trim());
+  const alarmCard = document.getElementById('inspectionAlarmCard');
+  const voltarBtn = document.getElementById('btnVoltarPendenciasStatusRA');
+  const temMaquina = Boolean(String(maquina || '').trim()) && Boolean(maquinaValida) && Boolean(nfcMaquinaLiberadaRA_);
+  const statusAtual = normalizarStatusMaquinaUI_(statusOperacionalMaquina || '');
+  const podeInspecionar = temMaquina && statusServidorCarregado && statusAtual === 'PRODUZINDO';
 
-  if (productCard) {
-    productCard.classList.toggle('hidden', !temMaquina);
-    productCard.style.display = temMaquina ? 'block' : 'none';
-  }
-  if (conformidadeCard) {
-    conformidadeCard.classList.toggle('hidden', !temMaquina);
-    conformidadeCard.style.display = temMaquina ? 'block' : 'none';
-  }
-  if (startCard) {
-    startCard.classList.toggle('hidden', !temMaquina);
-    startCard.style.display = temMaquina ? 'block' : 'none';
+  [productCard, conformidadeCard, startCard, alarmCard].forEach(function(el) {
+    if (!el) return;
+    el.classList.toggle('hidden', !podeInspecionar);
+    el.style.display = podeInspecionar ? 'block' : 'none';
+  });
+
+  if (voltarBtn) {
+    voltarBtn.style.display = temMaquina ? 'block' : 'none';
+    voltarBtn.textContent = statusAtual === 'PRODUZINDO'
+      ? '↩️ VOLTAR ÀS PENDÊNCIAS'
+      : '🔄 VOLTAR ÀS PENDÊNCIAS PARA INICIAR UM NOVO CICLO';
   }
 
-  const statusEhProduzindo =
-    fluxoProducaoLiberadoLocal_();
   const btnSim = document.getElementById('btnSim');
   const btnNao = document.getElementById('btnNao');
-  if (btnSim) btnSim.disabled = !temMaquina || !statusEhProduzindo;
-  if (btnNao) btnNao.disabled = !temMaquina || !statusEhProduzindo;
+  if (btnSim) btnSim.disabled = !podeInspecionar || !fluxoProducaoLiberadoLocal_();
+  if (btnNao) btnNao.disabled = !podeInspecionar || !fluxoProducaoLiberadoLocal_();
 
   atualizarSubmenuDefeitoPecaUI_();
   atualizarSeletorPecaMoldeUI_();
@@ -9977,168 +10001,99 @@ function finalizarTransicaoMaquinaUI_(maquinaConfirmada, sucesso) {
   atualizarStatusAudioUI();
 }
 
-async function selecionarMaquinaPendenteDoPainel(
-  elemento
-) {
-  abrirPortaoNfcRA_();
-  informarNfcRA_("Leia a etiqueta NFC da máquina que deseja acessar.");
-  return;
-
-
-  const novaMaquina =
-    normalizarMaquinaTela(
-      elemento &&
-      elemento.dataset
-        ? elemento.dataset.maquina
-        : ''
-    );
-
-  if (!novaMaquina) {
+function selecionarMaquinaPendenteDoPainel(elemento) {
+  const selecionada = normalizarMaquinaTela(
+    elemento && elemento.dataset ? elemento.dataset.maquina : ''
+  );
+  if (!selecionada) {
+    informarNfcRA_('Não foi possível identificar a máquina selecionada. Atualize as pendências.');
     return;
   }
-
-  const statusPreCarregado =
-    elemento &&
-    elemento.dataset
-      ? elemento.dataset.status
-      : '';
-
-  const seletor =
-    document.getElementById(
-      'machineSelector'
-    );
-
-  const statusCard =
-    document.getElementById(
-      'machineStatusCard'
-    );
-
-  iniciarTransicaoMaquinaUI_(
-    novaMaquina,
-    statusPreCarregado
-  );
-
-  /*
-   * Resposta imediata para o operador:
-   * seleciona a máquina e leva o viewport ao cartão de status
-   * sem aguardar nenhuma consulta ao servidor.
-   */
-  if (seletor) {
-    seletor.value =
-      novaMaquina;
-  }
-
-  if (statusCard) {
-
-    statusCard.style.display =
-      'block';
-
-    try {
-      const infoStatus =
-        document.getElementById(
-          'machineStatusInfo'
-        );
-
-      if (
-        infoStatus
-      ) {
-        infoStatus.textContent =
-          statusPreCarregado
-            ? '⚡ Status pré-carregado. Confirmando em segundo plano...'
-            : '⏳ Carregando status da máquina...';
-      }
-    }
-    catch (erroStatus) {}
-
-    statusCard.scrollIntoView({
-      behavior:
-        'smooth',
-      block:
-        'start'
-    });
-
-  }
-
-  /*
-   * O carregamento real da máquina continua em segundo plano.
-   */
-  try {
-
-    const resultado =
-      selecionarMaquinaProvisoria();
-
-    if (
-      resultado &&
-      typeof resultado.then ===
-      'function'
-    ) {
-
-      resultado.catch(
-        function(erro) {
-
-          console.warn(
-            'Falha ao carregar máquina pendente:',
-            erro
-          );
-
-        }
-      );
-
-    }
-
-  }
-  catch (erro) {
-
-    console.warn(
-      'Falha ao selecionar máquina pendente:',
-      erro
-    );
-
-  }
-
-  setTimeout(
-    function() {
-
-      const statusSelector =
-        document.getElementById(
-          'machineStatusSelector'
-        );
-
-      if (
-        statusSelector
-      ) {
-
-        try {
-          statusSelector.focus();
-        }
-        catch (erro) {}
-
-      }
-
-    },
-    150
-  );
-
+  abrirPortaoNfcRA_(selecionada);
 }
 
+function iniciarTelaPendenciasRA_(opcoes) {
+  const cfg = opcoes || {};
+  if (videoEmPreparacaoOuGravacao || statusAudioGravando || gravacaoAtivaBloqueiaAlarme()) {
+    informarNfcRA_('Finalize a gravação em andamento antes de retornar às pendências.');
+    return false;
+  }
+  try { if (leitorNfcRA_) { leitorNfcRA_.onreading=null; leitorNfcRA_.onreadingerror=null; } } catch(e) {}
+  leitorNfcRA_ = null;
+  maquinaEsperadaNfcRA_ = '';
+  nfcMaquinaLiberadaRA_ = false;
+  raTelaPendenciasAtivaRA_ = true;
+  autorizacaoLeituraNfcRA_ = false;
+  const app=document.getElementById('appContainerRA');
+  const gate=document.getElementById('nfcGateRA');
+  if (gate) { gate.style.display='none'; gate.setAttribute('aria-hidden','true'); }
+  if (app) {
+    app.style.display='block';
+    app.setAttribute('aria-hidden','false');
+    app.classList.remove('ra-machine-active');
+    app.classList.add('ra-home-pendencias');
+  }
+  const nome=document.getElementById('machine');
+  if(nome) nome.textContent='PENDÊNCIAS DA FÁBRICA';
+  document.body.style.overflow='';
+  const btn=document.getElementById('nfcTrocarMaquinaBtn');
+  if(btn) btn.style.display='none';
+  const home=document.getElementById('homePendingScreenRA');
+  if(home) home.style.display='block';
+  try { mostrarPendenciasNaAbertura_(); } catch(e) {}
+  if (!cfg.semConsulta) {
+    consultarPendenciasAntesDaMaquina({forcarAtualizacao:Boolean(cfg.forcar)}).catch(function(e){console.warn('Falha ao atualizar pendências:',e);});
+  }
+  if (!pendenciasGlobaisTimer) {
+    pendenciasGlobaisTimer=setInterval(function(){
+      if (raTelaPendenciasAtivaRA_) consultarPendenciasAntesDaMaquina({forcarAtualizacao:true,silencioso:true}).catch(function(){});
+    },30000);
+  }
+  return true;
+}
 
+function voltarPendenciasRA_() {
+  if (videoEmPreparacaoOuGravacao || statusAudioGravando || gravacaoAtivaBloqueiaAlarme()) {
+    mostrarMensagem('Finalize a gravação atual antes de sair da máquina.','warning');
+    return;
+  }
+  if (inspecaoVideoConcluido && !inspecaoConcluidaNesteCiclo) {
+    mostrarMensagem('Conclua os requisitos desta inspeção antes de retornar às pendências. Para NÃO CONFORME, finalize o áudio e confirme o defeito.','warning');
+    return;
+  }
+  try { limparTodosOsDadosNovaInspecao(); }
+  catch(e) { console.warn('Falha ao limpar contexto antes das pendências:',e); }
+  iniciarTelaPendenciasRA_({forcar:true});
+}
 
-/* V13.129 — nenhum dado de status/inspeção é consultado antes da leitura NFC. */
-let nfcMaquinaLiberadaRA_ = false;
-let nfcPendenciasIniciadasRA_ = false;
+function cancelarNfcVoltarPendenciasRA_() {
+  maquinaEsperadaNfcRA_ = '';
+  try { if (leitorNfcRA_) { leitorNfcRA_.onreading=null; leitorNfcRA_.onreadingerror=null; } } catch(e) {}
+  leitorNfcRA_ = null;
+  const gate=document.getElementById('nfcGateRA');
+  if(gate){gate.style.display='none';gate.setAttribute('aria-hidden','true');}
+  document.body.style.overflow='';
+  iniciarTelaPendenciasRA_({forcar:false});
+}
 
-function abrirPortaoNfcRA_() {
+function abrirPortaoNfcRA_(maquinaEsperada) {
   if (videoEmPreparacaoOuGravacao || statusAudioGravando || gravacaoAtivaBloqueiaAlarme()) {
     informarNfcRA_('Finalize a gravação em andamento antes de trocar de máquina.');
     return;
   }
-  nfcMaquinaLiberadaRA_ = false;
-  const app=document.getElementById('appContainerRA');
+  const alvo=normalizarMaquinaTela(maquinaEsperada || '');
+  if (!alvo) return;
+  maquinaEsperadaNfcRA_=alvo;
+  nfcMaquinaLiberadaRA_=false;
+  raTelaPendenciasAtivaRA_=false;
   const gate=document.getElementById('nfcGateRA');
-  if(app) { app.style.display='none'; app.setAttribute('aria-hidden','true'); }
-  if(gate) { gate.style.display='flex'; gate.setAttribute('aria-hidden','false'); }
+  const titulo=document.getElementById('nfcGateTitleRA');
+  const subtitulo=document.getElementById('nfcGateSubtitleRA');
+  if(titulo) titulo.textContent='CONFIRME '+alvo.replace(/^M/,'M-');
+  if(subtitulo) subtitulo.textContent='Você selecionou '+alvo.replace(/^M/,'M-')+'. Leia a etiqueta NFC desta mesma máquina para continuar.';
+  if(gate){gate.style.display='flex';gate.setAttribute('aria-hidden','false');}
   document.body.style.overflow='hidden';
-  informarNfcRA_('Aproxime o telefone da etiqueta NFC da máquina.');
+  informarNfcRA_('Aproxime o telefone da etiqueta NFC da '+alvo.replace(/^M/,'M-')+'.');
   const botao=document.getElementById('btnIniciarNfc');
   if(botao){botao.disabled=false;botao.textContent='📳 LER TAG NFC';}
 }
@@ -10148,20 +10103,26 @@ function liberarPortaoNfcRA_(maquinaLiberada) {
   const app=document.getElementById('appContainerRA');
   const card=document.getElementById('machineSelectionCard');
   if(card) card.style.display='none';
-  if(gate) { gate.style.display='none'; gate.setAttribute('aria-hidden','true'); }
-  if(app) { app.style.display='block'; app.setAttribute('aria-hidden','false'); }
+  if(gate){gate.style.display='none';gate.setAttribute('aria-hidden','true');}
+  if(app){
+    app.style.display='block';
+    app.setAttribute('aria-hidden','false');
+    app.classList.remove('ra-home-pendencias');
+    app.classList.add('ra-machine-active');
+  }
   document.body.style.overflow='';
   nfcMaquinaLiberadaRA_=true;
+  raTelaPendenciasAtivaRA_=false;
+  maquinaEsperadaNfcRA_=maquinaLiberada;
   const nome=document.getElementById('machine');
   if(nome) nome.textContent='MÁQUINA '+maquinaLiberada.replace(/^M/,'M-');
-  if(!nfcPendenciasIniciadasRA_) {
-    nfcPendenciasIniciadasRA_=true;
-    try { mostrarPendenciasNaAbertura_(); } catch(e) {}
-    try { consultarPendenciasAntesDaMaquina(); } catch(e) {}
-    if(!pendenciasGlobaisTimer) {
-      pendenciasGlobaisTimer=setInterval(consultarPendenciasAntesDaMaquina,30000);
-    }
-  }
+  const home=document.getElementById('homePendingScreenRA');
+  if(home) home.style.display='none';
+  const btn=document.getElementById('nfcTrocarMaquinaBtn');
+  if(btn) btn.style.display='block';
+  try { atualizarVisibilidadeFluxoProducao_(); } catch(e) {}
+  const status=document.getElementById('machineStatusCard');
+  if(status) status.scrollIntoView({behavior:'smooth',block:'start'});
 }
 
 /* V13.128: seleção exclusivamente por leitura NDEF. Não confiar em UID como segredo. */
@@ -10195,6 +10156,15 @@ async function iniciarLeituraNfcRA_() {
       }
       if(!identificador){informarNfcRA_('Etiqueta não cadastrada. Use RA_POLYMERS_M1 até M6.');return;}
       const destino=identificador.replace('RA_POLYMERS_','');
+      if (!maquinaEsperadaNfcRA_) {
+        informarNfcRA_('Selecione uma máquina na tela de pendências antes de ler a etiqueta.');
+        return;
+      }
+      if (destino !== maquinaEsperadaNfcRA_) {
+        informarNfcRA_('Etiqueta de '+destino.replace(/^M/,'M-')+' lida, mas você selecionou '+maquinaEsperadaNfcRA_.replace(/^M/,'M-')+'. Aproxime a etiqueta correta.');
+        try { if (navigator.vibrate) navigator.vibrate([120,60,120]); } catch(e) {}
+        return;
+      }
       const seletor=document.getElementById('machineSelector');
       if(!seletor)return;
       if(videoEmPreparacaoOuGravacao || statusAudioGravando){
@@ -12492,6 +12462,8 @@ function atualizarStatusMaquinaUI() {
     }
 
   }
+
+  atualizarVisibilidadeFluxoProducao_();
 
 }
 
@@ -22160,16 +22132,13 @@ function novoRegistro() {
     }
   }
 
-  /*
-   * A partir daqui, NOVA INSPEÇÃO significa:
-   * limpar absolutamente todos os dados da inspeção anterior.
-   */
-  limparTodosOsDadosNovaInspecao();
+  if (!inspecaoConcluidaNesteCiclo) {
+    mostrarMensagem('Conclua a inspeção atual antes de iniciar outro atendimento.','warning');
+    return;
+  }
 
-  mostrarMensagem(
-    '',
-    ''
-  );
+  /* Ao concluir, o próximo atendimento sempre começa na lista global. */
+  voltarPendenciasRA_();
 
 }
 
@@ -22560,7 +22529,9 @@ document.addEventListener(
 
     }
 
-    /* A consulta global de pendências só começa depois da leitura NFC válida. */
+    /* V13.130 — a tela inicial é a lista de pendências; NFC só é exigido após selecionar uma máquina. */
+    try { iniciarTelaPendenciasRA_({forcar:false}); } catch (e) { console.warn('Falha ao abrir pendências:', e); }
+    nfcPendenciasIniciadasRA_ = true;
 
 
 
