@@ -5805,8 +5805,8 @@ async function listarStatusOutboxLocais() {
 
                   return (
                     item &&
-                    item.status !==
-                      'completed'
+                    item.status !== 'completed' &&
+                    item.status !== 'failed'
                   );
 
                 }
@@ -5901,6 +5901,32 @@ async function removerStatusOutboxLocal(
 }
 
 
+/* V13.131 — confirmação síncrona do status antes de avançar de máquina. */
+const statusConfirmacoesAguardandoRA_ = new Map();
+
+function aguardarConfirmacaoStatusRA_(operacaoId, timeoutMs) {
+  return new Promise(function(resolve, reject) {
+    const id = String(operacaoId || '');
+    if (!id) { reject(new Error('Identificador da atualização de status ausente.')); return; }
+    const timeout = setTimeout(function() {
+      statusConfirmacoesAguardandoRA_.delete(id);
+      reject(new Error('O servidor não confirmou a atualização do status. A operação foi mantida na fila para nova tentativa.'));
+    }, Number(timeoutMs || 25000));
+    statusConfirmacoesAguardandoRA_.set(id, {
+      resolve: function(valor) { clearTimeout(timeout); statusConfirmacoesAguardandoRA_.delete(id); resolve(valor); },
+      reject: function(erro) { clearTimeout(timeout); statusConfirmacoesAguardandoRA_.delete(id); reject(erro); }
+    });
+  });
+}
+
+function concluirConfirmacaoStatusRA_(operacaoId, erro, resposta) {
+  const id = String(operacaoId || '');
+  const aguardando = statusConfirmacoesAguardandoRA_.get(id);
+  if (!aguardando) return;
+  if (erro) aguardando.reject(erro instanceof Error ? erro : new Error(String(erro)));
+  else aguardando.resolve(resposta || { sucesso: true });
+}
+
 async function processarFilaStatus() {
 
   if (
@@ -5973,6 +5999,8 @@ async function processarFilaStatus() {
         await removerStatusOutboxLocal(
           item.operacaoId
         );
+
+        concluirConfirmacaoStatusRA_(item.operacaoId, null, resposta);
 
         /* V13.98 — a resposta do servidor é a confirmação real.
          * Não esperamos uma segunda consulta para liberar o fluxo
@@ -6053,16 +6081,15 @@ async function processarFilaStatus() {
                 erro
               );
 
-        item.status =
-          'queued';
-
-        item.nextAttemptAt =
-          Date.now() +
-          10000;
+        item.status = erro && erro.statusServidor ? 'failed' : 'queued';
+        item.lastError = mensagemErro;
+        item.nextAttemptAt = item.status === 'queued' ? Date.now() + 10000 : 0;
 
         await salvarStatusOutboxLocal(
           item
         );
+
+        concluirConfirmacaoStatusRA_(item.operacaoId, new Error(mensagemErro));
 
         debugUploadCliente(
           'STATUS_SERVIDOR_REJEITOU',
@@ -6232,14 +6259,13 @@ function enviarStatusMaquinaJsonp_(
         }
         else {
 
-          reject(
-            new Error(
-              dados &&
-              dados.erro
-                ? dados.erro
-                : 'Apps Script respondeu sem confirmação de sucesso.'
-            )
+          const erroServidor = new Error(
+            dados && dados.erro
+              ? dados.erro
+              : 'Apps Script respondeu sem confirmação de sucesso.'
           );
+          erroServidor.statusServidor = true;
+          reject(erroServidor);
 
         }
 
@@ -13707,117 +13733,50 @@ function verificarStatusSalvoEmSegundoPlano(
 
 
 
-function avancarAposAtualizacaoStatus_(
-  statusNovo,
-  maquinaAtual
-) {
+function proximaMaquinaSequenciaRA_(maquinaAtual) {
+  const atual = normalizarMaquinaTela(maquinaAtual || '');
+  const numero = Number(String(atual || '').replace(/\D/g, ''));
+  if (!Number.isFinite(numero) || numero < 1 || numero >= 6) return '';
+  return 'M' + String(numero + 1);
+}
 
-  const status =
-    normalizarStatusMaquinaUI_(
-      statusNovo
-    );
+function avancarSequenciaMaquinaRA_(maquinaAtual, origem) {
+  const atual = normalizarMaquinaTela(maquinaAtual || maquina || '');
+  const proxima = proximaMaquinaSequenciaRA_(atual);
+  try { consultarPendenciasAntesDaMaquina({forcarAtualizacao:true, silencioso:true}); } catch (e) {}
 
+  try { limparTodosOsDadosNovaInspecao(); }
+  catch (e) { console.warn('Falha ao limpar contexto antes da próxima máquina:', e); }
+
+  if (proxima) {
+    informarNfcRA_('Atendimento de ' + atual.replace(/^M/,'M-') + ' concluído. Próxima máquina: ' + proxima.replace(/^M/,'M-') + '. Confirme pela etiqueta NFC.');
+    abrirPortaoNfcRA_(proxima);
+    return proxima;
+  }
+
+  iniciarTelaPendenciasRA_({forcar:true});
+  informarNfcRA_('Sequência M-1 a M-6 concluída. Consulte as pendências para iniciar outro ciclo.');
+  return '';
+}
+
+function avancarAposAtualizacaoStatus_(statusNovo, maquinaAtual) {
+  const status = normalizarStatusMaquinaUI_(statusNovo);
+  statusAtualizacaoEmAndamento = false;
+  statusTrocaMaquinaEmAndamento = false;
+  statusTrocaMaquinaDestino = '';
+  atualizarStatusAudioUI();
+
+  // Ao retornar para PRODUZINDO, permanece na mesma máquina para executar a inspeção.
   if (status === 'PRODUZINDO') {
-    statusAtualizacaoEmAndamento = false;
-    statusTrocaMaquinaEmAndamento = false;
-    statusTrocaMaquinaDestino = '';
-    atualizarStatusAudioUI();
-
     const produto = document.getElementById('produto');
-    const cardProduto =
-      document.getElementById('productCard') ||
-      produto;
-
-    try {
-      if (
-        cardProduto &&
-        typeof cardProduto.scrollIntoView === 'function'
-      ) {
-        cardProduto.scrollIntoView({
-          behavior: 'smooth',
-          block: 'center'
-        });
-      }
-    } catch (erroScroll) {}
-
-    setTimeout(function() {
-      try {
-        if (produto && !produto.disabled) produto.focus();
-      } catch (erroFocus) {}
-    }, 180);
+    const cardProduto = document.getElementById('productCard') || produto;
+    try { if (cardProduto && typeof cardProduto.scrollIntoView === 'function') cardProduto.scrollIntoView({behavior:'smooth', block:'center'}); } catch (e) {}
+    setTimeout(function(){ try { if (produto && !produto.disabled) produto.focus(); } catch (e) {} }, 180);
     return;
   }
 
-  const pendencias =
-    ultimaRespostaPendenciasGlobal &&
-    Array.isArray(ultimaRespostaPendenciasGlobal.pendencias)
-      ? ultimaRespostaPendenciasGlobal.pendencias
-      : [];
-
-  const chaveAtual =
-    normalizarMaquinaChave_(maquinaAtual || '');
-
-  const proxima =
-    pendencias.find(function(item) {
-      if (!item || !item.maquina) return false;
-      if (normalizarMaquinaChave_(item.maquina) === chaveAtual) return false;
-      return normalizarStatusMaquinaUI_(item.statusMaquina || 'PRODUZINDO') !== 'PRODUZINDO';
-    });
-
-  if (proxima) {
-    iniciarTransicaoMaquinaUI_(
-      proxima.maquina,
-      proxima.statusMaquina || 'PRODUZINDO',
-      proxima.detalhamentoStatus || ''
-    );
-
-    const botoes = Array.from(
-      document.querySelectorAll(
-        '#preMachineAlarmList [data-maquina]'
-      )
-    );
-
-    const botao = botoes.find(function(el) {
-      return normalizarMaquinaChave_(el.dataset.maquina || '') ===
-        normalizarMaquinaChave_(proxima.maquina);
-    });
-
-    if (botao) {
-      selecionarMaquinaPendenteDoPainel(botao);
-      return;
-    }
-
-    statusPreCarregadoProximaMaquina =
-      normalizarStatusMaquinaUI_(proxima.statusMaquina || 'PRODUZINDO');
-    detalhamentoPreCarregadoProximaMaquina = normalizarDefeitoPecaUI_(proxima.detalhamentoStatus || '');
-  }
-
-  if (!proxima) {
-    statusAtualizacaoEmAndamento = false;
-    statusTrocaMaquinaEmAndamento = false;
-    statusTrocaMaquinaDestino = '';
-    atualizarStatusAudioUI();
-
-    const banner = document.getElementById('machineTransitionBanner');
-    if (banner) {
-      banner.style.display = 'block';
-      banner.textContent = '✅ STATUS ATUALIZADO. NENHUMA OUTRA MÁQUINA PENDENTE.';
-      const numeroBanner = contadorTransicaoMaquina;
-      setTimeout(function() {
-        if (numeroBanner === contadorTransicaoMaquina && !statusTrocaMaquinaEmAndamento) {
-          banner.style.display = 'none';
-        }
-      }, 1400);
-    }
-
-    const seletor = document.getElementById('machineSelector');
-    if (seletor) {
-      try {
-        seletor.scrollIntoView({behavior:'smooth',block:'center'});
-        seletor.focus();
-      } catch (erro) {}
-    }
-  }
+  // Status não produtivo confirmado: segue a ordem física M-1, M-2 ... M-6.
+  avancarSequenciaMaquinaRA_(maquinaAtual || maquina, 'STATUS');
 }
 
 
@@ -13832,128 +13791,84 @@ async function salvarStatusMaquina() {
     if (mensagem) mensagem.textContent = '❌ Máquina, operador ou status não disponível.';
     return;
   }
-
   if (statusAtualizacaoEmAndamento || statusTrocaMaquinaEmAndamento) return;
 
+  const maquinaNoInicio = maquina;
   const statusAtual = normalizarStatusMaquinaUI_(statusAnteriorMaquina);
   const statusNovo = normalizarStatusMaquinaUI_(seletor.value || statusAtual);
   const defectSelect = document.getElementById('machineDefectSelector');
   const detalhamentoNovo = statusNovo === 'PECA_DEFEITO' ? normalizarDefeitoPecaUI_(defectSelect ? defectSelect.value : detalhamentoStatusSelecionadoMaquina) : '';
   const detalhamentoAtual = statusAtual === 'PECA_DEFEITO' ? normalizarDefeitoPecaUI_(detalhamentoStatusMaquina) : '';
-  if (statusNovo === 'MOLDE_MANUTENCAO') {
-    prepararPecaMoldeParaStatus_();
-  }
+  if (statusNovo === 'MOLDE_MANUTENCAO') prepararPecaMoldeParaStatus_();
 
-  const produtoMoldeNovo =
-    statusNovo === 'MOLDE_MANUTENCAO'
-      ? String(
-          (document.getElementById('machineMoldProductSelector') || {}).value ||
-          produtoMoldeSelecionado ||
-          produtoMoldeManutencao ||
-          obterUltimaPecaMoldeConhecida_(maquina) ||
-          ''
-        ).trim()
-      : '';
+  const produtoMoldeNovo = statusNovo === 'MOLDE_MANUTENCAO'
+    ? String((document.getElementById('machineMoldProductSelector') || {}).value || produtoMoldeSelecionado || produtoMoldeManutencao || obterUltimaPecaMoldeConhecida_(maquina) || '').trim()
+    : '';
   const produtoMoldeAtual = statusAtual === 'MOLDE_MANUTENCAO' ? String(produtoMoldeManutencao || '').trim() : '';
-  const statusMudou = statusNovo !== statusAtual || (statusNovo === 'PECA_DEFEITO' && detalhamentoNovo !== detalhamentoAtual) || (statusNovo === 'MOLDE_MANUTENCAO' && produtoMoldeNovo !== produtoMoldeAtual);
+  const statusMudou = statusNovo !== statusAtual ||
+    (statusNovo === 'PECA_DEFEITO' && detalhamentoNovo !== detalhamentoAtual) ||
+    (statusNovo === 'MOLDE_MANUTENCAO' && produtoMoldeNovo !== produtoMoldeAtual);
 
-  operadorStatusSelecionado = String(
-    operadorSelect.value || operadorStatusSelecionado || ''
-  ).trim();
-
+  operadorStatusSelecionado = String(operadorSelect.value || operadorStatusSelecionado || '').trim();
   if (!operadorStatusSelecionado) {
     if (mensagem) mensagem.textContent = '⚠️ Selecione o operador responsável.';
     return;
   }
-
   if (statusNovo === 'PECA_DEFEITO' && !detalhamentoNovo) {
     if (mensagem) mensagem.textContent = '⚠️ Selecione o tipo de defeito da peça.';
     atualizarStatusAudioUI();
     return;
   }
-
   if (statusNovo === 'MOLDE_MANUTENCAO' && !produtoMoldeNovo) {
     if (mensagem) mensagem.textContent = '⚠️ Selecione a peça vinculada ao molde em manutenção.';
     atualizarStatusAudioUI();
     return;
   }
 
+  // Sem alteração: manter status atual, mas confirmar no servidor antes de avançar.
   if (!statusMudou) {
-    if (statusAtual === 'PRODUZINDO') {
-      const maquinaNoInicio = maquina;
-      const operacaoId = 'ST_MANUT_PROD_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8);
-
-      statusAtualizacaoEmAndamento = true;
-      statusAnteriorMaquina = 'PRODUZINDO';
-      statusSelecionadoMaquina = 'PRODUZINDO';
-      statusOperacionalMaquina = 'PRODUZINDO';
-      statusAudioConcluido = true;
-      statusAtualizadoEm = new Date().toISOString();
-      statusConfirmadoLocalEm = Date.now();
-      try { cacheStatusPorMaquina.delete(normalizarMaquinaChave_(maquinaNoInicio || maquina)); } catch (_) {}
-      statusAtualizacaoObrigatoria = false;
-      /* V13.105 — MANTER PRODUZINDO já confirma localmente o status.
-         Não esconder o fluxo enquanto a fila em segundo plano sincroniza. */
-      statusServidorCarregado = true;
-      atualizarVisibilidadeFluxoProducao_();
-
-      atualizarStatusAudioUI();
-
-      salvarStatusMaquinaEmSegundoPlano(
-        'PRODUZINDO',
-        operadorStatusSelecionado,
-        '',
-        '',
-        '',
-        'MANTER_STATUS',
-        operacaoId,
-        ''
-      );
-
-      liberarObrigatoriedadeStatusAposSalvar();
-      removerSilencioAlarmePorStatusLocal_(maquinaNoInicio);
-      carregarUltimaInspecaoMaquina();
-
-      try { atualizarAlarmeGlobalAposMudancaLocal_(); } catch (erro) {}
-      try { consultarPendenciasAntesDaMaquina({forcarAtualizacao: true, silencioso: true}); } catch (erro) {}
-
-      statusAtualizacaoEmAndamento = false;
-      atualizarStatusMaquinaUI();
-      atualizarStatusAudioUI();
-
-      if (mensagem) {
-        mensagem.textContent = '✅ PRODUZINDO confirmado. Nova confirmação em 1 hora.';
-      }
-
-      verificarStatusSalvoEmSegundoPlano('PRODUZINDO', operacaoId);
-      return;
-    }
-
-    if (mensagem) {
-      mensagem.textContent = 'ℹ️ O status não mudou. Use MANTER STATUS ATUAL.';
-    }
+    const operacaoId = 'ST_KEEP_' + Date.now() + '_' + Math.random().toString(36).substring(2,8);
+    statusAtualizacaoEmAndamento = true;
     atualizarStatusAudioUI();
+    if (mensagem) mensagem.textContent = '⏳ Confirmando status atual no servidor...';
+    try {
+      const aguardando = aguardarConfirmacaoStatusRA_(operacaoId, 25000);
+      await salvarStatusMaquinaEmSegundoPlano(statusAtual, operadorStatusSelecionado, '', '', '', 'MANTER_STATUS', operacaoId, detalhamentoAtual, produtoMoldeAtual);
+      const resposta = await aguardando;
+      if (!resposta || !resposta.sucesso) throw new Error('O servidor não confirmou o status atual.');
+      statusServidorCarregado = true;
+      statusAtualizadoEm = resposta.atualizadoEm || new Date().toISOString();
+      statusConfirmadoLocalEm = Date.now();
+      statusAtualizacaoObrigatoria = false;
+      liberarObrigatoriedadeStatusAposSalvar();
+      if (mensagem) mensagem.textContent = '✅ Status atual confirmado no servidor.';
+      avancarAposAtualizacaoStatus_(statusAtual, maquinaNoInicio);
+    } catch (erro) {
+      statusAtualizacaoEmAndamento = false;
+      if (mensagem) mensagem.textContent = '❌ Não foi possível confirmar o status: ' + (erro && erro.message ? erro.message : String(erro));
+      atualizarStatusAudioUI();
+    }
     return;
   }
 
   if (statusNovo !== 'PRODUZINDO' && !statusAudioConcluido) {
     if (mensagem) mensagem.textContent = '⚠️ Grave e conclua os 15 segundos de justificativa.';
+    atualizarStatusAudioUI();
     return;
   }
 
-  const maquinaNoInicio = maquina;
-  const operacaoId = 'ST_FAST_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8);
-
+  const operacaoId = 'ST_CONF_' + Date.now() + '_' + Math.random().toString(36).substring(2,8);
   statusSelecionadoMaquina = statusNovo;
   statusAtualizacaoEmAndamento = true;
   atualizarStatusAudioUI();
+  if (mensagem) mensagem.textContent = '⏳ Salvando status e aguardando confirmação do servidor...';
+  if (botao) { botao.disabled = true; botao.textContent = '⏳ CONFIRMANDO STATUS...'; }
 
+  let audioStatusPromise = null;
+  let audioStatusUploadId = '';
   try {
     let audioUrl = '';
     let audioId = '';
-    let audioStatusPromise = null;
-    let audioStatusUploadId = '';
-
     if (statusNovo !== 'PRODUZINDO') {
       audioStatusPromise = iniciarEnvioAudioStatusEmSegundoPlano();
       audioStatusUploadId = statusAudioUploadId || '';
@@ -13961,102 +13876,91 @@ async function salvarStatusMaquina() {
       audioId = 'PENDENTE_AUDIO:' + audioStatusUploadId;
     }
 
-    // Atualização local somente depois de validar toda a operação.
-    statusOperacionalMaquina = statusNovo;
-    statusAnteriorMaquina = statusNovo;
-    statusSelecionadoMaquina = statusNovo;
-    detalhamentoStatusMaquina = detalhamentoNovo;
-    detalhamentoStatusSelecionadoMaquina = detalhamentoNovo;
-    produtoMoldeManutencao = produtoMoldeNovo;
-    produtoMoldeSelecionado = produtoMoldeNovo;
-    statusServidorCarregado = statusNovo === 'PRODUZINDO';
-    statusAtualizadoEm = new Date().toISOString();
+    // O estado local não é confirmado nem a tela avança antes da resposta positiva do Apps Script.
+    const aguardando = aguardarConfirmacaoStatusRA_(operacaoId, 25000);
+    await salvarStatusMaquinaEmSegundoPlano(
+      statusNovo, operadorStatusSelecionado, '', audioUrl, audioId,
+      'ALTERAR_STATUS', operacaoId, detalhamentoNovo, produtoMoldeNovo
+    );
+    const resposta = await aguardando;
+    if (!resposta || !resposta.sucesso) throw new Error('O servidor não confirmou a atualização do status.');
+
+    // Agora a resposta do servidor é a fonte de verdade.
+    statusOperacionalMaquina = normalizarStatusMaquinaUI_(resposta.status || statusNovo);
+    statusAnteriorMaquina = statusOperacionalMaquina;
+    statusSelecionadoMaquina = statusOperacionalMaquina;
+    statusServidorCarregado = true;
+    detalhamentoStatusMaquina = normalizarDefeitoPecaUI_(resposta.detalhamentoStatus || detalhamentoNovo);
+    detalhamentoStatusSelecionadoMaquina = detalhamentoStatusMaquina;
+    produtoMoldeManutencao = String(resposta.produtoMoldeManutencao || produtoMoldeNovo || '');
+    produtoMoldeSelecionado = produtoMoldeManutencao;
+    statusAtualizadoEm = resposta.atualizadoEm || new Date().toISOString();
     statusConfirmadoLocalEm = Date.now();
-    try { cacheStatusPorMaquina.delete(normalizarMaquinaChave_(maquinaNoInicio || maquina)); } catch (_) {}
     statusAtualizacaoObrigatoria = false;
-    inicioStatusMaquina = new Date().toISOString();
-    motivoParadaMaquina = statusNovo === 'PRODUZINDO' ? 'RETORNO À PRODUÇÃO' : (statusNovo === 'PECA_DEFEITO' ? (MAPA_DEFEITOS_PECA_UI_[detalhamentoNovo] || 'PEÇA COM DEFEITO') : statusNovo);
-    responsavelStatusMaquina = operadorStatusSelecionado;
-    observacaoStatusMaquina = '';
+    inicioStatusMaquina = resposta.inicioStatus || new Date().toISOString();
+    motivoParadaMaquina = resposta.motivo || (statusNovo === 'PRODUZINDO' ? 'RETORNO À PRODUÇÃO' : statusNovo);
+    responsavelStatusMaquina = resposta.operador || operadorStatusSelecionado;
+    observacaoStatusMaquina = resposta.observacao || '';
+    try { cacheStatusPorMaquina.delete(normalizarMaquinaChave_(maquinaNoInicio)); } catch (_) {}
 
-    liberarObrigatoriedadeStatusAposSalvar();
-    atualizarStatusMaquinaUI();
-    atualizarSeletorPecaMoldeUI_();
-    atualizarVisibilidadeFluxoProducao_();
-    atualizarTravamentoCamposStatusAudio(false);
-    atualizarBloqueioStatusObrigatorio_();
-
-    if (statusNovo === 'PRODUZINDO') {
+    if (statusOperacionalMaquina === 'PRODUZINDO') {
       removerSilencioAlarmePorStatusLocal_(maquinaNoInicio);
       carregarUltimaInspecaoMaquina();
+      statusAudioConcluido = true;
+      statusAudioBlob = null;
     } else {
       marcarSilencioAlarmePorStatusLocal_(maquinaNoInicio, Date.now());
       inspecaoSuspensa = false;
       alarmeInspecaoAtivo = false;
       pararAlarmeInspecaoContinuo();
       atualizarAlarmeInspecaoUI();
+      statusAudioConcluido = true;
     }
 
-    try { atualizarAlarmeGlobalAposMudancaLocal_(); } catch (erro) {}
-    try { consultarPendenciasAntesDaMaquina({forcarAtualizacao: true, silencioso: true}); } catch (erro) {}
-
-    if (mensagem) {
-      mensagem.textContent = statusNovo === 'PRODUZINDO'
-        ? '✅ Status PRODUZINDO atualizado.'
-        : '✅ Status atualizado. 🎙️ Áudio sendo enviado em segundo plano...';
-    }
-
-    if (
-      statusNovo === 'MOLDE_MANUTENCAO' &&
-      produtoMoldeNovo
-    ) {
-      lembrarPecaMoldeConhecida_(
-        maquina,
-        produtoMoldeNovo
-      );
-    }
-
-    salvarStatusMaquinaEmSegundoPlano(
-      statusNovo,
-      operadorStatusSelecionado,
-      '',
-      audioUrl,
-      audioId,
-      'ALTERAR_STATUS',
-      operacaoId,
-      detalhamentoNovo,
-      produtoMoldeNovo
-    );
+    if (produtoMoldeManutencao) lembrarPecaMoldeConhecida_(maquinaNoInicio, produtoMoldeManutencao);
+    liberarObrigatoriedadeStatusAposSalvar();
+    atualizarStatusMaquinaUI();
+    atualizarSeletorPecaMoldeUI_();
+    atualizarVisibilidadeFluxoProducao_();
+    atualizarTravamentoCamposStatusAudio(false);
+    atualizarBloqueioStatusObrigatorio_();
+    try { atualizarAlarmeGlobalAposMudancaLocal_(); } catch (e) {}
 
     if (audioStatusPromise && audioStatusUploadId) {
       audioStatusPromise.then(function(envioAudio) {
-        return vincularAudioStatusAoRegistro(
-          audioStatusUploadId,
-          envioAudio && envioAudio.url ? envioAudio.url : '',
-          envioAudio && envioAudio.idArquivo ? envioAudio.idArquivo : ''
-        );
-      }).catch(function(erro) {
-        try { console.warn('Falha ao vincular áudio:', erro); } catch (_) {}
-      });
+        return vincularAudioStatusAoRegistro(audioStatusUploadId, envioAudio && envioAudio.url ? envioAudio.url : '', envioAudio && envioAudio.idArquivo ? envioAudio.idArquivo : '');
+      }).catch(function(erro) { try { console.warn('Falha ao vincular áudio:', erro); } catch (_) {} });
     }
 
-    statusAudioConcluido = statusNovo === 'PRODUZINDO';
-
-    // V13.105 — a decisão de transição já pode ocorrer imediatamente.
-    // A gravação do status continua em segundo plano e não bloqueia a tela.
-    avancarAposAtualizacaoStatus_(statusNovo, maquinaNoInicio);
-
-    if (new URLSearchParams(window.location.search).get('debug') === '1') {
-      verificarStatusSalvoEmSegundoPlano(statusNovo, operacaoId);
-    }
+    if (mensagem) mensagem.textContent = '✅ Status ' + statusOperacionalMaquina + ' confirmado pelo servidor.';
+    avancarAposAtualizacaoStatus_(statusOperacionalMaquina, maquinaNoInicio);
   } catch (erro) {
+    // Mantém a máquina na tela e restaura o último status efetivamente confirmado.
     statusAtualizacaoEmAndamento = false;
+    statusSelecionadoMaquina = statusAtual;
+    const seletorStatus = document.getElementById('machineStatusSelector');
+    if (seletorStatus) seletorStatus.value = statusAtual;
+    statusOperacionalMaquina = statusAtual;
+    statusAnteriorMaquina = statusAtual;
+    statusServidorCarregado = true;
+    atualizarTravamentoCamposStatusAudio(false);
+    statusAudioConcluido = false;
+    statusAudioBlob = null;
+    statusAudioUploadId = null;
+    statusAudioSegundos = 0;
+    const botaoRegravarFalha = document.getElementById('btnRegravarStatusAudio');
+    if (botaoRegravarFalha) botaoRegravarFalha.style.display = 'none';
+    atualizarObrigatoriedadeAudioStatus();
+    atualizarStatusMaquinaUI();
     atualizarStatusAudioUI();
-    if (mensagem) mensagem.textContent = '❌ ' + (erro && erro.message ? erro.message : String(erro));
+    if (mensagem) mensagem.textContent = '❌ Status não confirmado. A máquina não foi trocada. Motivo: ' + (erro && erro.message ? erro.message : String(erro));
+  } finally {
+    if (botao && document.contains(botao)) {
+      botao.textContent = '💾 ATUALIZAR STATUS';
+      atualizarStatusAudioUI();
+    }
   }
 }
-
-
 
 
 
@@ -15793,12 +15697,13 @@ function iniciarRegravacaoStatusAudio() {
 }
 
 
-function manterStatusAtual() {
+async function manterStatusAtual() {
   const operadorSelect = document.getElementById('operador');
   const mensagem = document.getElementById('machineStatusSaveMessage');
   const botao = document.getElementById('btnManterStatus');
   const seletor = document.getElementById('machineStatusSelector');
   const defeitoSelect = document.getElementById('machineDefectSelector');
+  const maquinaNoInicio = maquina;
 
   const statusAtual = normalizarStatusMaquinaUI_(statusAnteriorMaquina);
   const statusSelecionado = normalizarStatusMaquinaUI_(seletor ? seletor.value : statusAtual);
@@ -15808,94 +15713,47 @@ function manterStatusAtual() {
   const operador = String(operadorSelect && operadorSelect.value ? operadorSelect.value : '').trim();
 
   if (!maquina) return;
-  if (statusSelecionado === 'PECA_DEFEITO' && !detalheSelecionado) {
-    if (mensagem) mensagem.textContent = '⚠️ Selecione o tipo de defeito da peça.';
-    atualizarStatusAudioUI();
-    return;
-  }
-
-  if (statusSelecionado === 'MOLDE_MANUTENCAO' && !moldeSelecionado) {
-    if (mensagem) mensagem.textContent = '⚠️ Selecione a peça vinculada ao molde em manutenção.';
-    atualizarStatusAudioUI();
-    return;
-  }
-  if (statusAtual === 'PRODUZINDO' && statusSelecionado !== 'PRODUZINDO') {
-    if (mensagem) mensagem.textContent = 'ℹ️ O status foi alterado. Use ATUALIZAR STATUS.';
-    return;
-  }
-  if (
-    statusSelecionado !== statusAtual ||
-    (statusSelecionado === 'PECA_DEFEITO' && detalheSelecionado !== detalheAtual) ||
-    (statusSelecionado === 'MOLDE_MANUTENCAO' && moldeSelecionado !== String(produtoMoldeManutencao || '').trim())
-  ) {
+  if (statusSelecionado !== statusAtual || (statusSelecionado === 'PECA_DEFEITO' && detalheSelecionado !== detalheAtual) || (statusSelecionado === 'MOLDE_MANUTENCAO' && moldeSelecionado !== String(produtoMoldeManutencao || '').trim())) {
     if (mensagem) mensagem.textContent = 'ℹ️ O status foi alterado. Use ATUALIZAR STATUS.';
     atualizarStatusAudioUI();
     return;
   }
-  if (!operador) {
-    if (mensagem) mensagem.textContent = '⚠️ Selecione o operador antes de manter o status.';
-    return;
-  }
+  if (!operador) { if (mensagem) mensagem.textContent = '⚠️ Selecione o operador antes de manter o status.'; return; }
   if (statusAtualizacaoEmAndamento || statusTrocaMaquinaEmAndamento) return;
 
-  if (botao) {
-    botao.disabled = true;
-    botao.textContent = '⏳ MANTENDO STATUS...';
-  }
-
-  const operacaoId = 'ST_MANUT_FAST_' + Date.now();
+  const operacaoId = 'ST_KEEP_' + Date.now() + '_' + Math.random().toString(36).substring(2,8);
   statusAtualizacaoEmAndamento = true;
+  if (botao) { botao.disabled = true; botao.textContent = '⏳ CONFIRMANDO...'; }
   atualizarStatusAudioUI();
+  if (mensagem) mensagem.textContent = '⏳ Confirmando status atual no servidor...';
 
   try {
-    salvarStatusMaquinaEmSegundoPlano(
-      statusAtual,
-      operador,
-      '',
-      '',
-      '',
-        'MANTER_STATUS',
-        operacaoId,
-        detalheAtual,
-        moldeSelecionado
-      );
+    const aguardando = aguardarConfirmacaoStatusRA_(operacaoId, 25000);
+    await salvarStatusMaquinaEmSegundoPlano(statusAtual, operador, '', '', '', 'MANTER_STATUS', operacaoId, detalheAtual, moldeSelecionado);
+    const resposta = await aguardando;
+    if (!resposta || !resposta.sucesso) throw new Error('O servidor não confirmou a manutenção do status.');
 
-    statusAnteriorMaquina = statusAtual;
-    statusSelecionadoMaquina = statusAtual;
-    statusOperacionalMaquina = statusAtual;
+    statusAnteriorMaquina = normalizarStatusMaquinaUI_(resposta.status || statusAtual);
+    statusSelecionadoMaquina = statusAnteriorMaquina;
+    statusOperacionalMaquina = statusAnteriorMaquina;
+    statusServidorCarregado = true;
     statusAudioConcluido = true;
-    statusAtualizadoEm = new Date().toISOString();
+    statusAtualizadoEm = resposta.atualizadoEm || new Date().toISOString();
     statusConfirmadoLocalEm = Date.now();
-    try { cacheStatusPorMaquina.delete(normalizarMaquinaChave_(maquina)); } catch (_) {}
     statusAtualizacaoObrigatoria = false;
-
-    if (statusAtual === 'PRODUZINDO') {
-      carregarUltimaInspecaoMaquina();
-    } else {
-      marcarSilencioAlarmePorStatusLocal_(maquina, Date.now());
-      inspecaoSuspensa = false;
-      pararAlarmeInspecaoContinuo();
-    }
-
-    try { atualizarAlarmeGlobalAposMudancaLocal_(); } catch (erro) {}
-    try { consultarPendenciasAntesDaMaquina({forcarAtualizacao: true, silencioso: true}); } catch (erro) {}
-
     liberarObrigatoriedadeStatusAposSalvar();
-    statusAtualizacaoEmAndamento = false;
     atualizarStatusMaquinaUI();
     atualizarStatusAudioUI();
-
-    if (mensagem) mensagem.textContent = '✅ Status mantido. Nova confirmação em 1 hora.';
-    verificarStatusSalvoEmSegundoPlano(statusAtual, operacaoId);
+    if (mensagem) mensagem.textContent = '✅ Status mantido e confirmado. Próxima máquina na sequência.';
+    avancarSequenciaMaquinaRA_(maquinaNoInicio, 'MANTER_STATUS');
   } catch (erro) {
     statusAtualizacaoEmAndamento = false;
     atualizarStatusAudioUI();
-    if (mensagem) mensagem.textContent = '❌ ' + (erro && erro.message ? erro.message : String(erro));
+    if (mensagem) mensagem.textContent = '❌ Não foi possível confirmar o status atual: ' + (erro && erro.message ? erro.message : String(erro));
   } finally {
-    if (botao) botao.textContent = '🔁 MANTER STATUS ATUAL';
+    if (botao && document.contains(botao)) { botao.textContent = '🔁 MANTER STATUS ATUAL'; atualizarStatusAudioUI(); }
   }
 }
-
 
 
 function operadorSelecionadoUnico() {
@@ -22137,8 +21995,8 @@ function novoRegistro() {
     return;
   }
 
-  /* Ao concluir, o próximo atendimento sempre começa na lista global. */
-  voltarPendenciasRA_();
+  /* V13.131: após inspeção concluída, segue a sequência física M-1 a M-6. */
+  avancarSequenciaMaquinaRA_(maquina, 'INSPECAO');
 
 }
 
@@ -22629,6 +22487,15 @@ document.addEventListener(
             normalizarStatusMaquinaUI_(
               statusSelector.value
             );
+
+          // Cada nova transição exige sua própria justificativa; áudio de outro status não é reutilizado.
+          if (statusSelecionadoMaquina !== normalizarStatusMaquinaUI_(statusAnteriorMaquina)) {
+            statusAudioConcluido = statusSelecionadoMaquina === 'PRODUZINDO';
+            statusAudioBlob = null;
+            statusAudioUploadId = null;
+            const regravarStatus = document.getElementById('btnRegravarStatusAudio');
+            if (regravarStatus) regravarStatus.style.display = 'none';
+          }
 
           atualizarSubmenuDefeitoPecaUI_();
           atualizarSeletorPecaMoldeUI_();
