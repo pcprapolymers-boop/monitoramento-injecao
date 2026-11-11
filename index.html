@@ -3444,6 +3444,7 @@ let statusAudioGravando = false;
 let statusAudioConcluido = false;
 let statusAudioBlob = null;
 let statusAudioUploadId = null;
+let statusAudioContextoRA_ = '';
 let statusAudioTimer = null;
 let statusAudioSegundos = 0;
 const TEMPO_AUDIO_STATUS = 15;
@@ -14014,9 +14015,15 @@ async function salvarStatusMaquina() {
     let audioUrl = '';
     let audioId = '';
     if (statusNovo !== 'PRODUZINDO') {
+      if (!statusAudioBlob || !statusAudioBlob.size || !statusAudioConcluido) {
+        throw new Error('A gravação da justificativa não está disponível ou está vazia. Grave novamente os 15 segundos.');
+      }
       audioStatusPromise = iniciarEnvioAudioStatusEmSegundoPlano();
-      audioStatusUploadId = statusAudioUploadId || '';
-      if (!audioStatusUploadId) throw new Error('Não foi possível preparar o envio da justificativa em áudio.');
+      const audioPreparado = await audioStatusPromise;
+      audioStatusUploadId = audioPreparado && audioPreparado.uploadId
+        ? audioPreparado.uploadId
+        : (statusAudioUploadId || '');
+      if (!audioStatusUploadId) throw new Error('O áudio foi gravado, mas não foi possível gerar o identificador de envio. Grave novamente a justificativa.');
       audioId = 'PENDENTE_AUDIO:' + audioStatusUploadId;
     }
 
@@ -14120,10 +14127,13 @@ async function salvarStatusMaquina() {
     statusAnteriorMaquina = statusAtual;
     statusServidorCarregado = true;
     atualizarTravamentoCamposStatusAudio(false);
-    statusAudioConcluido = false;
-    statusAudioBlob = null;
-    statusAudioUploadId = null;
-    statusAudioSegundos = 0;
+    // Preservar o áudio gravado se a falha ocorreu antes do envio.
+    if (!(statusAudioBlob && statusAudioBlob.size > 0)) {
+      statusAudioConcluido = false;
+      statusAudioBlob = null;
+      statusAudioUploadId = null;
+      statusAudioSegundos = 0;
+    }
     const botaoRegravarFalha = document.getElementById('btnRegravarStatusAudio');
     if (botaoRegravarFalha) botaoRegravarFalha.style.display = 'none';
     atualizarObrigatoriedadeAudioStatus();
@@ -14872,7 +14882,9 @@ function atualizarObrigatoriedadeAudioStatus() {
     info.textContent = detalheIncompleto
       ? '⚠️ Selecione o tipo de defeito da peça antes de continuar.'
       : precisaAudio
-        ? '⚠️ O novo status exige justificativa de áudio de exatamente 15 segundos.'
+        ? (statusAudioBlob && statusAudioBlob.size && statusAudioConcluido
+            ? '✅ Justificativa gravada. Pronta para envio.'
+            : '⚠️ O novo status exige justificativa de áudio de exatamente 15 segundos.')
         : (mudou
             ? '✅ Retorno para PRODUZINDO: áudio de justificativa não é necessário.'
             : (statusAtual === 'PRODUZINDO'
@@ -14880,18 +14892,40 @@ function atualizarObrigatoriedadeAudioStatus() {
                 : '✅ Status atual pronto para ser mantido.'));
   }
 
-  if (precisaAudio) {
-    statusAudioConcluido = false;
+  /*
+   * V13.134: não apagar o áudio a cada atualização visual.
+   * A versão anterior zerava statusAudioBlob sempre que esta função
+   * era chamada enquanto um status não produtivo estava selecionado.
+   * Isso podia apagar a gravação concluída antes do envio.
+   */
+  const contextoAudioAtual = [
+    normalizarMaquinaChave_(maquina || ''),
+    statusSelecionado,
+    detalheSelecionado || '',
+    statusSelecionado === 'MOLDE_MANUTENCAO' ? String((document.getElementById('machineMoldProductSelector') || {}).value || produtoMoldeSelecionado || '') : ''
+  ].join('|');
+
+  if (typeof statusAudioContextoRA_ === 'undefined' || statusAudioContextoRA_ !== contextoAudioAtual) {
+    statusAudioContextoRA_ = contextoAudioAtual;
     statusAudioBlob = null;
+    statusAudioUploadId = null;
+    statusAudioSegundos = 0;
+    if (precisaAudio || detalheIncompleto) {
+      statusAudioConcluido = false;
+    } else {
+      statusAudioConcluido = true;
+    }
+  } else if (precisaAudio) {
+    // Preservar gravação válida já concluída para este mesmo status/máquina.
+    if (statusAudioBlob && statusAudioBlob.size > 0) {
+      statusAudioConcluido = true;
+    }
   } else if (mudou && statusSelecionado === 'PRODUZINDO') {
     statusAudioConcluido = true;
-    statusAudioBlob = null;
   } else if (!mudou && !detalheIncompleto) {
     statusAudioConcluido = true;
-    statusAudioBlob = null;
   } else if (detalheIncompleto) {
     statusAudioConcluido = false;
-    statusAudioBlob = null;
   }
 
   atualizarStatusAudioUI();
