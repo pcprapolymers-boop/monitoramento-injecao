@@ -7765,8 +7765,6 @@ let intervaloContagemPendenciasGlobal = null;
  * Dentro da mesma prioridade, preserva a ordem já exibida.
  * O contador de 1s nunca reordena o DOM.
  */
-let ordemVisualPendenciasGlobal = new Map();
-let proximoIndiceOrdemPendenciasGlobal = 0;
 
 
 function formatarContagemPendencia_(deltaMs) {
@@ -8130,103 +8128,39 @@ function atualizarPainelPendenciasAntesDaMaquina(
       '';
 
     /*
-     * V13.68 — fila visual estável.
-     * Prioridade 0: PRODUZINDO + inspeção atrasada.
-     * Prioridade 1: máquina parada + inspeção atrasada.
-     * Prioridade 2: demais pendências.
-     * Dentro da mesma prioridade, a ordem já exibida é preservada.
+     * V13.132 — ORDEM FÍSICA FIXA DO PAINEL:
+     * as máquinas são sempre exibidas M-1, M-2, ... M-6.
+     * A prioridade de alarme continua sendo calculada e exibida
+     * visualmente, mas não altera a posição física da máquina na lista.
      */
-    const agoraLista = Date.now();
-    const chavesAtuaisPendencias = new Set();
+    function numeroFisicoMaquinaRA_(item) {
+      const chave = normalizarMaquinaChave_(
+        item && item.maquina ? item.maquina : ''
+      );
+      const match = String(chave || '').match(/^M(\\d+)$/i);
+      return match ? Number(match[1]) : Number.MAX_SAFE_INTEGER;
+    }
 
-    pendencias.forEach(function(item, indice) {
-      const chave =
-        normalizarMaquinaChave_(
-          item && item.maquina
-            ? item.maquina
-            : 'PENDENCIA_' + indice
-        );
+    function compararOrdemFisicaMaquinaRA_(a, b) {
+      const numeroA = numeroFisicoMaquinaRA_(a);
+      const numeroB = numeroFisicoMaquinaRA_(b);
 
-      chavesAtuaisPendencias.add(chave);
-
-      if (!ordemVisualPendenciasGlobal.has(chave)) {
-        ordemVisualPendenciasGlobal.set(
-          chave,
-          proximoIndiceOrdemPendenciasGlobal++
-        );
+      if (numeroA !== numeroB) {
+        return numeroA - numeroB;
       }
-    });
 
-    Array.from(ordemVisualPendenciasGlobal.keys()).forEach(function(chave) {
-      if (!chavesAtuaisPendencias.has(chave)) {
-        ordemVisualPendenciasGlobal.delete(chave);
-      }
-    });
+      const nomeA = String(a && a.maquina ? a.maquina : '');
+      const nomeB = String(b && b.maquina ? b.maquina : '');
+      return nomeA.localeCompare(nomeB, 'pt-BR', {
+        numeric: true,
+        sensitivity: 'base'
+      });
+    }
 
     const pendenciasOrdenadas =
       pendencias
-        .map(function(item, indice) {
-          let prazoMs =
-            item && item.proximaInspecao
-              ? new Date(item.proximaInspecao).getTime()
-              : 0;
-
-          if (!prazoMs && item && item.ultimaInspecao) {
-            prazoMs =
-              new Date(item.ultimaInspecao).getTime() +
-              (60 * 60 * 1000);
-          }
-
-          const atraso =
-            Number(item && item.atrasoMinutos || 0);
-
-          const statusCodigo =
-            normalizarStatusMaquinaUI_(
-              item && item.statusMaquina
-                ? item.statusMaquina
-                : 'PRODUZINDO'
-            );
-
-          const atrasada =
-            String(item && item.status || '').trim().toUpperCase() === 'ATRASADA' ||
-            atraso > 0 ||
-            Boolean(
-              item &&
-              item.ultimaInspecao &&
-              prazoMs &&
-              prazoMs <= agoraLista
-            );
-
-          const prioridade =
-            atrasada
-              ? (statusCodigo === 'PRODUZINDO' ? 0 : 1)
-              : 2;
-
-          const chave =
-            normalizarMaquinaChave_(
-              item && item.maquina
-                ? item.maquina
-                : 'PENDENCIA_' + indice
-            );
-
-          return {
-            item: item,
-            prioridade: prioridade,
-            ordem: ordemVisualPendenciasGlobal.has(chave)
-              ? ordemVisualPendenciasGlobal.get(chave)
-              : indice
-          };
-        })
-        .sort(function(a, b) {
-          if (a.prioridade !== b.prioridade) {
-            return a.prioridade - b.prioridade;
-          }
-
-          return a.ordem - b.ordem;
-        })
-        .map(function(registro) {
-          return registro.item;
-        });
+        .slice()
+        .sort(compararOrdemFisicaMaquinaRA_);
 
     htmlLista +=
       pendenciasOrdenadas
@@ -8392,8 +8326,13 @@ function atualizarPainelPendenciasAntesDaMaquina(
         )
         .join('');
 
-    htmlLista +=
+    const processandoOrdenados =
       processando
+        .slice()
+        .sort(compararOrdemFisicaMaquinaRA_);
+
+    htmlLista +=
+      processandoOrdenados
         .map(
           function(item) {
 
@@ -8406,7 +8345,9 @@ function atualizarPainelPendenciasAntesDaMaquina(
               );
 
             return (
-              '<div class="alarm-overview-item" style="background:#FFF8E1;border:1px solid #E6C45D;">' +
+              '<div class="alarm-overview-item" data-maquina="' +
+                escapeHtml(item && item.maquina ? item.maquina : '') +
+                '" style="background:#FFF8E1;border:1px solid #E6C45D;">' +
                 '<span class="alarm-overview-machine">⏳ ' +
                   nome +
                 '</span>' +
@@ -8418,13 +8359,38 @@ function atualizarPainelPendenciasAntesDaMaquina(
         )
         .join('');
 
-    list.innerHTML =
-      htmlLista ||
-      '<div class="alarm-overview-item">' +
-        '<span class="alarm-overview-machine">' +
-          '✅ Nenhuma máquina precisa de ação.' +
-        '</span>' +
-      '</div>';
+    if (htmlLista) {
+      /*
+       * Ordenação final única do painel: mistura pendências e vídeos
+       * em finalização, respeitando sempre a sequência física M-1 a M-6.
+       */
+      const containerTemporario = document.createElement('div');
+      containerTemporario.innerHTML = htmlLista;
+
+      const elementosOrdenados = Array.from(containerTemporario.children)
+        .sort(function(a, b) {
+          const numeroA = numeroFisicoMaquinaRA_({
+            maquina: a.getAttribute('data-maquina') || ''
+          });
+          const numeroB = numeroFisicoMaquinaRA_({
+            maquina: b.getAttribute('data-maquina') || ''
+          });
+          return numeroA - numeroB;
+        });
+
+      list.innerHTML = '';
+      elementosOrdenados.forEach(function(elemento) {
+        list.appendChild(elemento);
+      });
+    }
+    else {
+      list.innerHTML =
+        '<div class="alarm-overview-item">' +
+          '<span class="alarm-overview-machine">' +
+            '✅ Nenhuma máquina precisa de ação.' +
+          '</span>' +
+        '</div>';
+    }
 
     iniciarContadoresPendenciasGlobal_();
 
