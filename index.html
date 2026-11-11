@@ -5910,8 +5910,11 @@ function aguardarConfirmacaoStatusRA_(operacaoId, timeoutMs) {
     if (!id) { reject(new Error('Identificador da atualização de status ausente.')); return; }
     const timeout = setTimeout(function() {
       statusConfirmacoesAguardandoRA_.delete(id);
-      reject(new Error('O servidor não confirmou a atualização do status. A operação foi mantida na fila para nova tentativa.'));
-    }, Number(timeoutMs || 25000));
+      const erro = new Error('Ainda não foi possível confirmar o resultado desta atualização. A operação permanece identificada para reconciliação, sem gerar um novo registro.');
+      erro.confirmacaoIncerta = true;
+      erro.operacaoId = id;
+      reject(erro);
+    }, Number(timeoutMs || 90000));
     statusConfirmacoesAguardandoRA_.set(id, {
       resolve: function(valor) { clearTimeout(timeout); statusConfirmacoesAguardandoRA_.delete(id); resolve(valor); },
       reject: function(erro) { clearTimeout(timeout); statusConfirmacoesAguardandoRA_.delete(id); reject(erro); }
@@ -5992,7 +5995,7 @@ async function processarFilaStatus() {
          * O callback é colocado no window ANTES de injetar o script.
          */
         const resposta =
-          await enviarStatusMaquinaJsonp_(
+          await enviarStatusComRecuperacaoRA_(
             item
           );
 
@@ -6083,16 +6086,22 @@ async function processarFilaStatus() {
 
         item.status = erro && erro.statusServidor ? 'failed' : 'queued';
         item.lastError = mensagemErro;
-        item.nextAttemptAt = item.status === 'queued' ? Date.now() + 10000 : 0;
+        item.nextAttemptAt = item.status === 'queued' ? Date.now() + 5000 : 0;
 
         await salvarStatusOutboxLocal(
           item
         );
 
-        concluirConfirmacaoStatusRA_(item.operacaoId, new Error(mensagemErro));
+        /* Em timeout/rede, não rejeitar ainda o waiter: o ID continuará
+           na fila e uma próxima tentativa poderá concluir a mesma operação. */
+        if (!(erro && erro.confirmacaoIncerta)) {
+          concluirConfirmacaoStatusRA_(item.operacaoId, new Error(mensagemErro));
+        }
 
         debugUploadCliente(
-          'STATUS_SERVIDOR_REJEITOU',
+          erro && erro.confirmacaoIncerta
+            ? 'STATUS_CONFIRMacao_INCERTA_MANTIDO_NA_FILA'
+            : 'STATUS_SERVIDOR_REJEITOU',
           {
             uploadId:
               item.operacaoId,
@@ -6144,6 +6153,155 @@ async function processarFilaStatus() {
 }
 
 
+function aguardarPausaStatusRA_(ms) {
+  return new Promise(function(resolve) { setTimeout(resolve, ms); });
+}
+
+function erroStatusServidorEhTransitorioRA_(mensagem) {
+  const texto = String(mensagem || '').toLowerCase();
+  return /lock|bloqueio|timeout|timed out|tempo limite|aguardando bloqueio|service unavailable|temporarily unavailable/.test(texto);
+}
+
+/* Consulta a aba STATUS_MAQUINAS pelo Operação ID. Esta consulta é somente leitura. */
+function consultarStatusOperacaoJsonpRA_(item) {
+  return new Promise(function(resolve, reject) {
+    const operacaoId = String(item && item.operacaoId || '').trim();
+    const maquinaOperacao = normalizarMaquinaChave_(item && item.maquina || '');
+    if (!operacaoId || !maquinaOperacao) {
+      reject(new Error('Não foi possível consultar a operação: identificador ou máquina ausente.'));
+      return;
+    }
+
+    const callbackName = 'statusLookup_' + Date.now() + '_' + Math.random().toString(36).slice(2, 9);
+    const script = document.createElement('script');
+    let finalizado = false;
+
+    function limpar() {
+      clearTimeout(timeoutId);
+      try { delete window[callbackName]; } catch (e) {}
+      try { if (script.parentNode) script.parentNode.removeChild(script); } catch (e) {}
+    }
+
+    const timeoutId = setTimeout(function() {
+      if (finalizado) return;
+      finalizado = true;
+      limpar();
+      reject(new Error('A consulta de confirmação do status também excedeu o tempo limite.'));
+    }, 5000);
+
+    window[callbackName] = function(dados) {
+      if (finalizado) return;
+      finalizado = true;
+      limpar();
+      if (!dados || dados.sucesso !== true) {
+        const erro = new Error(dados && dados.erro ? dados.erro : 'Resposta inválida na consulta da operação de status.');
+        erro.statusServidor = true;
+        reject(erro);
+        return;
+      }
+      if (dados.encontrada && normalizarMaquinaChave_(dados.maquina || '') !== maquinaOperacao) {
+        const erro = new Error('O identificador da operação foi localizado em outra máquina. A confirmação foi bloqueada.');
+        erro.statusServidor = true;
+        reject(erro);
+        return;
+      }
+      resolve(dados);
+    };
+
+    script.onerror = function() {
+      if (finalizado) return;
+      finalizado = true;
+      limpar();
+      reject(new Error('Falha de rede ao consultar a confirmação da operação de status.'));
+    };
+
+    const params = new URLSearchParams();
+    params.set('status', 'statusOperationLookup');
+    params.set('operacaoId', operacaoId);
+    params.set('m', maquinaOperacao);
+    params.set('callback', callbackName);
+    params.set('_', String(Date.now()));
+    script.async = true;
+    script.src = URL_APPS_SCRIPT + '?' + params.toString();
+    document.head.appendChild(script);
+  });
+}
+
+async function reconciliarStatusOperacaoRA_(item, tentativas) {
+  const total = Number(tentativas || 2);
+  for (let i = 0; i < total; i++) {
+    try {
+      const consulta = await consultarStatusOperacaoJsonpRA_(item);
+      if (consulta && consulta.encontrada && consulta.resposta && consulta.resposta.sucesso) {
+        debugUploadCliente('STATUS_OPERACAO_RECUPERADA_POR_ID', {
+          uploadId: item.operacaoId,
+          mediaType: 'STATUS'
+        }, {
+          maquina: item.maquina,
+          status: consulta.resposta.status,
+          tentativaConsulta: i + 1
+        });
+        return consulta.resposta;
+      }
+    } catch (erroConsulta) {
+      debugUploadCliente('STATUS_OPERACAO_CONSULTA_FALHOU', {
+        uploadId: item.operacaoId,
+        mediaType: 'STATUS'
+      }, {
+        tentativaConsulta: i + 1,
+        erro: erroConsulta && erroConsulta.message ? erroConsulta.message : String(erroConsulta)
+      });
+    }
+    if (i < total - 1) await aguardarPausaStatusRA_(1200);
+  }
+  return null;
+}
+
+/* Primeiro tenta a gravação normal. Se a resposta se perder, consulta o Operação ID.
+   Somente se não existir registro, reenvia exatamente o mesmo ID (idempotência no servidor). */
+async function enviarStatusComRecuperacaoRA_(item) {
+  try {
+    return await enviarStatusMaquinaJsonp_(item);
+  } catch (erroInicial) {
+    if (erroInicial && erroInicial.statusServidor) throw erroInicial;
+
+    debugUploadCliente('STATUS_TRANSPORTE_SEM_RESPOSTA_RECONCILIANDO', {
+      uploadId: item.operacaoId,
+      mediaType: 'STATUS'
+    }, {
+      maquina: item.maquina,
+      status: item.novoStatus,
+      erro: erroInicial && erroInicial.message ? erroInicial.message : String(erroInicial)
+    });
+
+    const recuperada = await reconciliarStatusOperacaoRA_(item, 2);
+    if (recuperada) return recuperada;
+
+    try {
+      debugUploadCliente('STATUS_REENVIO_IDEMPOTENTE', {
+        uploadId: item.operacaoId,
+        mediaType: 'STATUS'
+      }, {
+        maquina: item.maquina,
+        status: item.novoStatus
+      });
+      return await enviarStatusMaquinaJsonp_(item);
+    } catch (erroReenvio) {
+      if (erroReenvio && erroReenvio.statusServidor) throw erroReenvio;
+
+      const recuperadaAposReenvio = await reconciliarStatusOperacaoRA_(item, 2);
+      if (recuperadaAposReenvio) return recuperadaAposReenvio;
+
+      const erroFinal = erroReenvio instanceof Error ? erroReenvio : new Error(String(erroReenvio));
+      erroFinal.confirmacaoIncerta = true;
+      erroFinal.operacaoId = item.operacaoId;
+      erroFinal.message = 'Não foi possível receber a confirmação, mesmo após consultar a planilha e repetir a mesma operação. Não faça outra atualização com um novo identificador. A operação ficará na fila para nova reconciliação.';
+      throw erroFinal;
+    }
+  }
+}
+
+
 function enviarStatusMaquinaJsonp_(
   item
 ) {
@@ -6190,12 +6348,12 @@ function enviarStatusMaquinaJsonp_(
 
             reject(
               new Error(
-                'O Apps Script não respondeu em 15 segundos. Verifique se a implantação atual do Web App é a mesma URL usada no GitHub.'
+                'O Apps Script não respondeu em 22 segundos. O aplicativo consultará o identificador da operação na planilha antes de tentar novamente.'
               )
             );
 
           },
-          15000
+          22000
         );
 
       function limpar() {
@@ -6264,7 +6422,7 @@ function enviarStatusMaquinaJsonp_(
               ? dados.erro
               : 'Apps Script respondeu sem confirmação de sucesso.'
           );
-          erroServidor.statusServidor = true;
+          erroServidor.statusServidor = !erroStatusServidorEhTransitorioRA_(erroServidor.message);
           reject(erroServidor);
 
         }
@@ -13798,7 +13956,7 @@ async function salvarStatusMaquina() {
     atualizarStatusAudioUI();
     if (mensagem) mensagem.textContent = '⏳ Confirmando status atual no servidor...';
     try {
-      const aguardando = aguardarConfirmacaoStatusRA_(operacaoId, 25000);
+      const aguardando = aguardarConfirmacaoStatusRA_(operacaoId, 90000);
       await salvarStatusMaquinaEmSegundoPlano(statusAtual, operadorStatusSelecionado, '', '', '', 'MANTER_STATUS', operacaoId, detalhamentoAtual, produtoMoldeAtual);
       const resposta = await aguardando;
       if (!resposta || !resposta.sucesso) throw new Error('O servidor não confirmou o status atual.');
@@ -13811,7 +13969,27 @@ async function salvarStatusMaquina() {
       avancarAposAtualizacaoStatus_(statusAtual, maquinaNoInicio);
     } catch (erro) {
       statusAtualizacaoEmAndamento = false;
-      if (mensagem) mensagem.textContent = '❌ Não foi possível confirmar o status: ' + (erro && erro.message ? erro.message : String(erro));
+      if (erro && erro.confirmacaoIncerta) {
+        statusServidorCarregado = false;
+        atualizarVisibilidadeFluxoProducao_();
+        if (mensagem) mensagem.textContent = '⚠️ Confirmação pendente. Consultando o status real da máquina; não repita a operação.';
+        const dadosAtualizados = await carregarStatusMaquina(true).catch(function(){ return null; });
+        if (dadosAtualizados && dadosAtualizados.sucesso) {
+          statusServidorCarregado = true;
+          statusConfirmadoLocalEm = Date.now();
+          atualizarStatusMaquinaUI();
+          atualizarVisibilidadeFluxoProducao_();
+          const statusRecuperado = normalizarStatusMaquinaUI_(dadosAtualizados.status || statusAtual);
+          if (statusRecuperado === statusAtual) {
+            if (mensagem) mensagem.textContent = '✅ Status atual confirmado diretamente pelo servidor. Prosseguindo na sequência.';
+            avancarAposAtualizacaoStatus_(statusRecuperado, maquinaNoInicio);
+          } else if (mensagem) {
+            mensagem.textContent = '✅ Status recuperado do servidor: ' + statusRecuperado + '. Confira antes de continuar.';
+          }
+        }
+      } else if (mensagem) {
+        mensagem.textContent = '❌ Não foi possível confirmar o status: ' + (erro && erro.message ? erro.message : String(erro));
+      }
       atualizarStatusAudioUI();
     }
     return;
@@ -13843,7 +14021,7 @@ async function salvarStatusMaquina() {
     }
 
     // O estado local não é confirmado nem a tela avança antes da resposta positiva do Apps Script.
-    const aguardando = aguardarConfirmacaoStatusRA_(operacaoId, 25000);
+    const aguardando = aguardarConfirmacaoStatusRA_(operacaoId, 90000);
     await salvarStatusMaquinaEmSegundoPlano(
       statusNovo, operadorStatusSelecionado, '', audioUrl, audioId,
       'ALTERAR_STATUS', operacaoId, detalhamentoNovo, produtoMoldeNovo
@@ -13901,8 +14079,40 @@ async function salvarStatusMaquina() {
     if (mensagem) mensagem.textContent = '✅ Status ' + statusOperacionalMaquina + ' confirmado pelo servidor.';
     avancarAposAtualizacaoStatus_(statusOperacionalMaquina, maquinaNoInicio);
   } catch (erro) {
-    // Mantém a máquina na tela e restaura o último status efetivamente confirmado.
+    // Resultado incerto: não presumir status anterior nem liberar inspeção.
     statusAtualizacaoEmAndamento = false;
+    if (erro && erro.confirmacaoIncerta) {
+      statusServidorCarregado = false;
+      statusConfirmadoLocalEm = null;
+      atualizarVisibilidadeFluxoProducao_();
+      atualizarStatusAudioUI();
+      if (mensagem) mensagem.textContent = '⚠️ Confirmação ainda pendente. O registro permanece protegido na fila. Consultando o status real da máquina; não repita a operação.';
+      try {
+        const dadosAtualizados = await carregarStatusMaquina(true);
+        if (dadosAtualizados && dadosAtualizados.sucesso) {
+          statusServidorCarregado = true;
+          statusConfirmadoLocalEm = Date.now();
+          atualizarStatusMaquinaUI();
+          atualizarVisibilidadeFluxoProducao_();
+          const statusRecuperado = normalizarStatusMaquinaUI_(dadosAtualizados.status || 'PRODUZINDO');
+          if (statusRecuperado === statusNovo && statusNovo !== 'PRODUZINDO') {
+            statusAudioConcluido = true;
+            if (mensagem) mensagem.textContent = '✅ A alteração foi localizada no servidor. Prosseguindo para a próxima máquina.';
+            avancarAposAtualizacaoStatus_(statusRecuperado, maquinaNoInicio);
+          } else if (mensagem) {
+            mensagem.textContent = '✅ Estado atual recuperado diretamente do servidor: ' + statusRecuperado + '. Confira a máquina antes de continuar.';
+          }
+        } else {
+          statusServidorCarregado = false;
+          atualizarVisibilidadeFluxoProducao_();
+        }
+      } catch (erroConsultaFinal) {
+        statusServidorCarregado = false;
+        atualizarVisibilidadeFluxoProducao_();
+      }
+      return;
+    }
+    // Rejeição explícita do servidor: manter o último status confirmado.
     statusSelecionadoMaquina = statusAtual;
     const seletorStatus = document.getElementById('machineStatusSelector');
     if (seletorStatus) seletorStatus.value = statusAtual;
@@ -15694,7 +15904,7 @@ async function manterStatusAtual() {
   if (mensagem) mensagem.textContent = '⏳ Confirmando status atual no servidor...';
 
   try {
-    const aguardando = aguardarConfirmacaoStatusRA_(operacaoId, 25000);
+    const aguardando = aguardarConfirmacaoStatusRA_(operacaoId, 90000);
     await salvarStatusMaquinaEmSegundoPlano(statusAtual, operador, '', '', '', 'MANTER_STATUS', operacaoId, detalheAtual, moldeSelecionado);
     const resposta = await aguardando;
     if (!resposta || !resposta.sucesso) throw new Error('O servidor não confirmou a manutenção do status.');
