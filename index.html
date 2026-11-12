@@ -3444,6 +3444,10 @@ let statusAudioGravando = false;
 let statusAudioConcluido = false;
 let statusAudioBlob = null;
 let statusAudioUploadId = null;
+let statusPendenteMaquinaRA_ = '';
+let processandoFilaAudioStatusRA_ = false;
+const STORAGE_STATUS_AUDIO_OUTBOX_RA_ = 'ra_polymers_status_audio_outbox_v1';
+const STORAGE_STATUS_AVISOS_RA_ = 'ra_polymers_status_avisos_v1';
 let statusAudioContextoRA_ = '';
 let statusAudioTimer = null;
 let statusAudioSegundos = 0;
@@ -4227,7 +4231,7 @@ const VERSAO_DB_VIDEO =
   4;
 
 const VERSAO_APLICACAO =
-  'V13.124';
+  'V13.135';
 
 const STORE_JOBS =
   'jobs';
@@ -6004,6 +6008,15 @@ async function processarFilaStatus() {
           item.operacaoId
         );
 
+        registrarDiagnosticoStatusRA_('STATUS_SERVIDOR_CONFIRMOU', item, {
+          tentativa: item.attempts,
+          status: resposta && resposta.status || item.novoStatus
+        });
+        limparAvisoFilaStatusRA_(item.operacaoId);
+        if (normalizarMaquinaChave_(statusPendenteMaquinaRA_) === normalizarMaquinaChave_(item.maquina || '')) {
+          statusPendenteMaquinaRA_ = '';
+        }
+
         concluirConfirmacaoStatusRA_(item.operacaoId, null, resposta);
 
         /* V13.98 — a resposta do servidor é a confirmação real.
@@ -6047,6 +6060,7 @@ async function processarFilaStatus() {
             if (statusOperacionalMaquina === 'PRODUZINDO') {
               try { carregarUltimaInspecaoMaquina(); } catch (e) {}
             }
+            try { avancarAposAtualizacaoStatus_(statusOperacionalMaquina, item.maquina); } catch (e) {}
           }
         } catch (erroConfirmacaoUI) {}
 
@@ -6092,6 +6106,20 @@ async function processarFilaStatus() {
         await salvarStatusOutboxLocal(
           item
         );
+
+        if (erro && erro.statusServidor) {
+          registrarDiagnosticoStatusRA_('STATUS_SERVIDOR_REJEITOU', item, { tentativa: item.attempts, erro: mensagemErro });
+          limparAvisoFilaStatusRA_(item.operacaoId);
+          atualizarAvisoFilaStatusRA_(item, 'Falha ao registrar o status de ' + String(item.maquina || '').replace(/^M/, 'M-') + ': ' + mensagemErro + '. Reabra a máquina pelo NFC e confira o status real.', 'error');
+          if (normalizarMaquinaChave_(statusPendenteMaquinaRA_) === normalizarMaquinaChave_(item.maquina || '')) {
+            statusPendenteMaquinaRA_ = '';
+            statusServidorCarregado = false;
+            try { carregarStatusMaquina(true); } catch (e) {}
+          }
+        } else {
+          registrarDiagnosticoStatusRA_('STATUS_TRANSPORTE_PENDENTE', item, { tentativa: item.attempts, erro: mensagemErro });
+          atualizarAvisoFilaStatusRA_(item, 'Status de ' + String(item.maquina || '').replace(/^M/, 'M-') + ' aguardando sincronização. Não repita a atualização.', 'warning');
+        }
 
         /* Em timeout/rede, não rejeitar ainda o waiter: o ID continuará
            na fila e uma próxima tentativa poderá concluir a mesma operação. */
@@ -9734,7 +9762,7 @@ function atualizarVisibilidadeFluxoProducao_() {
   const voltarBtn = document.getElementById('btnVoltarPendenciasStatusRA');
   const temMaquina = Boolean(String(maquina || '').trim()) && Boolean(maquinaValida) && Boolean(nfcMaquinaLiberadaRA_);
   const statusAtual = normalizarStatusMaquinaUI_(statusOperacionalMaquina || '');
-  const podeInspecionar = temMaquina && statusServidorCarregado && statusAtual === 'PRODUZINDO';
+  const podeInspecionar = temMaquina && statusServidorCarregado && statusAtual === 'PRODUZINDO' && !(Boolean(statusPendenteMaquinaRA_) && normalizarMaquinaChave_(statusPendenteMaquinaRA_) === normalizarMaquinaChave_(maquina));
 
   [productCard, conformidadeCard, startCard, alarmCard].forEach(function(el) {
     if (!el) return;
@@ -10581,6 +10609,8 @@ async function selecionarMaquinaProvisoria() {
    * dados específicos da máquina são carregados em paralelo.
    * Se já houver cache, as funções retornam imediatamente.
    */
+  await verificarStatusPendenteLocalDaMaquinaRA_(novaMaquina);
+
   const ultimaPromise =
     carregarUltimaInspecaoMaquina();
 
@@ -13040,6 +13070,277 @@ function liberarObrigatoriedadeStatusAposSalvar() {
 
 
 
+function registrarDiagnosticoStatusRA_(etapa, item, detalhes) {
+  const registro = {
+    dataHora: new Date().toLocaleString('pt-BR'),
+    etapa: String(etapa || ''),
+    uploadId: String(item && (item.operacaoId || item.uploadId) || ''),
+    mediaType: 'STATUS',
+    status: String(item && (item.novoStatus || item.statusMaquina || item.status) || ''),
+    detalhes: detalhes || {}
+  };
+  try {
+    const chave = 'DEBUG_STATUS_LOCAL';
+    const lista = JSON.parse(localStorage.getItem(chave) || '[]');
+    lista.push(registro);
+    localStorage.setItem(chave, JSON.stringify(lista.slice(-200)));
+  } catch (erro) {}
+  // Também aparece no visualizador DEBUG_UPLOAD já existente.
+  try {
+    const chave = 'DEBUG_UPLOAD_LOCAL';
+    const lista = JSON.parse(localStorage.getItem(chave) || '[]');
+    lista.push(registro);
+    localStorage.setItem(chave, JSON.stringify(lista.slice(-200)));
+  } catch (erro) {}
+}
+
+function lerFilaAudioStatusRA_() {
+  try {
+    const dados = JSON.parse(localStorage.getItem(STORAGE_STATUS_AUDIO_OUTBOX_RA_) || '[]');
+    return Array.isArray(dados) ? dados : [];
+  } catch (erro) {
+    return [];
+  }
+}
+
+function salvarFilaAudioStatusRA_(itens) {
+  const lista = Array.isArray(itens) ? itens : [];
+  const conteudo = JSON.stringify(lista);
+  // Reserva margem para os demais dados do aplicativo no localStorage.
+  if (conteudo.length > 3800000) {
+    throw new Error('A fila local de justificativas está cheia. Envie os áudios pendentes antes de gravar outra justificativa.');
+  }
+  localStorage.setItem(STORAGE_STATUS_AUDIO_OUTBOX_RA_, conteudo);
+}
+
+function atualizarAvisoFilaStatusRA_(item, mensagem, tipo) {
+  const id = String(item && (item.operacaoId || item.uploadId) || ('aviso_' + Date.now()));
+  let avisos = [];
+  try { avisos = JSON.parse(localStorage.getItem(STORAGE_STATUS_AVISOS_RA_) || '[]') || []; } catch (erro) { avisos = []; }
+  avisos = avisos.filter(function(aviso) { return String(aviso.id) !== id; });
+  avisos.push({ id: id, maquina: String(item && item.maquina || ''), mensagem: String(mensagem || ''), tipo: tipo || 'warning', atualizadoEm: Date.now() });
+  try { localStorage.setItem(STORAGE_STATUS_AVISOS_RA_, JSON.stringify(avisos.slice(-20))); } catch (erro) {}
+  mostrarAvisoFilaStatusRA_(avisos[avisos.length - 1]);
+}
+
+function limparAvisoFilaStatusRA_(id) {
+  let avisos = [];
+  try { avisos = JSON.parse(localStorage.getItem(STORAGE_STATUS_AVISOS_RA_) || '[]') || []; } catch (erro) { avisos = []; }
+  avisos = avisos.filter(function(aviso) { return String(aviso.id) !== String(id); });
+  try { localStorage.setItem(STORAGE_STATUS_AVISOS_RA_, JSON.stringify(avisos)); } catch (erro) {}
+  const elemento = document.getElementById('avisoFilaStatusRA');
+  if (avisos.length) mostrarAvisoFilaStatusRA_(avisos[avisos.length - 1]);
+  else if (elemento && elemento.parentNode) elemento.parentNode.removeChild(elemento);
+}
+
+function mostrarAvisoFilaStatusRA_(aviso) {
+  if (!aviso || !aviso.mensagem) return;
+  let elemento = document.getElementById('avisoFilaStatusRA');
+  if (!elemento) {
+    elemento = document.createElement('div');
+    elemento.id = 'avisoFilaStatusRA';
+    elemento.setAttribute('role', 'status');
+    elemento.style.cssText = 'position:fixed;left:12px;right:12px;bottom:14px;z-index:2147483000;padding:12px 14px;border-radius:12px;box-shadow:0 4px 18px rgba(0,0,0,.22);font:700 13px/1.4 Arial,sans-serif;display:flex;gap:10px;align-items:center;justify-content:space-between;';
+    document.body.appendChild(elemento);
+  }
+  elemento.style.background = aviso.tipo === 'error' ? '#FDECEA' : '#FFF4D6';
+  elemento.style.color = aviso.tipo === 'error' ? '#9B1C1C' : '#704D00';
+  elemento.innerHTML = '';
+  const texto = document.createElement('span');
+  texto.textContent = aviso.mensagem;
+  texto.style.flex = '1';
+  const fechar = document.createElement('button');
+  fechar.type = 'button';
+  fechar.textContent = 'OK';
+  fechar.style.cssText = 'border:0;border-radius:8px;padding:8px 10px;font-weight:800;background:rgba(0,0,0,.08);color:inherit;';
+  fechar.onclick = function() { if (elemento.parentNode) elemento.parentNode.removeChild(elemento); };
+  elemento.appendChild(texto);
+  elemento.appendChild(fechar);
+}
+
+function restaurarAvisosFilaStatusRA_() {
+  try {
+    const avisos = JSON.parse(localStorage.getItem(STORAGE_STATUS_AVISOS_RA_) || '[]') || [];
+    if (avisos.length) mostrarAvisoFilaStatusRA_(avisos[avisos.length - 1]);
+  } catch (erro) {}
+}
+
+async function prepararAudioStatusNaFilaRA_(contexto) {
+  const blob = statusAudioBlob;
+  if (!blob || !blob.size || !statusAudioConcluido) {
+    throw new Error('A justificativa de áudio não está disponível ou está vazia. Grave novamente os 15 segundos.');
+  }
+  registrarDiagnosticoStatusRA_('STATUS_AUDIO_PREPARACAO_INICIO', contexto, { bytes: blob.size });
+  const base64 = await blobParaBase64(blob);
+  if (!base64) throw new Error('A conversão da justificativa de áudio resultou vazia.');
+  const uploadId = criarIdUpload() + '_STATUS_AUDIO';
+  const item = {
+    uploadId: uploadId,
+    operacaoId: String(contexto && contexto.operacaoId || ''),
+    maquina: normalizarMaquinaChave_(contexto && contexto.maquina || maquina),
+    operador: String(contexto && contexto.operador || operadorStatusSelecionado || ''),
+    statusMaquina: normalizarStatusMaquinaUI_(contexto && contexto.statusMaquina || (document.getElementById('machineStatusSelector') || {}).value || ''),
+    mimeType: String(statusAudioMimeType || blob.type || 'audio/webm'),
+    inicioAudio: new Date().toISOString(),
+    audioBase64: base64,
+    status: 'queued',
+    attempts: 0,
+    nextAttemptAt: 0,
+    createdAt: Date.now(),
+    updatedAt: Date.now()
+  };
+  const fila = lerFilaAudioStatusRA_();
+  fila.push(item);
+  salvarFilaAudioStatusRA_(fila);
+  statusAudioUploadId = uploadId;
+  registrarDiagnosticoStatusRA_('STATUS_AUDIO_PERSISTIDO_FILA_LOCAL', item, { caracteresBase64: base64.length, bytesBlob: blob.size });
+  return item;
+}
+
+function removerAudioStatusDaFilaRA_(uploadId) {
+  const fila = lerFilaAudioStatusRA_().filter(function(item) { return String(item.uploadId) !== String(uploadId); });
+  salvarFilaAudioStatusRA_(fila);
+}
+
+function consultarStatusAudioUmaVezRA_(item) {
+  return new Promise(function(resolve, reject) {
+    const callbackName = 'statusAudioCheck_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+    const script = document.createElement('script');
+    let finalizado = false;
+    function limpar() {
+      clearTimeout(timeoutId);
+      try { delete window[callbackName]; } catch (erro) {}
+      try { if (script.parentNode) script.parentNode.removeChild(script); } catch (erro) {}
+    }
+    const timeoutId = setTimeout(function() {
+      if (finalizado) return;
+      finalizado = true;
+      limpar();
+      reject(new Error('Consulta rápida do áudio excedeu o tempo limite.'));
+    }, 6000);
+    window[callbackName] = function(dados) {
+      if (finalizado) return;
+      finalizado = true;
+      limpar();
+      if (!dados || dados.sucesso !== true) {
+        reject(new Error(dados && dados.erro ? dados.erro : 'Resposta inválida na consulta rápida do áudio.'));
+        return;
+      }
+      resolve(dados);
+    };
+    script.onerror = function() {
+      if (finalizado) return;
+      finalizado = true;
+      limpar();
+      reject(new Error('Falha de rede na consulta rápida do áudio.'));
+    };
+    const params = new URLSearchParams();
+    params.set('status', 'statusAudio');
+    params.set('uploadId', item.uploadId);
+    params.set('maquina', item.maquina);
+    params.set('operador', item.operador);
+    params.set('statusMaquina', item.statusMaquina);
+    params.set('callback', callbackName);
+    params.set('_', String(Date.now()));
+    script.async = true;
+    script.src = URL_APPS_SCRIPT + '?' + params.toString();
+    document.head.appendChild(script);
+  });
+}
+
+async function enviarAudioStatusJobRA_(item) {
+  let consulta = null;
+  try { consulta = await consultarStatusAudioUmaVezRA_(item); } catch (erroConsulta) {}
+  if (consulta && consulta.pronto && consulta.idArquivo) return consulta;
+
+  const params = new URLSearchParams();
+  params.set('tipo', 'STATUS_AUDIO');
+  params.set('uploadId', item.uploadId);
+  params.set('maquina', item.maquina);
+  params.set('operador', item.operador);
+  params.set('statusMaquina', item.statusMaquina);
+  params.set('mimeType', item.mimeType || 'audio/webm');
+  params.set('inicioAudio', item.inicioAudio || new Date().toISOString());
+  params.set('audioBase64', item.audioBase64);
+
+  registrarDiagnosticoStatusRA_('STATUS_AUDIO_ENVIO_INICIO', item, { caracteresBase64: String(item.audioBase64 || '').length });
+  await enviarStatusAudioPorFormulario(params, item.uploadId);
+  registrarDiagnosticoStatusRA_('STATUS_AUDIO_FORM_SUBMETIDO', item, {});
+  return await aguardarAudioStatusResultado(item.uploadId, item.maquina, item.operador, item.statusMaquina);
+}
+
+async function processarFilaAudioStatusRA_() {
+  if (processandoFilaAudioStatusRA_ || navigator.onLine === false) return;
+  processandoFilaAudioStatusRA_ = true;
+  try {
+    let fila = lerFilaAudioStatusRA_();
+    for (let i = 0; i < fila.length; i++) {
+      const item = fila[i];
+      if (!item || !item.uploadId) continue;
+      if (item.nextAttemptAt && Date.now() < Number(item.nextAttemptAt)) continue;
+      item.status = 'sending';
+      item.attempts = Number(item.attempts || 0) + 1;
+      item.updatedAt = Date.now();
+      fila[i] = item;
+      salvarFilaAudioStatusRA_(fila);
+      try {
+        const resultado = await enviarAudioStatusJobRA_(item);
+        fila = lerFilaAudioStatusRA_().filter(function(outro) { return String(outro.uploadId) !== String(item.uploadId); });
+        salvarFilaAudioStatusRA_(fila);
+        registrarDiagnosticoStatusRA_('STATUS_AUDIO_ENVIO_CONFIRMADO', item, { idArquivo: resultado && resultado.idArquivo || '', urlDisponivel: Boolean(resultado && resultado.url) });
+        limparAvisoFilaStatusRA_(item.uploadId);
+      } catch (erro) {
+        const filaAtual = lerFilaAudioStatusRA_();
+        const posicao = filaAtual.findIndex(function(outro) { return String(outro.uploadId) === String(item.uploadId); });
+        if (posicao >= 0) {
+          filaAtual[posicao].status = 'queued';
+          filaAtual[posicao].lastError = erro && erro.message ? erro.message : String(erro);
+          filaAtual[posicao].nextAttemptAt = Date.now() + Math.min(60000, 15000 * Math.max(1, Number(item.attempts || 1)));
+          filaAtual[posicao].updatedAt = Date.now();
+          salvarFilaAudioStatusRA_(filaAtual);
+        }
+        registrarDiagnosticoStatusRA_('STATUS_AUDIO_ENVIO_PENDENTE', item, { tentativa: item.attempts, erro: erro && erro.message ? erro.message : String(erro) });
+        atualizarAvisoFilaStatusRA_(item, 'Status de ' + item.maquina.replace(/^M/, 'M-') + ' registrado. Justificativa de áudio aguardando envio ao Drive.', 'warning');
+        break;
+      }
+      fila = lerFilaAudioStatusRA_();
+    }
+  } catch (erroGeral) {
+    registrarDiagnosticoStatusRA_('STATUS_AUDIO_FILA_ERRO', null, { erro: erroGeral && erroGeral.message ? erroGeral.message : String(erroGeral) });
+  } finally {
+    processandoFilaAudioStatusRA_ = false;
+  }
+}
+
+function iniciarFilaAudioStatusPeriodicaRA_() {
+  if (window.__statusAudioOutboxIntervalRA) clearInterval(window.__statusAudioOutboxIntervalRA);
+  window.__statusAudioOutboxIntervalRA = setInterval(function() {
+    processarFilaAudioStatusRA_().catch(function() {});
+  }, 12000);
+}
+
+async function verificarStatusPendenteLocalDaMaquinaRA_(maquinaValor) {
+  const chave = normalizarMaquinaChave_(maquinaValor || '');
+  if (!chave) return false;
+  try {
+    const fila = await listarStatusOutboxLocais();
+    const pendente = fila.find(function(item) {
+      return item && normalizarMaquinaChave_(item.maquina || '') === chave && item.status !== 'failed';
+    });
+    if (pendente) {
+      statusPendenteMaquinaRA_ = chave;
+      statusServidorCarregado = false;
+      registrarDiagnosticoStatusRA_('STATUS_PENDENTE_LOCAL_RESTAURADO', pendente, {});
+      atualizarAvisoFilaStatusRA_(pendente, 'A atualização de status de ' + chave.replace(/^M/, 'M-') + ' ainda está sincronizando. A inspeção ficará bloqueada até a confirmação.', 'warning');
+      return true;
+    }
+    if (normalizarMaquinaChave_(statusPendenteMaquinaRA_) === chave) statusPendenteMaquinaRA_ = '';
+  } catch (erro) {
+    registrarDiagnosticoStatusRA_('STATUS_PENDENTE_LOCAL_CONSULTA_ERRO', { maquina: chave }, { erro: erro && erro.message ? erro.message : String(erro) });
+  }
+  return false;
+}
+
 function enviarStatusAudioPorFormulario(
   params,
   uploadId
@@ -13762,16 +14063,10 @@ async function salvarStatusMaquinaEmSegundoPlano(
     });
   }
   catch (erroOutbox) {
-    debugUploadCliente(
-      'STATUS_OUTBOX_GRAVACAO_ERRO',
-      {
-        uploadId: operacaoId,
-        mediaType: 'STATUS'
-      },
-      {
-        erro: erroOutbox && erroOutbox.message ? erroOutbox.message : String(erroOutbox)
-      }
-    );
+    registrarDiagnosticoStatusRA_('STATUS_OUTBOX_GRAVACAO_ERRO', item, {
+      erro: erroOutbox && erroOutbox.message ? erroOutbox.message : String(erroOutbox)
+    });
+    throw erroOutbox;
   }
 
   return item;
@@ -13916,9 +14211,9 @@ async function salvarStatusMaquina() {
     if (mensagem) mensagem.textContent = '❌ Máquina, operador ou status não disponível.';
     return;
   }
-  if (statusAtualizacaoEmAndamento || statusTrocaMaquinaEmAndamento) return;
+  if (statusAtualizacaoEmAndamento || statusTrocaMaquinaEmAndamento || Boolean(statusPendenteMaquinaRA_) && normalizarMaquinaChave_(statusPendenteMaquinaRA_) === normalizarMaquinaChave_(maquina)) return;
 
-  const maquinaNoInicio = maquina;
+  const maquinaNoInicio = normalizarMaquinaChave_(maquina);
   const statusAtual = normalizarStatusMaquinaUI_(statusAnteriorMaquina);
   const statusNovo = normalizarStatusMaquinaUI_(seletor.value || statusAtual);
   const defectSelect = document.getElementById('machineDefectSelector');
@@ -13949,205 +14244,127 @@ async function salvarStatusMaquina() {
     atualizarStatusAudioUI();
     return;
   }
-
-  // Sem alteração: manter status atual, mas confirmar no servidor antes de avançar.
-  if (!statusMudou) {
-    const operacaoId = 'ST_KEEP_' + Date.now() + '_' + Math.random().toString(36).substring(2,8);
-    statusAtualizacaoEmAndamento = true;
-    atualizarStatusAudioUI();
-    if (mensagem) mensagem.textContent = '⏳ Confirmando status atual no servidor...';
-    try {
-      const aguardando = aguardarConfirmacaoStatusRA_(operacaoId, 90000);
-      await salvarStatusMaquinaEmSegundoPlano(statusAtual, operadorStatusSelecionado, '', '', '', 'MANTER_STATUS', operacaoId, detalhamentoAtual, produtoMoldeAtual);
-      const resposta = await aguardando;
-      if (!resposta || !resposta.sucesso) throw new Error('O servidor não confirmou o status atual.');
-      statusServidorCarregado = true;
-      statusAtualizadoEm = resposta.atualizadoEm || new Date().toISOString();
-      statusConfirmadoLocalEm = Date.now();
-      statusAtualizacaoObrigatoria = false;
-      liberarObrigatoriedadeStatusAposSalvar();
-      if (mensagem) mensagem.textContent = '✅ Status atual confirmado no servidor.';
-      avancarAposAtualizacaoStatus_(statusAtual, maquinaNoInicio);
-    } catch (erro) {
-      statusAtualizacaoEmAndamento = false;
-      if (erro && erro.confirmacaoIncerta) {
-        statusServidorCarregado = false;
-        atualizarVisibilidadeFluxoProducao_();
-        if (mensagem) mensagem.textContent = '⚠️ Confirmação pendente. Consultando o status real da máquina; não repita a operação.';
-        const dadosAtualizados = await carregarStatusMaquina(true).catch(function(){ return null; });
-        if (dadosAtualizados && dadosAtualizados.sucesso) {
-          statusServidorCarregado = true;
-          statusConfirmadoLocalEm = Date.now();
-          atualizarStatusMaquinaUI();
-          atualizarVisibilidadeFluxoProducao_();
-          const statusRecuperado = normalizarStatusMaquinaUI_(dadosAtualizados.status || statusAtual);
-          if (statusRecuperado === statusAtual) {
-            if (mensagem) mensagem.textContent = '✅ Status atual confirmado diretamente pelo servidor. Prosseguindo na sequência.';
-            avancarAposAtualizacaoStatus_(statusRecuperado, maquinaNoInicio);
-          } else if (mensagem) {
-            mensagem.textContent = '✅ Status recuperado do servidor: ' + statusRecuperado + '. Confira antes de continuar.';
-          }
-        }
-      } else if (mensagem) {
-        mensagem.textContent = '❌ Não foi possível confirmar o status: ' + (erro && erro.message ? erro.message : String(erro));
-      }
-      atualizarStatusAudioUI();
-    }
-    return;
-  }
-
-  if (statusNovo !== 'PRODUZINDO' && !statusAudioConcluido) {
+  if (statusMudou && statusNovo !== 'PRODUZINDO' && !statusAudioConcluido) {
     if (mensagem) mensagem.textContent = '⚠️ Grave e conclua os 15 segundos de justificativa.';
     atualizarStatusAudioUI();
     return;
   }
+  if (statusMudou && statusNovo !== 'PRODUZINDO' && (!statusAudioBlob || !statusAudioBlob.size)) {
+    if (mensagem) mensagem.textContent = '⚠️ A gravação de áudio não está disponível. Grave novamente a justificativa.';
+    atualizarStatusAudioUI();
+    return;
+  }
 
-  const operacaoId = 'ST_CONF_' + Date.now() + '_' + Math.random().toString(36).substring(2,8);
-  statusSelecionadoMaquina = statusNovo;
+  const operacaoId = (statusMudou ? 'ST_CONF_' : 'ST_KEEP_') + Date.now() + '_' + Math.random().toString(36).substring(2,8);
+  const acao = statusMudou ? 'ALTERAR_STATUS' : 'MANTER_STATUS';
+  let audioJob = null;
+  let audioId = '';
+
+  statusSalvarOperacaoId = operacaoId;
   statusAtualizacaoEmAndamento = true;
+  statusPendenteMaquinaRA_ = maquinaNoInicio;
+  statusSelecionadoMaquina = statusNovo;
+  statusServidorCarregado = false;
+  atualizarVisibilidadeFluxoProducao_();
   atualizarStatusAudioUI();
-  if (mensagem) mensagem.textContent = '⏳ Salvando status e aguardando confirmação do servidor...';
-  if (botao) { botao.disabled = true; botao.textContent = '⏳ CONFIRMANDO STATUS...'; }
+  if (mensagem) mensagem.textContent = statusMudou && statusNovo !== 'PRODUZINDO'
+    ? '⏳ Preparando a justificativa no aparelho e registrando o status na fila...'
+    : '⏳ Registrando a atualização na fila local...';
+  if (botao) { botao.disabled = true; botao.textContent = '⏳ REGISTRANDO...'; }
+  registrarDiagnosticoStatusRA_('STATUS_SOLICITACAO_INICIADA', {
+    operacaoId: operacaoId, maquina: maquinaNoInicio, novoStatus: statusNovo, operador: operadorStatusSelecionado
+  }, { acao: acao, statusAnterior: statusAtual });
 
-  let audioStatusPromise = null;
-  let audioStatusUploadId = '';
   try {
-    let audioUrl = '';
-    let audioId = '';
-    if (statusNovo !== 'PRODUZINDO') {
-      if (!statusAudioBlob || !statusAudioBlob.size || !statusAudioConcluido) {
-        throw new Error('A gravação da justificativa não está disponível ou está vazia. Grave novamente os 15 segundos.');
-      }
-      audioStatusPromise = iniciarEnvioAudioStatusEmSegundoPlano();
-      const audioPreparado = await audioStatusPromise;
-      audioStatusUploadId = audioPreparado && audioPreparado.uploadId
-        ? audioPreparado.uploadId
-        : (statusAudioUploadId || '');
-      if (!audioStatusUploadId) throw new Error('O áudio foi gravado, mas não foi possível gerar o identificador de envio. Grave novamente a justificativa.');
-      audioId = 'PENDENTE_AUDIO:' + audioStatusUploadId;
+    if (statusMudou && statusNovo !== 'PRODUZINDO') {
+      audioJob = await prepararAudioStatusNaFilaRA_({
+        operacaoId: operacaoId,
+        maquina: maquinaNoInicio,
+        operador: operadorStatusSelecionado,
+        statusMaquina: statusNovo
+      });
+      audioId = 'PENDENTE_AUDIO:' + audioJob.uploadId;
     }
 
-    // O estado local não é confirmado nem a tela avança antes da resposta positiva do Apps Script.
-    const aguardando = aguardarConfirmacaoStatusRA_(operacaoId, 90000);
+    // A operação de status é persistida localmente sem aguardar upload ou confirmação do Drive.
     await salvarStatusMaquinaEmSegundoPlano(
-      statusNovo, operadorStatusSelecionado, '', audioUrl, audioId,
-      'ALTERAR_STATUS', operacaoId, detalhamentoNovo, produtoMoldeNovo
+      statusNovo,
+      operadorStatusSelecionado,
+      '',
+      '',
+      audioId,
+      acao,
+      operacaoId,
+      detalhamentoNovo,
+      produtoMoldeNovo
     );
-    const resposta = await aguardando;
-    if (!resposta || !resposta.sucesso) throw new Error('O servidor não confirmou a atualização do status.');
 
-    // Agora a resposta do servidor é a fonte de verdade.
-    statusOperacionalMaquina = normalizarStatusMaquinaUI_(resposta.status || statusNovo);
-    statusAnteriorMaquina = statusOperacionalMaquina;
-    statusSelecionadoMaquina = statusOperacionalMaquina;
-    statusServidorCarregado = true;
-    detalhamentoStatusMaquina = normalizarDefeitoPecaUI_(resposta.detalhamentoStatus || detalhamentoNovo);
-    detalhamentoStatusSelecionadoMaquina = detalhamentoStatusMaquina;
-    produtoMoldeManutencao = String(resposta.produtoMoldeManutencao || produtoMoldeNovo || '');
-    produtoMoldeSelecionado = produtoMoldeManutencao;
-    statusAtualizadoEm = resposta.atualizadoEm || new Date().toISOString();
-    statusConfirmadoLocalEm = Date.now();
-    statusAtualizacaoObrigatoria = false;
-    inicioStatusMaquina = resposta.inicioStatus || new Date().toISOString();
-    motivoParadaMaquina = resposta.motivo || (statusNovo === 'PRODUZINDO' ? 'RETORNO À PRODUÇÃO' : statusNovo);
-    responsavelStatusMaquina = resposta.operador || operadorStatusSelecionado;
-    observacaoStatusMaquina = resposta.observacao || '';
-    try { cacheStatusPorMaquina.delete(normalizarMaquinaChave_(maquinaNoInicio)); } catch (_) {}
+    registrarDiagnosticoStatusRA_('STATUS_OUTBOX_PERSISTIDO_E_LIBERADO', {
+      operacaoId: operacaoId, maquina: maquinaNoInicio, novoStatus: statusNovo
+    }, { audioUploadId: audioJob ? audioJob.uploadId : '', continuaEmSegundoPlano: true });
 
-    if (statusOperacionalMaquina === 'PRODUZINDO') {
-      removerSilencioAlarmePorStatusLocal_(maquinaNoInicio);
-      carregarUltimaInspecaoMaquina();
-      statusAudioConcluido = true;
+    if (audioJob) {
+      // O Blob já está preservado em localStorage. A interface não aguarda o Drive.
       statusAudioBlob = null;
-    } else {
-      marcarSilencioAlarmePorStatusLocal_(maquinaNoInicio, Date.now());
-      inspecaoSuspensa = false;
-      alarmeInspecaoAtivo = false;
-      pararAlarmeInspecaoContinuo();
-      atualizarAlarmeInspecaoUI();
-      statusAudioConcluido = true;
-    }
-
-    if (produtoMoldeManutencao) lembrarPecaMoldeConhecida_(maquinaNoInicio, produtoMoldeManutencao);
-    liberarObrigatoriedadeStatusAposSalvar();
-    atualizarStatusMaquinaUI();
-    atualizarSeletorPecaMoldeUI_();
-    atualizarVisibilidadeFluxoProducao_();
-    atualizarTravamentoCamposStatusAudio(false);
-    atualizarBloqueioStatusObrigatorio_();
-    try { atualizarAlarmeGlobalAposMudancaLocal_(); } catch (e) {}
-
-    if (audioStatusPromise && audioStatusUploadId) {
-      audioStatusPromise.then(function(envioAudio) {
-        return vincularAudioStatusAoRegistro(audioStatusUploadId, envioAudio && envioAudio.url ? envioAudio.url : '', envioAudio && envioAudio.idArquivo ? envioAudio.idArquivo : '');
-      }).catch(function(erro) { try { console.warn('Falha ao vincular áudio:', erro); } catch (_) {} });
-    }
-
-    if (mensagem) mensagem.textContent = '✅ Status ' + statusOperacionalMaquina + ' confirmado pelo servidor.';
-    avancarAposAtualizacaoStatus_(statusOperacionalMaquina, maquinaNoInicio);
-  } catch (erro) {
-    // Resultado incerto: não presumir status anterior nem liberar inspeção.
-    statusAtualizacaoEmAndamento = false;
-    if (erro && erro.confirmacaoIncerta) {
-      statusServidorCarregado = false;
-      statusConfirmadoLocalEm = null;
-      atualizarVisibilidadeFluxoProducao_();
-      atualizarStatusAudioUI();
-      if (mensagem) mensagem.textContent = '⚠️ Confirmação ainda pendente. O registro permanece protegido na fila. Consultando o status real da máquina; não repita a operação.';
-      try {
-        const dadosAtualizados = await carregarStatusMaquina(true);
-        if (dadosAtualizados && dadosAtualizados.sucesso) {
-          statusServidorCarregado = true;
-          statusConfirmadoLocalEm = Date.now();
-          atualizarStatusMaquinaUI();
-          atualizarVisibilidadeFluxoProducao_();
-          const statusRecuperado = normalizarStatusMaquinaUI_(dadosAtualizados.status || 'PRODUZINDO');
-          if (statusRecuperado === statusNovo && statusNovo !== 'PRODUZINDO') {
-            statusAudioConcluido = true;
-            if (mensagem) mensagem.textContent = '✅ A alteração foi localizada no servidor. Prosseguindo para a próxima máquina.';
-            avancarAposAtualizacaoStatus_(statusRecuperado, maquinaNoInicio);
-          } else if (mensagem) {
-            mensagem.textContent = '✅ Estado atual recuperado diretamente do servidor: ' + statusRecuperado + '. Confira a máquina antes de continuar.';
-          }
-        } else {
-          statusServidorCarregado = false;
-          atualizarVisibilidadeFluxoProducao_();
-        }
-      } catch (erroConsultaFinal) {
-        statusServidorCarregado = false;
-        atualizarVisibilidadeFluxoProducao_();
-      }
-      return;
-    }
-    // Rejeição explícita do servidor: manter o último status confirmado.
-    statusSelecionadoMaquina = statusAtual;
-    const seletorStatus = document.getElementById('machineStatusSelector');
-    if (seletorStatus) seletorStatus.value = statusAtual;
-    statusOperacionalMaquina = statusAtual;
-    statusAnteriorMaquina = statusAtual;
-    statusServidorCarregado = true;
-    atualizarTravamentoCamposStatusAudio(false);
-    // Preservar o áudio gravado se a falha ocorreu antes do envio.
-    if (!(statusAudioBlob && statusAudioBlob.size > 0)) {
       statusAudioConcluido = false;
-      statusAudioBlob = null;
       statusAudioUploadId = null;
       statusAudioSegundos = 0;
+      processarFilaAudioStatusRA_().catch(function(erroAudio) {
+        registrarDiagnosticoStatusRA_('STATUS_AUDIO_FILA_DISPARO_ERRO', audioJob, { erro: erroAudio && erroAudio.message ? erroAudio.message : String(erroAudio) });
+      });
     }
-    const botaoRegravarFalha = document.getElementById('btnRegravarStatusAudio');
-    if (botaoRegravarFalha) botaoRegravarFalha.style.display = 'none';
-    atualizarObrigatoriedadeAudioStatus();
-    atualizarStatusMaquinaUI();
-    atualizarStatusAudioUI();
-    if (mensagem) mensagem.textContent = '❌ Status não confirmado. A máquina não foi trocada. Motivo: ' + (erro && erro.message ? erro.message : String(erro));
-  } finally {
+
+    statusAtualizacaoEmAndamento = false;
     if (botao && document.contains(botao)) {
       botao.textContent = '💾 ATUALIZAR STATUS';
+    }
+    atualizarStatusAudioUI();
+
+    if (statusNovo !== 'PRODUZINDO') {
+      atualizarAvisoFilaStatusRA_({ operacaoId: operacaoId, maquina: maquinaNoInicio },
+        'Status de ' + maquinaNoInicio.replace(/^M/, 'M-') + ' registrado no aparelho. Sincronização com o servidor em segundo plano.', 'warning');
+      if (mensagem) mensagem.textContent = '✅ Solicitação registrada. O envio continuará em segundo plano. Próxima máquina na sequência.';
+      statusPendenteMaquinaRA_ = '';
+      avancarSequenciaMaquinaRA_(maquinaNoInicio, 'STATUS_LOCAL_QUEUE');
+    } else {
+      // PRODUZINDO só libera a inspeção após a confirmação positiva do servidor.
+      atualizarAvisoFilaStatusRA_({ operacaoId: operacaoId, maquina: maquinaNoInicio },
+        'Retorno de ' + maquinaNoInicio.replace(/^M/, 'M-') + ' para PRODUZINDO aguardando confirmação do servidor. A inspeção permanece bloqueada.', 'warning');
+      if (mensagem) mensagem.textContent = '✅ Solicitação registrada no aparelho. A inspeção será liberada assim que o servidor confirmar PRODUZINDO.';
+      atualizarVisibilidadeFluxoProducao_();
       atualizarStatusAudioUI();
     }
+
+    // Disparo explícito, independente da tela e do upload de áudio.
+    processarFilaStatus().catch(function(erroFila) {
+      registrarDiagnosticoStatusRA_('STATUS_FILA_DISPARO_ERRO', { operacaoId: operacaoId, maquina: maquinaNoInicio }, { erro: erroFila && erroFila.message ? erroFila.message : String(erroFila) });
+    });
+    return;
+
+  } catch (erro) {
+    if (audioJob) {
+      try { removerAudioStatusDaFilaRA_(audioJob.uploadId); } catch (erroRemocao) {}
+    }
+    statusAtualizacaoEmAndamento = false;
+    statusPendenteMaquinaRA_ = '';
+    statusServidorCarregado = true;
+    statusSelecionadoMaquina = statusAtual;
+    statusOperacionalMaquina = statusAtual;
+    statusAnteriorMaquina = statusAtual;
+    const seletorStatus = document.getElementById('machineStatusSelector');
+    if (seletorStatus) seletorStatus.value = statusAtual;
+    atualizarStatusMaquinaUI();
+    atualizarVisibilidadeFluxoProducao_();
+    atualizarTravamentoCamposStatusAudio(false);
+    atualizarStatusAudioUI();
+    registrarDiagnosticoStatusRA_('STATUS_FALHA_ANTES_DA_FILA', {
+      operacaoId: operacaoId, maquina: maquinaNoInicio, novoStatus: statusNovo
+    }, { erro: erro && erro.message ? erro.message : String(erro) });
+    if (mensagem) mensagem.textContent = '❌ Não foi possível registrar a solicitação no aparelho. Nada foi enviado ao servidor. Motivo: ' + (erro && erro.message ? erro.message : String(erro));
+    if (botao && document.contains(botao)) botao.textContent = '💾 ATUALIZAR STATUS';
+    return;
   }
 }
-
 
 
 
@@ -14961,7 +15178,7 @@ function atualizarStatusAudioUI() {
   const detalheIncompleto = statusSelecionado === 'PECA_DEFEITO' && !detalheSelecionado;
   const moldeIncompleto = statusSelecionado === 'MOLDE_MANUTENCAO' && !moldeSelecionadoUI;
   const referenciaIncompleta = detalheIncompleto || moldeIncompleto;
-  const transicao = Boolean(statusAtualizacaoEmAndamento || statusTrocaMaquinaEmAndamento);
+  const transicao = Boolean(statusAtualizacaoEmAndamento || statusTrocaMaquinaEmAndamento || Boolean(statusPendenteMaquinaRA_) && normalizarMaquinaChave_(statusPendenteMaquinaRA_) === normalizarMaquinaChave_(maquina));
   const podeManter = !transicao && !mudou && naoProdutivo && !referenciaIncompleta && !statusAudioGravando;
   const podeGravar = !transicao && mudou && naoProdutivo && !referenciaIncompleta && !statusAudioConcluido && !statusAudioGravando;
   const podeAtualizar = !transicao && !referenciaIncompleta && (
@@ -15008,7 +15225,7 @@ function atualizarStatusAudioUI() {
       btnSalvar.style.color = '#5B636B';
       btnSalvar.style.cursor = 'not-allowed';
       btnSalvar.style.opacity = '0.75';
-      btnSalvar.textContent = '💾 ATUALIZAR STATUS';
+      btnSalvar.textContent = Boolean(statusPendenteMaquinaRA_) && normalizarMaquinaChave_(statusPendenteMaquinaRA_) === normalizarMaquinaChave_(maquina) ? '⏳ STATUS EM SINCRONIZAÇÃO' : '💾 ATUALIZAR STATUS';
     } else {
       btnSalvar.disabled = !podeAtualizar;
       btnSalvar.style.background = podeAtualizar ? '#1976D2' : '#B8BEC4';
@@ -15040,7 +15257,7 @@ function atualizarStatusAudioUI() {
     mensagem.textContent = statusAudioGravando
       ? '🔴 Gravando justificativa...'
       : transicao
-        ? ''
+        ? (Boolean(statusPendenteMaquinaRA_) && normalizarMaquinaChave_(statusPendenteMaquinaRA_) === normalizarMaquinaChave_(maquina) ? '⏳ Status registrado no aparelho. Aguardando confirmação do servidor; a inspeção permanece bloqueada.' : '')
         : detalheIncompleto
           ? '⚠️ Selecione o tipo de defeito da peça.'
           : !mudou && naoProdutivo
@@ -21678,6 +21895,7 @@ function limparTodosOsDadosNovaInspecao() {
     'PRODUZINDO';
   statusAtualizacaoEmAndamento =
     false;
+  if (normalizarMaquinaChave_(statusPendenteMaquinaRA_) === normalizarMaquinaChave_(maquina || '')) statusPendenteMaquinaRA_ = '';
   statusTrocaMaquinaEmAndamento =
     false;
   statusTrocaMaquinaDestino =
@@ -22873,6 +23091,9 @@ document.addEventListener(
           );
 
         iniciarFilaStatusPeriodica();
+        iniciarFilaAudioStatusPeriodicaRA_();
+        restaurarAvisosFilaStatusRA_();
+        processarFilaAudioStatusRA_().catch(function() {});
         agendarUploadsEmSegundoPlano_();
 
         /* V13.69 — renova o token FCM em cada abertura. */
