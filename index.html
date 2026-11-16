@@ -4231,7 +4231,7 @@ const VERSAO_DB_VIDEO =
   4;
 
 const VERSAO_APLICACAO =
-  'V13.135';
+  'V13.137';
 
 const STORE_JOBS =
   'jobs';
@@ -5906,7 +5906,7 @@ async function removerStatusOutboxLocal(
 }
 
 
-/* V13.131 — confirmação síncrona do status antes de avançar de máquina. */
+/* V13.137 — confirmação remota independente da navegação física entre máquinas. */
 const statusConfirmacoesAguardandoRA_ = new Map();
 
 function aguardarConfirmacaoStatusRA_(operacaoId, timeoutMs) {
@@ -14214,7 +14214,7 @@ async function salvarStatusMaquina() {
   if (statusAtualizacaoEmAndamento || statusTrocaMaquinaEmAndamento || Boolean(statusPendenteMaquinaRA_) && normalizarMaquinaChave_(statusPendenteMaquinaRA_) === normalizarMaquinaChave_(maquina)) return;
 
   const maquinaNoInicio = normalizarMaquinaChave_(maquina);
-  const statusAtual = normalizarStatusMaquinaUI_(statusAnteriorMaquina);
+  const statusAtual = normalizarStatusMaquinaUI_(statusOperacionalMaquina || statusAnteriorMaquina);
   const statusNovo = normalizarStatusMaquinaUI_(seletor.value || statusAtual);
   const defectSelect = document.getElementById('machineDefectSelector');
   const detalhamentoNovo = statusNovo === 'PECA_DEFEITO' ? normalizarDefeitoPecaUI_(defectSelect ? defectSelect.value : detalhamentoStatusSelecionadoMaquina) : '';
@@ -14320,20 +14320,39 @@ async function salvarStatusMaquina() {
     }
     atualizarStatusAudioUI();
 
-    if (statusNovo !== 'PRODUZINDO') {
-      atualizarAvisoFilaStatusRA_({ operacaoId: operacaoId, maquina: maquinaNoInicio },
-        'Status de ' + maquinaNoInicio.replace(/^M/, 'M-') + ' registrado no aparelho. Sincronização com o servidor em segundo plano.', 'warning');
-      if (mensagem) mensagem.textContent = '✅ Solicitação registrada. O envio continuará em segundo plano. Próxima máquina na sequência.';
-      statusPendenteMaquinaRA_ = '';
-      avancarSequenciaMaquinaRA_(maquinaNoInicio, 'STATUS_LOCAL_QUEUE');
-    } else {
-      // PRODUZINDO só libera a inspeção após a confirmação positiva do servidor.
-      atualizarAvisoFilaStatusRA_({ operacaoId: operacaoId, maquina: maquinaNoInicio },
-        'Retorno de ' + maquinaNoInicio.replace(/^M/, 'M-') + ' para PRODUZINDO aguardando confirmação do servidor. A inspeção permanece bloqueada.', 'warning');
-      if (mensagem) mensagem.textContent = '✅ Solicitação registrada no aparelho. A inspeção será liberada assim que o servidor confirmar PRODUZINDO.';
-      atualizarVisibilidadeFluxoProducao_();
-      atualizarStatusAudioUI();
+    /*
+     * V13.137 — ROTA NÃO ESPERA CONFIRMAÇÃO REMOTA:
+     * toda alteração de status, inclusive retorno para PRODUZINDO,
+     * libera a navegação assim que a operação estiver protegida na fila local.
+     * A confirmação continua obrigatória para liberar inspeção daquela máquina.
+     * Ao retornar à máquina, verificarStatusPendenteLocalDaMaquinaRA_()
+     * consulta a fila por máquina e mantém a inspeção bloqueada até a confirmação.
+     */
+    const destinoDescricao = statusNovo === 'PRODUZINDO'
+      ? ' Retorno para PRODUZINDO pendente de confirmação; a inspeção desta máquina só será liberada após confirmação do servidor.'
+      : ' A inspeção horária permanece suspensa enquanto este status estiver vigente.';
+
+    atualizarAvisoFilaStatusRA_(
+      { operacaoId: operacaoId, maquina: maquinaNoInicio },
+      'Solicitação de status de ' + maquinaNoInicio.replace(/^M/, 'M-') + ' protegida no aparelho. Sincronização em segundo plano.' + destinoDescricao,
+      'warning'
+    );
+
+    if (mensagem) {
+      mensagem.textContent = '✅ Solicitação registrada no aparelho. Avançando para a próxima máquina; a sincronização continuará em segundo plano.';
     }
+
+    registrarDiagnosticoStatusRA_('STATUS_ROTA_LIBERADA_SEM_ESPERA_REMOTA', {
+      operacaoId: operacaoId,
+      maquina: maquinaNoInicio,
+      novoStatus: statusNovo
+    }, {
+      proximaMaquina: proximaMaquinaSequenciaRA_(maquinaNoInicio),
+      inspecaoLiberada: false,
+      motivo: 'A inspeção só será liberada após confirmação do servidor ao retornar à máquina.'
+    });
+
+    avancarSequenciaMaquinaRA_(maquinaNoInicio, 'STATUS_LOCAL_QUEUE');
 
     // Disparo explícito, independente da tela e do upload de áudio.
     processarFilaStatus().catch(function(erroFila) {
@@ -15081,7 +15100,7 @@ function atualizarObrigatoriedadeAudioStatus() {
   const defectSelect = document.getElementById('machineDefectSelector');
   if (!seletor) return;
 
-  const statusAtual = normalizarStatusMaquinaUI_(statusAnteriorMaquina);
+  const statusAtual = normalizarStatusMaquinaUI_(statusOperacionalMaquina || statusAnteriorMaquina);
   const statusSelecionado = normalizarStatusMaquinaUI_(seletor.value || statusAtual);
   const detalheAtual = statusAtual === 'PECA_DEFEITO' ? normalizarDefeitoPecaUI_(detalhamentoStatusMaquina) : '';
   const detalheSelecionado = statusSelecionado === 'PECA_DEFEITO' ? normalizarDefeitoPecaUI_(defectSelect ? defectSelect.value : detalhamentoStatusSelecionadoMaquina) : '';
@@ -15163,7 +15182,7 @@ function atualizarStatusAudioUI() {
       .padStart(2, '0') + ' / 15s';
   }
 
-  const statusAtual = normalizarStatusMaquinaUI_(statusAnteriorMaquina);
+  const statusAtual = normalizarStatusMaquinaUI_(statusOperacionalMaquina || statusAnteriorMaquina);
   const statusSelecionado = normalizarStatusMaquinaUI_(
     statusSelecionadoMaquina ||
     (document.getElementById('machineStatusSelector') || {}).value ||
@@ -16132,7 +16151,7 @@ async function manterStatusAtual() {
   const defeitoSelect = document.getElementById('machineDefectSelector');
   const maquinaNoInicio = maquina;
 
-  const statusAtual = normalizarStatusMaquinaUI_(statusAnteriorMaquina);
+  const statusAtual = normalizarStatusMaquinaUI_(statusOperacionalMaquina || statusAnteriorMaquina);
   const statusSelecionado = normalizarStatusMaquinaUI_(seletor ? seletor.value : statusAtual);
   const detalheAtual = statusAtual === 'PECA_DEFEITO' ? normalizarDefeitoPecaUI_(detalhamentoStatusMaquina || (defeitoSelect ? defeitoSelect.value : '')) : '';
   const detalheSelecionado = statusSelecionado === 'PECA_DEFEITO' ? normalizarDefeitoPecaUI_(defeitoSelect ? defeitoSelect.value : '') : '';
